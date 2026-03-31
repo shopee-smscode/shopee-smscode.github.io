@@ -56,6 +56,9 @@ function loginAccount(accountName) {
     activeAccountName = accountName;
     currentAccountName.innerText = accountName;
     
+    // Simpan sesi login agar tidak hilang saat di-refresh
+    localStorage.setItem('savedAccountName', accountName);
+    
     accountView.classList.add('hidden');
     appView.classList.remove('hidden');
 
@@ -67,6 +70,9 @@ function loginAccount(accountName) {
 btnSwitchAccount.onclick = () => {
     if (timerInterval) clearInterval(timerInterval);
     if (pollingInterval) clearInterval(pollingInterval);
+    
+    // Hapus sesi login saat ganti akun
+    localStorage.removeItem('savedAccountName');
     
     appView.classList.add('hidden');
     accountView.classList.remove('hidden');
@@ -100,7 +106,7 @@ function saveToStorage() {
 }
 
 // ==========================================
-// FUNGSI UI BARU (TOAST NOTIFIKASI)
+// FUNGSI UI (TOAST NOTIFIKASI)
 // ==========================================
 function showToast(pesan) {
     const toast = document.getElementById("toast");
@@ -114,9 +120,9 @@ function showToast(pesan) {
 
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
-        showToast("Nomor " + text + " berhasil disalin!");
+        showToast("Berhasil disalin!"); // Notifikasi ringkas
     }).catch(err => {
-        showToast("Gagal menyalin nomor.");
+        showToast("Gagal disalin."); // Notifikasi ringkas
     });
 }
 
@@ -229,10 +235,10 @@ btnOrder.onclick = async () => {
             startPollingAndTimer(); 
             fetchBalance(); 
         } else {
-            showToast(`Gagal: ${res.error.message}`);
+            showToast(`Gagal: ${res.error.message}`); // Notifikasi error via Toast
         }
     } catch (error) {
-        showToast("Terjadi kesalahan jaringan.");
+        showToast("Kesalahan jaringan."); // Notifikasi ringkas
     }
     
     btnOrder.innerText = originalText;
@@ -411,7 +417,7 @@ window.cancelSpecificOrder = async function(orderId) {
             saveToStorage();
             fetchBalance(); 
         } else {
-            showToast(`Gagal Batal: ${res.error.message}`);
+            showToast(`Gagal dibatalkan.`); // Notifikasi ringkas
             if (btnCancel) btnCancel.disabled = false;
         }
     } catch (error) {
@@ -452,6 +458,15 @@ function initMainApp() {
     }
 }
 
+// Cek Sesi Tersimpan Saat Halaman Dimuat
 window.onload = () => {
-    fetchAccounts();
+    const savedAccount = localStorage.getItem('savedAccountName');
+    
+    if (savedAccount) {
+        // Jika ada sesi yang tersimpan, langsung masuk ke akun tersebut
+        loginAccount(savedAccount);
+    } else {
+        // Jika tidak ada, tampilkan pilihan akun
+        fetchAccounts();
+    }
 };
