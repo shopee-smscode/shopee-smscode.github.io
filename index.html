@@ -7,10 +7,23 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
+    <div id="accountView" class="container">
+        <div class="header-app">
+            <h1>Pilih Akun</h1>
+            <p class="subtitle">Akun terhubung aman via Cloudflare</p>
+        </div>
+        
+        <div id="accountListContainer" class="account-list">
+            <div class="status-text">Memuat daftar akun...</div>
+        </div>
+    </div>
+
+    <div id="appView" class="container hidden">
+        <button id="btnSwitchAccount" class="btn-switch">⇄ Ganti Akun</button>
+
         <div class="header-app">
             <h1>Shopee OTP Pro 🇮🇩</h1>
-            <p class="subtitle">Sistem Otomatis Server API</p>
+            <p class="subtitle">Akun: <strong id="currentAccountName">-</strong></p>
             <div class="balance-badge">Saldo: <span id="balanceDisplay">Memuat...</span></div>
         </div>
 
@@ -28,7 +41,6 @@
             <div id="productList" class="product-list">
                 <div class="status-text">Memuat data Shopee Indonesia...</div>
             </div>
-            
             <button id="btnOrder" disabled>Pesan Nomor Baru</button>
         </div>
     </div>
