@@ -410,4 +410,40 @@ window.replaceSpecificOrder = async function(orderId, productId) {
 
 window.cancelSpecificOrder = async function(id, auto = false) {
     const btnCancel = document.getElementById(`btn-cancel-${id}`);
-    if (btnCanc
+    if (btnCancel) { btnCancel.disabled = true; btnCancel.innerText = "Memproses..."; }
+    try {
+        const res = await apiCall('/orders/cancel', 'POST', { id: id });
+        if (res.success || (res.error && res.error.code === 'NOT_FOUND')) {
+            activeOrders = activeOrders.filter(o => o.id !== id);
+            saveToStorage(); fetchBalance();
+            if(auto) showToast("Otomatis batal (waktu sisa 10 menit)");
+        } else {
+            showToast("Gagal dibatalkan.");
+            if (btnCancel) btnCancel.disabled = false;
+        }
+    } catch (e) {
+        if (btnCancel) btnCancel.disabled = false;
+    }
+};
+
+window.finishSpecificOrder = async function(id) {
+    const btnFinish = document.getElementById(`btn-finish-${id}`);
+    if (btnFinish) { btnFinish.disabled = true; btnFinish.innerText = "Menutup..."; }
+    try { await apiCall('/orders/finish', 'POST', { id: id }); } catch (e) {}
+    activeOrders = activeOrders.filter(o => o.id !== id);
+    saveToStorage();
+};
+
+async function initMainApp() {
+    balanceDisplay.innerText = "...";
+    await loadShopeeIndonesia();
+    renderOrders();
+    if (activeOrders.length > 0) startPollingAndTimer();
+    syncServerOrders();
+}
+
+window.onload = () => {
+    history.pushState(null, null, window.location.href);
+    const saved = sessionStorage.getItem('savedAccountName');
+    if (saved) loginAccount(saved); else fetchAccounts();
+};
