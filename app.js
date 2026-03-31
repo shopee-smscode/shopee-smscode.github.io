@@ -85,7 +85,6 @@ async function apiCall(endpoint, method = "GET", body = null) {
         method: method, 
         headers: { 
             "Content-Type": "application/json",
-            // MENGIRIMKAN NAMA AKUN, BUKAN TOKEN! (Cloudflare yang akan menerjemahkannya)
             "X-Account-Name": activeAccountName 
         } 
     };
@@ -102,11 +101,24 @@ function saveToStorage() {
     renderOrders(); 
 }
 
+// ==========================================
+// FUNGSI UI BARU (TOAST NOTIFIKASI)
+// ==========================================
+function showToast(pesan) {
+    const toast = document.getElementById("toast");
+    toast.innerText = pesan;
+    toast.classList.add("show");
+    
+    setTimeout(() => {
+        toast.classList.remove("show");
+    }, 2500);
+}
+
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
-        alert("Nomor " + text + " disalin!");
+        showToast("Nomor " + text + " berhasil disalin!");
     }).catch(err => {
-        alert("Gagal menyalin nomor.");
+        showToast("Gagal menyalin nomor.");
     });
 }
 
@@ -219,10 +231,10 @@ btnOrder.onclick = async () => {
             startPollingAndTimer(); 
             fetchBalance(); 
         } else {
-            alert(`Gagal: ${res.error.message}`);
+            showToast(`Gagal: ${res.error.message}`);
         }
     } catch (error) {
-        alert("Terjadi kesalahan jaringan.");
+        showToast("Terjadi kesalahan jaringan.");
     }
     
     btnOrder.innerText = originalText;
@@ -401,7 +413,7 @@ window.cancelSpecificOrder = async function(orderId) {
             saveToStorage();
             fetchBalance(); 
         } else {
-            alert(`Gagal Batal: ${res.error.message}`);
+            showToast(`Gagal Batal: ${res.error.message}`);
             if (btnCancel) btnCancel.disabled = false;
         }
     } catch (error) {
@@ -425,7 +437,7 @@ window.finishSpecificOrder = async function(orderId) {
 }
 
 // ==========================================
-// INISIALISASI UTAMA
+// INISIALISASI UTAMA & SCROLL TERBALIK
 // ==========================================
 
 function initMainApp() {
@@ -442,7 +454,31 @@ function initMainApp() {
     }
 }
 
-// Saat halaman web pertama kali dibuka, ambil daftar akun dari Cloudflare
 window.onload = () => {
     fetchAccounts();
 };
+
+// --- LOGIKA SCROLL TERBALIK ---
+const btnUp = document.getElementById('btnScrollUp');
+const btnDown = document.getElementById('btnScrollDown');
+
+// Tombol Bawah diklik -> scroll layar ke ATAS
+btnDown.addEventListener('click', () => {
+    window.scrollBy({ top: -300, behavior: 'smooth' }); 
+});
+
+// Tombol Atas diklik -> scroll layar ke BAWAH
+btnUp.addEventListener('click', () => {
+    window.scrollBy({ top: 300, behavior: 'smooth' }); 
+});
+
+// Logika untuk mouse wheel terbalik saat diarahkan ke area tombol
+const scrollArea = document.getElementById('scrollControls');
+scrollArea.addEventListener('wheel', (event) => {
+    event.preventDefault(); 
+    if (event.deltaY > 0) {
+        window.scrollBy({ top: -300, behavior: 'smooth' });
+    } else {
+        window.scrollBy({ top: 300, behavior: 'smooth' });
+    }
+}, { passive: false });
