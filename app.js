@@ -2,7 +2,7 @@
 const BASE_URL = "https://shopee-otp-proxy.masreno6pro.workers.dev"; 
 
 // Data Global Multi-Akun
-let activeAccountName = null; // Menyimpan NAMA akun yang dipilih
+let activeAccountName = null;
 
 // Data Global Aplikasi Utama
 let activeOrders = [];
@@ -56,11 +56,9 @@ function loginAccount(accountName) {
     activeAccountName = accountName;
     currentAccountName.innerText = accountName;
     
-    // Tampilkan Aplikasi, Sembunyikan Lobi
     accountView.classList.add('hidden');
     appView.classList.remove('hidden');
 
-    // Muat riwayat pesanan khusus untuk akun ini dari lokal HP
     activeOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || [];
     
     initMainApp();
@@ -437,7 +435,7 @@ window.finishSpecificOrder = async function(orderId) {
 }
 
 // ==========================================
-// INISIALISASI UTAMA & SCROLL TERBALIK
+// INISIALISASI UTAMA 
 // ==========================================
 
 function initMainApp() {
@@ -457,28 +455,3 @@ function initMainApp() {
 window.onload = () => {
     fetchAccounts();
 };
-
-// --- LOGIKA SCROLL TERBALIK ---
-const btnUp = document.getElementById('btnScrollUp');
-const btnDown = document.getElementById('btnScrollDown');
-
-// Tombol Bawah diklik -> scroll layar ke ATAS
-btnDown.addEventListener('click', () => {
-    window.scrollBy({ top: -300, behavior: 'smooth' }); 
-});
-
-// Tombol Atas diklik -> scroll layar ke BAWAH
-btnUp.addEventListener('click', () => {
-    window.scrollBy({ top: 300, behavior: 'smooth' }); 
-});
-
-// Logika untuk mouse wheel terbalik saat diarahkan ke area tombol
-const scrollArea = document.getElementById('scrollControls');
-scrollArea.addEventListener('wheel', (event) => {
-    event.preventDefault(); 
-    if (event.deltaY > 0) {
-        window.scrollBy({ top: -300, behavior: 'smooth' });
-    } else {
-        window.scrollBy({ top: 300, behavior: 'smooth' });
-    }
-}, { passive: false });
