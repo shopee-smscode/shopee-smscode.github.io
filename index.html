@@ -11,24 +11,25 @@
         <div class="header-app">
             <h1>Shopee OTP Pro 🇮🇩</h1>
             <p class="subtitle">Sistem Otomatis Server API</p>
+            <div class="balance-badge">Saldo: <span id="balanceDisplay">Memuat...</span></div>
         </div>
-
-        <div class="section">
-            <label class="section-label">Pilih Harga (Server):</label>
-            <div id="productList" class="product-list">
-                <div class="status-text">Memuat data Shopee Indonesia...</div>
-            </div>
-            
-            <button id="btnOrder" disabled>Pesan Nomor Baru</button>
-        </div>
-
-        <hr>
 
         <div class="section">
             <h3 class="section-title">Pesanan Aktif (<span id="activeCount">0</span>)</h3>
             <div id="activeOrdersContainer">
                 <div class="status-text">Belum ada pesanan aktif.</div>
             </div>
+        </div>
+
+        <hr>
+
+        <div class="section">
+            <label class="section-label">Pilih Harga & Server:</label>
+            <div id="productList" class="product-list">
+                <div class="status-text">Memuat data Shopee Indonesia...</div>
+            </div>
+            
+            <button id="btnOrder" disabled>Pesan Nomor Baru</button>
         </div>
     </div>
 
