@@ -1,19 +1,80 @@
 // Konfigurasi Utama
 const BASE_URL = "https://shopee-otp-proxy.masreno6pro.workers.dev"; 
 
-// Data Global
-let activeOrders = JSON.parse(localStorage.getItem('shopee_orders')) || [];
+// Data Global Multi-Akun
+let activeAccountName = null; // Menyimpan NAMA akun yang dipilih
+
+// Data Global Aplikasi Utama
+let activeOrders = [];
 let availableProducts = []; 
 let selectedProductId = null;
 let timerInterval = null;
 let pollingInterval = null;
 
-// Elemen DOM Global
+// Elemen DOM Lobi Akun
+const accountView = document.getElementById('accountView');
+const appView = document.getElementById('appView');
+const accountListContainer = document.getElementById('accountListContainer');
+const btnSwitchAccount = document.getElementById('btnSwitchAccount');
+const currentAccountName = document.getElementById('currentAccountName');
+
+// Elemen DOM Aplikasi Utama
 const productList = document.getElementById('productList');
 const btnOrder = document.getElementById('btnOrder');
 const activeOrdersContainer = document.getElementById('activeOrdersContainer');
 const activeCount = document.getElementById('activeCount');
 const balanceDisplay = document.getElementById('balanceDisplay');
+
+// ==========================================
+// FUNGSI MULTI-AKUN (TERHUBUNG CLOUDFLARE)
+// ==========================================
+
+async function fetchAccounts() {
+    try {
+        const res = await fetch(`${BASE_URL}/api/accounts`);
+        const data = await res.json();
+        
+        accountListContainer.innerHTML = "";
+        
+        if (data.accounts && data.accounts.length > 0) {
+            data.accounts.forEach(accountName => {
+                const card = document.createElement('div');
+                card.className = "account-card";
+                card.innerHTML = `<div class="account-name">${accountName}</div>`;
+                card.onclick = () => loginAccount(accountName);
+                accountListContainer.appendChild(card);
+            });
+        } else {
+            accountListContainer.innerHTML = '<div class="status-text">Tidak ada akun ditemukan di Cloudflare.</div>';
+        }
+    } catch (error) {
+        accountListContainer.innerHTML = '<div class="status-text" style="color:red">Gagal terhubung ke Cloudflare Server.</div>';
+    }
+}
+
+function loginAccount(accountName) {
+    activeAccountName = accountName;
+    currentAccountName.innerText = accountName;
+    
+    // Tampilkan Aplikasi, Sembunyikan Lobi
+    accountView.classList.add('hidden');
+    appView.classList.remove('hidden');
+
+    // Muat riwayat pesanan khusus untuk akun ini dari lokal HP
+    activeOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || [];
+    
+    initMainApp();
+}
+
+btnSwitchAccount.onclick = () => {
+    if (timerInterval) clearInterval(timerInterval);
+    if (pollingInterval) clearInterval(pollingInterval);
+    
+    appView.classList.add('hidden');
+    accountView.classList.remove('hidden');
+    activeAccountName = null;
+    fetchAccounts();
+};
 
 // ==========================================
 // FUNGSI BANTUAN API & PENYIMPANAN
@@ -22,7 +83,11 @@ const balanceDisplay = document.getElementById('balanceDisplay');
 async function apiCall(endpoint, method = "GET", body = null) {
     const options = { 
         method: method, 
-        headers: { "Content-Type": "application/json" } 
+        headers: { 
+            "Content-Type": "application/json",
+            // MENGIRIMKAN NAMA AKUN, BUKAN TOKEN! (Cloudflare yang akan menerjemahkannya)
+            "X-Account-Name": activeAccountName 
+        } 
     };
     if (body) {
         options.body = JSON.stringify(body);
@@ -33,7 +98,7 @@ async function apiCall(endpoint, method = "GET", body = null) {
 }
 
 function saveToStorage() {
-    localStorage.setItem('shopee_orders', JSON.stringify(activeOrders));
+    localStorage.setItem(`orders_${activeAccountName}`, JSON.stringify(activeOrders));
     renderOrders(); 
 }
 
@@ -52,7 +117,6 @@ async function fetchBalance() {
     try {
         const res = await apiCall('/balance');
         if (res.success) {
-            // Format angka menjadi mata uang Rupiah
             const formatter = new Intl.NumberFormat('id-ID', { 
                 style: 'currency', 
                 currency: 'IDR', 
@@ -111,7 +175,7 @@ async function loadShopeeIndonesia() {
             productList.innerHTML = '<div class="status-text">Stok kosong.</div>';
         }
     } catch (error) {
-        productList.innerHTML = `<div class="status-text" style="color:red;">Error: ${error.message}</div>`;
+        productList.innerHTML = `<div class="status-text" style="color:red;">Error Sistem: ${error.message}</div>`;
     }
 }
 
@@ -138,7 +202,7 @@ btnOrder.onclick = async () => {
             const price = productInfo ? productInfo.price : 0;
 
             const expiresAt = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
-            const cancelUnlockTime = Date.now() + (120 * 1000); // 2 Menit masa tunggu cancel
+            const cancelUnlockTime = Date.now() + (120 * 1000); 
 
             const newOrder = {
                 id: orderData.id,
@@ -153,8 +217,6 @@ btnOrder.onclick = async () => {
             activeOrders.unshift(newOrder); 
             saveToStorage();
             startPollingAndTimer(); 
-            
-            // Perbarui saldo segera setelah berhasil pesan (terpotong)
             fetchBalance(); 
         } else {
             alert(`Gagal: ${res.error.message}`);
@@ -235,7 +297,6 @@ function startPollingAndTimer() {
     if (timerInterval) clearInterval(timerInterval);
     if (pollingInterval) clearInterval(pollingInterval);
 
-    // 1. INTERVAL TIMER (Tiap 1 Detik)
     timerInterval = setInterval(() => {
         const now = Date.now();
         
@@ -249,7 +310,7 @@ function startPollingAndTimer() {
                 if (timerElement) timerElement.innerText = "00:00";
                 activeOrders.splice(index, 1);
                 saveToStorage(); 
-                fetchBalance(); // Saldo otomatis direfund server saat expired
+                fetchBalance(); 
                 return; 
             } else {
                 const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
@@ -286,7 +347,6 @@ function startPollingAndTimer() {
         if (activeOrders.length === 0) clearInterval(timerInterval);
     }, 1000);
 
-    // 2. INTERVAL POLLING OTP (Tiap 5 Detik)
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) {
             clearInterval(pollingInterval);
@@ -313,7 +373,7 @@ function startPollingAndTimer() {
                     else if (serverStatus === "CANCELED" || serverStatus === "EXPIRED") {
                         activeOrders = activeOrders.filter(o => o.id !== order.id);
                         hasChanged = true;
-                        fetchBalance(); // Perbarui saldo jika server membatalkan
+                        fetchBalance(); 
                     }
 
                     if (hasChanged) saveToStorage();
@@ -339,7 +399,7 @@ window.cancelSpecificOrder = async function(orderId) {
         if (res.success || (res.error && res.error.code === 'NOT_FOUND')) {
             activeOrders = activeOrders.filter(order => order.id !== orderId);
             saveToStorage();
-            fetchBalance(); // Perbarui saldo saat sukses refund
+            fetchBalance(); 
         } else {
             alert(`Gagal Batal: ${res.error.message}`);
             if (btnCancel) btnCancel.disabled = false;
@@ -365,13 +425,24 @@ window.finishSpecificOrder = async function(orderId) {
 }
 
 // ==========================================
-// INISIALISASI AWAL
+// INISIALISASI UTAMA
 // ==========================================
-window.onload = () => {
-    fetchBalance(); // Ambil saldo saat pertama buka
+
+function initMainApp() {
+    balanceDisplay.innerText = "Memuat...";
+    productList.innerHTML = '<div class="status-text">Memuat data Shopee Indonesia...</div>';
+    selectedProductId = null;
+    btnOrder.disabled = true;
+    
+    fetchBalance(); 
     loadShopeeIndonesia();
     renderOrders();
     if (activeOrders.length > 0) {
         startPollingAndTimer();
     }
+}
+
+// Saat halaman web pertama kali dibuka, ambil daftar akun dari Cloudflare
+window.onload = () => {
+    fetchAccounts();
 };
