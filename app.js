@@ -1,6 +1,4 @@
-// Konfigurasi Utama
-const API_TOKEN = "20ef6ba8c78e295f4c66a18bea785ef03480e5e65d38c3059047b4a879f3a7db"; // ⚠️ BAHAYA: JANGAN PUBLIKASIKAN KE PUBLIK!
-const BASE_URL = "https://api.smscode.gg/v1";
+const BASE_URL = "https://shopee-otp-proxy.masreno6pro.workers.dev/";
 
 // Asumsi dari Docs (Anda bisa menambahkan fungsi pencarian otomatis jika ID ini berubah)
 const COUNTRY_ID_INDO = 6;
