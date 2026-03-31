@@ -1,75 +1,71 @@
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background-color: #f5f5f5;
-    padding: 15px;
-    margin: 0;
-}
-.container {
-    max-width: 400px; /* Diperkecil agar lebih pas di layar HP */
-    margin: 0 auto;
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-h1 { color: #ee4d2d; font-size: 24px; margin-bottom: 5px; }
+/* ... (Gaya sebelumnya tetap gunakan) ... */
 
-/* Desain List Produk */
-.product-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-top: 10px;
-    margin-bottom: 20px;
-    max-height: 250px; /* Bisa discroll jika kepanjangan */
-    overflow-y: auto;
+.section { margin-bottom: 20px; }
+hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
+
+/* Kartu Pesanan Aktif */
+.order-card {
+    background: #fff;
+    border: 1px solid #ee4d2d;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 8px rgba(238, 77, 45, 0.1);
 }
-.product-card {
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    padding: 12px;
-    cursor: pointer;
+
+.order-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background-color: #fff;
-    transition: all 0.2s ease;
+    margin-bottom: 10px;
 }
-.product-card.selected {
-    border-color: #ee4d2d; /* Warna khas Shopee */
-    background-color: #fff3ed;
-}
-.product-info h4 { margin: 0 0 4px 0; font-size: 15px; color: #333; }
-.product-info p { margin: 0; font-size: 12px; color: #666; }
-.product-price { font-weight: bold; color: #ee4d2d; font-size: 15px; }
 
-/* Desain Tombol & Input */
-button {
-    width: 100%;
-    padding: 12px;
-    border-radius: 6px;
-    border: none;
-    font-size: 16px;
+.timer {
+    color: #ee4d2d;
     font-weight: bold;
-    cursor: pointer;
-    background-color: #ee4d2d;
-    color: white;
+    font-size: 14px;
+    background: #fff3ed;
+    padding: 2px 8px;
+    border-radius: 4px;
 }
-button:disabled { background-color: #cccccc; cursor: not-allowed; }
-.btn-danger { background-color: #dc3545; margin-top: 10px; }
-.btn-success { background-color: #28a745; margin-top: 10px; }
 
-/* Status dan Notifikasi */
-.hidden { display: none; }
-.status-text { color: #555; font-style: italic; font-size: 14px; }
-.text-large { font-size: 18px; font-weight: bold; letter-spacing: 1px; }
-.otp-box {
-    background-color: #e8f5e9;
-    border: 1px solid #c8e6c9;
-    padding: 15px;
-    border-radius: 8px;
-    text-align: center;
-    margin-top: 15px;
+.phone-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
 }
-.otp-box p { margin: 0 0 5px 0; font-size: 12px; color: #2e7d32; }
-#displayOtp { font-size: 28px; font-weight: bold; color: #1b5e20; letter-spacing: 3px; }
+
+.phone-number {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+}
+
+.btn-copy {
+    background: #f0f0f0;
+    color: #333;
+    padding: 4px 8px;
+    font-size: 12px;
+    width: auto;
+}
+
+.otp-display {
+    background: #f8f9fa;
+    border: 2px dashed #28a745;
+    padding: 10px;
+    text-align: center;
+    border-radius: 6px;
+    margin: 10px 0;
+}
+
+.otp-code {
+    font-size: 24px;
+    font-weight: bold;
+    color: #28a745;
+    letter-spacing: 2px;
+}
+
+.status-label { font-size: 12px; color: #666; }
+
+/* ... (Gaya tombol btn-danger dan btn-success dari kode sebelumnya) ... */
