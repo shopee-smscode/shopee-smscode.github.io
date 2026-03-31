@@ -25,15 +25,11 @@ let isExitModalOpen = false;
 
 window.addEventListener('popstate', (e) => {
     if (activeAccountName !== null) {
-        // Jika sedang di page SMS, logout dan kembali ke Lobi
         logoutAccount();
     } else {
-        // Jika sedang di page Lobi (Pilih Akun)
         if (isExitModalOpen) {
-            // Jika modal sudah terbuka dan ditekan back lagi, paksa keluar
             confirmExit();
         } else {
-            // Tampilkan modal dan jebak history browser lagi agar tidak langsung keluar
             document.getElementById('exitModal').classList.remove('hidden');
             isExitModalOpen = true;
             history.pushState(null, null, window.location.href); 
@@ -47,9 +43,7 @@ function closeExitModal() {
 }
 
 function confirmExit() {
-    // Menutup aplikasi secara paksa
     window.close();
-    // Fallback jika dibuka dari WebView / App Android
     if (navigator.app) {
         navigator.app.exitApp();
     } else if (navigator.device) {
@@ -69,8 +63,6 @@ function logoutAccount() {
     accountView.classList.remove('hidden');
     activeAccountName = null;
     fetchAccounts();
-    
-    // Pasang kembali jebakan tombol back untuk halaman Lobi
     history.pushState(null, null, window.location.href);
 }
 
@@ -79,7 +71,7 @@ btnSwitchAccount.onclick = () => {
 };
 
 // ==========================================
-// 2. FUNGSI MULTI-AKUN 
+// 2. FUNGSI MULTI-AKUN (DIPERBAIKI)
 // ==========================================
 async function fetchAccounts() {
     try {
@@ -109,14 +101,19 @@ function loginAccount(accountName) {
     currentAccountName.innerText = accountName;
     
     sessionStorage.setItem('savedAccountName', accountName);
-    // Tambahkan jejak "#sms" agar tombol back HP memicu event popstate
     history.pushState(null, null, "#sms"); 
     
     accountView.classList.add('hidden');
     appView.classList.remove('hidden');
 
-    // Ambil data lokal (jika ada)
-    activeOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || [];
+    // [PERBAIKAN] Bersihkan memori lokal dari pesanan kadaluarsa sebelum di render
+    const now = Date.now();
+    const rawOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || [];
+    activeOrders = rawOrders.filter(o => o.expiresAt > now);
+    
+    // Jika ada yang dibersihkan, simpan ulang memori lokal yang sudah bersih
+    if (rawOrders.length !== activeOrders.length) saveToStorage();
+
     initMainApp();
 }
 
@@ -179,7 +176,6 @@ async function loadShopeeIndonesia() {
         const productsRes = await apiCall(`/catalog/products?country_id=${indo.id}&platform_id=${shopee.id}`);
         
         if (productsRes.success && productsRes.data.length > 0) {
-            // Urutkan dari termurah, dan potong hanya 3 teratas
             availableProducts = productsRes.data
                 .sort((a, b) => parseFloat(a.price) - parseFloat(b.price))
                 .slice(0, 3);
@@ -190,7 +186,6 @@ async function loadShopeeIndonesia() {
                 const card = document.createElement("div");
                 card.className = "product-card";
                 
-                // Jika server ini yang sebelumnya dipilih, kembalikan border merahnya
                 if (selectedProductId === product.id) {
                     card.classList.add('selected');
                     btnOrder.disabled = false;
@@ -252,7 +247,6 @@ btnOrder.onclick = async () => {
             startPollingAndTimer(); 
             fetchBalance(); 
 
-            // Auto Scroll ke atas & Auto copy
             window.scrollTo({ top: 0, behavior: 'smooth' });
             copyToClipboard(newOrder.phone);
 
@@ -320,7 +314,7 @@ function renderOrders() {
 }
 
 // ==========================================
-// 7. TIMER, POLLING & AUTO BATAL 1 MENIT
+// 7. TIMER, POLLING & AUTO BATAL 1 MENIT (DIPERBAIKI)
 // ==========================================
 function startPollingAndTimer() {
     if (timerInterval) clearInterval(timerInterval);
@@ -346,10 +340,9 @@ function startPollingAndTimer() {
                 if (timerElement) timerElement.innerText = `${minutes < 10 ? '0'+minutes : minutes}:${seconds < 10 ? '0'+seconds : seconds}`;
             }
 
-            // AUTO BATAL JIKA WAKTU TINGGAL 1 MENIT (60 Detik)
             if (timeLeft <= 60000 && order.status !== "OTP_RECEIVED" && !order.isAutoCanceling) {
                 order.isAutoCanceling = true; 
-                cancelSpecificOrder(order.id, true); // true = auto batal
+                cancelSpecificOrder(order.id, true); 
             }
 
             if (order.status === "OTP_RECEIVED") {
@@ -389,7 +382,8 @@ function startPollingAndTimer() {
                         activeOrders[i].otp = res.data.otp_code;
                         hasChanged = true;
                     } 
-                    else if (serverStatus === "CANCELED" || serverStatus === "EXPIRED") {
+                    // [PERBAIKAN] Jika status selain ACTIVE atau PENDING, buang dari layar!
+                    else if (serverStatus !== "ACTIVE" && serverStatus !== "PENDING") {
                         activeOrders = activeOrders.filter(o => o.id !== order.id);
                         hasChanged = true;
                         fetchBalance(); 
@@ -402,7 +396,7 @@ function startPollingAndTimer() {
 }
 
 // ==========================================
-// 8. PEMULIHAN DATA SERVER (SYNC)
+// 8. PEMULIHAN DATA SERVER (DIPERBAIKI)
 // ==========================================
 async function syncServerOrders() {
     try {
@@ -411,14 +405,13 @@ async function syncServerOrders() {
         if (res.success && res.data) {
             let serverOrders = Array.isArray(res.data) ? res.data : (res.data.data || []);
             
-            // Ambil hanya orderan yang masih aktif dari Server
-            serverOrders = serverOrders.filter(o => o.status !== 'CANCELED' && o.status !== 'EXPIRED');
+            // [PERBAIKAN] HANYA ambil status ACTIVE, PENDING, atau OTP_RECEIVED
+            serverOrders = serverOrders.filter(o => o.status === 'ACTIVE' || o.status === 'OTP_RECEIVED' || o.status === 'PENDING');
 
             if (serverOrders.length > 0) {
                 let hasNewOrder = false;
                 
                 serverOrders.forEach(order => {
-                    // Jika nomor ini belum ada di tampilan lokal, tambahkan!
                     const existing = activeOrders.find(o => o.id === order.id);
                     if (!existing) {
                         hasNewOrder = true;
@@ -497,7 +490,6 @@ function initMainApp() {
         startPollingAndTimer();
     }
 
-    // Tarik data dari server untuk mengembalikan nomor yang hilang jika app dihapus/clear data
     syncServerOrders(); 
 }
 
@@ -505,7 +497,6 @@ function initMainApp() {
 // INISIALISASI SAAT PERTAMA KALI DIBUKA
 // ==========================================
 window.onload = () => {
-    // Memasang perangkap awal untuk sistem Back HP
     history.pushState(null, null, window.location.href);
 
     const savedAccount = sessionStorage.getItem('savedAccountName');
