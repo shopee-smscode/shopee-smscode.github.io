@@ -28,11 +28,7 @@ window.addEventListener('popstate', (e) => {
         logoutAccount();
     } else {
         if (isExitModalOpen) {
-            // [PERBAIKAN LOGIKA]
-            // Jika modal sedang terbuka dan user menekan Back HP, 
-            // maka TUTUP MODAL (Batal), JANGAN keluar aplikasi!
             closeExitModal();
-            // Pasang jebakan history lagi agar tidak jebol
             history.pushState(null, null, window.location.href); 
         } else {
             document.getElementById('exitModal').classList.remove('hidden');
@@ -232,9 +228,8 @@ btnOrder.onclick = async () => {
         
         if (res.success) {
             const orderData = res.data.orders[0];
-            const productInfo = availableProducts.find(p => p.id === parseInt(selectedProductId));
-            
-            const finalPrice = orderData.price || orderData.cost || (productInfo ? productInfo.price : 0);
+            const productInfo = availableProducts.find(p => String(p.id) === String(selectedProductId));
+            const finalPrice = orderData.price || orderData.cost || orderData.amount || (productInfo ? productInfo.price : 0);
             
             const expiresAtMs = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
             const createdAtMs = orderData.created_at ? new Date(orderData.created_at).getTime() : Date.now();
@@ -242,6 +237,7 @@ btnOrder.onclick = async () => {
             
             const newOrder = {
                 id: orderData.id,
+                productId: parseInt(selectedProductId),
                 phone: orderData.phone_number,
                 price: finalPrice,
                 otp: null, 
@@ -301,7 +297,8 @@ function renderOrders() {
             `;
         }
 
-        const displayPrice = order.price ? `Rp ${order.price}` : 'Rp 0';
+        const displayPrice = (order.price && order.price != 0) ? `Rp ${order.price}` : 'Rp -';
+        const passProductId = order.productId ? `'${order.productId}'` : 'null';
 
         card.innerHTML = `
             <div class="order-header">
@@ -320,6 +317,7 @@ function renderOrders() {
                     ${otpHtml}
                 </div>
                 <div class="action-buttons">
+                    <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id}, ${passProductId})">Ganti Nomor</button>
                     <button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder(${order.id})">Batalkan</button>
                     <button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder(${order.id})" disabled>Selesai</button>
                 </div>
@@ -343,6 +341,7 @@ function startPollingAndTimer() {
             const timeLeft = order.expiresAt - now;
             const timerElement = document.getElementById(`timer-${order.id}`);
             const btnCancel = document.getElementById(`btn-cancel-${order.id}`);
+            const btnReplace = document.getElementById(`btn-replace-${order.id}`);
             const btnFinish = document.getElementById(`btn-finish-${order.id}`);
 
             if (timeLeft <= 0) {
@@ -363,17 +362,28 @@ function startPollingAndTimer() {
 
             if (order.status === "OTP_RECEIVED") {
                 if (btnCancel) { btnCancel.disabled = true; btnCancel.innerText = "Sukses"; btnCancel.style.backgroundColor = "#e5e7eb"; btnCancel.style.color = "#9ca3af"; }
+                if (btnReplace) { btnReplace.disabled = true; btnReplace.innerText = "-"; btnReplace.style.backgroundColor = "#e5e7eb"; btnReplace.style.color = "#9ca3af"; }
                 if (btnFinish) btnFinish.disabled = false;
             } else {
                 if (btnFinish) btnFinish.disabled = true;
                 if (btnCancel && !order.isAutoCanceling) {
                     const cancelWaitLeft = order.cancelUnlockTime - now;
                     if (cancelWaitLeft > 0) {
+                        const sisaTunggu = Math.ceil(cancelWaitLeft / 1000);
                         btnCancel.disabled = true;
-                        btnCancel.innerText = `Tunggu ${Math.ceil(cancelWaitLeft / 1000)}s`;
+                        btnCancel.innerText = `Tunggu ${sisaTunggu}s`;
+                        
+                        if (btnReplace) {
+                            btnReplace.disabled = true;
+                            btnReplace.innerText = `Tunggu ${sisaTunggu}s`;
+                        }
                     } else {
                         btnCancel.disabled = false;
                         btnCancel.innerText = "Batalkan";
+                        if (btnReplace) {
+                            btnReplace.disabled = false;
+                            btnReplace.innerText = "Ganti Nomor";
+                        }
                     }
                 }
             }
@@ -411,7 +421,7 @@ function startPollingAndTimer() {
 }
 
 // ==========================================
-// 8. PEMULIHAN DATA SERVER
+// 8. PEMULIHAN DATA SERVER (SYNC)
 // ==========================================
 async function syncServerOrders() {
     try {
@@ -430,7 +440,11 @@ async function syncServerOrders() {
                     if (!existing) {
                         hasNewOrder = true;
                         
-                        const syncedPrice = order.price || order.cost || 0;
+                        let syncedPrice = order.price || order.cost || order.amount || 0;
+                        if (syncedPrice == 0 && order.product_id && availableProducts.length > 0) {
+                            const matchProduct = availableProducts.find(p => String(p.id) === String(order.product_id));
+                            if (matchProduct) syncedPrice = matchProduct.price;
+                        }
                         
                         const expiresAtMs = order.expires_at ? new Date(order.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
                         const createdAtMs = order.created_at ? new Date(order.created_at).getTime() : (expiresAtMs - (20 * 60 * 1000));
@@ -438,6 +452,7 @@ async function syncServerOrders() {
 
                         activeOrders.unshift({
                             id: order.id,
+                            productId: order.product_id || order.service_id || null, 
                             phone: order.phone_number || order.phone || '-',
                             price: syncedPrice,
                             otp: order.otp_code || null,
@@ -464,8 +479,75 @@ async function syncServerOrders() {
 }
 
 // ==========================================
-// 9. AKSI TOMBOL PESANAN
+// 9. AKSI TOMBOL PESANAN & GANTI NOMOR
 // ==========================================
+
+window.replaceSpecificOrder = async function(orderId, productId) {
+    const btnReplace = document.getElementById(`btn-replace-${orderId}`);
+    
+    if (!productId || productId === 'null') {
+        showToast("ID Server tidak ditemukan. Pilih server manual.");
+        return;
+    }
+
+    if (btnReplace) {
+        btnReplace.disabled = true;
+        btnReplace.innerText = "Mengganti...";
+    }
+
+    try {
+        const cancelRes = await apiCall('/orders/cancel', 'POST', { id: orderId });
+        
+        if (cancelRes.success || (cancelRes.error && cancelRes.error.code === 'NOT_FOUND')) {
+            activeOrders = activeOrders.filter(order => order.id !== orderId);
+            
+            const createRes = await apiCall('/orders/create', 'POST', { product_id: parseInt(productId), quantity: 1 });
+            
+            if (createRes.success) {
+                const orderData = createRes.data.orders[0];
+                const productInfo = availableProducts.find(p => String(p.id) === String(productId));
+                const finalPrice = orderData.price || orderData.cost || orderData.amount || (productInfo ? productInfo.price : 0);
+                
+                const expiresAtMs = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
+                const createdAtMs = orderData.created_at ? new Date(orderData.created_at).getTime() : Date.now();
+                const cancelUnlockMs = createdAtMs + (120 * 1000); 
+                
+                const newOrder = {
+                    id: orderData.id,
+                    productId: parseInt(productId),
+                    phone: orderData.phone_number,
+                    price: finalPrice,
+                    otp: null, 
+                    status: "ACTIVE",
+                    expiresAt: expiresAtMs,
+                    cancelUnlockTime: cancelUnlockMs,
+                    isAutoCanceling: false
+                };
+                
+                activeOrders.unshift(newOrder); 
+                saveToStorage();
+                startPollingAndTimer(); 
+                fetchBalance(); 
+
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                copyToClipboard(newOrder.phone);
+                showToast("Nomor berhasil diganti!");
+
+            } else {
+                saveToStorage(); 
+                fetchBalance();
+                showToast(`Gagal pesan baru: ${createRes.error.message}`);
+            }
+        } else {
+            showToast(`Gagal membatalkan pesanan lama.`);
+            if (btnReplace) { btnReplace.disabled = false; btnReplace.innerText = "Ganti Nomor"; }
+        }
+    } catch (error) {
+        showToast("Kesalahan jaringan.");
+        if (btnReplace) { btnReplace.disabled = false; btnReplace.innerText = "Ganti Nomor"; }
+    }
+}
+
 window.cancelSpecificOrder = async function(orderId, isAuto = false) {
     const btnCancel = document.getElementById(`btn-cancel-${orderId}`);
     if (btnCancel) {
@@ -497,14 +579,14 @@ window.finishSpecificOrder = async function(orderId) {
     saveToStorage();
 }
 
-function initMainApp() {
+async function initMainApp() {
     balanceDisplay.innerText = "Memuat...";
     productList.innerHTML = '<div class="status-text">Memuat data Shopee Indonesia...</div>';
     
     btnOrder.disabled = !selectedProductId; 
     
     fetchBalance(); 
-    loadShopeeIndonesia();
+    await loadShopeeIndonesia();
     renderOrders();
     
     if (activeOrders.length > 0) {
