@@ -1,9 +1,128 @@
-/* ... (Gaya sebelumnya tetap gunakan) ... */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #f5f5f5;
+    padding: 15px;
+    margin: 0;
+}
 
-.section { margin-bottom: 20px; }
-hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
+.container {
+    max-width: 400px; 
+    margin: 0 auto;
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
 
-/* Kartu Pesanan Aktif */
+h1 { 
+    color: #ee4d2d; 
+    font-size: 24px; 
+    margin-bottom: 5px; 
+}
+
+.subtitle {
+    font-size: 14px;
+    color: #666;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+.section { 
+    margin-bottom: 20px; 
+}
+
+.section-label {
+    font-weight: bold;
+    font-size: 14px;
+    color: #333;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.section-title {
+    font-size: 18px;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+hr { 
+    border: 0; 
+    border-top: 1px solid #eee; 
+    margin: 25px 0; 
+}
+
+/* Desain List Produk */
+.product-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+    max-height: 250px; 
+    overflow-y: auto;
+}
+
+.product-card {
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #fff;
+    transition: all 0.2s ease;
+}
+
+.product-card.selected {
+    border-color: #ee4d2d; 
+    background-color: #fff3ed;
+}
+
+.product-info h4 { 
+    margin: 0 0 4px 0; 
+    font-size: 15px; 
+    color: #333; 
+}
+
+.product-info p { 
+    margin: 0; 
+    font-size: 12px; 
+    color: #666; 
+}
+
+.product-price { 
+    font-weight: bold; 
+    color: #ee4d2d; 
+    font-size: 15px; 
+}
+
+/* Desain Tombol Global */
+button {
+    width: 100%;
+    padding: 12px;
+    border-radius: 6px;
+    border: none;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    background-color: #ee4d2d;
+    color: white;
+}
+
+button:disabled { 
+    background-color: #cccccc; 
+    cursor: not-allowed; 
+}
+
+.status-text { 
+    color: #555; 
+    font-style: italic; 
+    font-size: 14px; 
+    text-align: center;
+    padding: 10px;
+}
+
+/* --- KARTU PESANAN AKTIF (MULTI-ORDER) --- */
 .order-card {
     background: #fff;
     border: 1px solid #ee4d2d;
@@ -18,6 +137,14 @@ hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #eee;
+}
+
+.order-id-label {
+    font-size: 12px;
+    color: #666;
+    font-weight: bold;
 }
 
 .timer {
@@ -25,47 +152,86 @@ hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
     font-weight: bold;
     font-size: 14px;
     background: #fff3ed;
-    padding: 2px 8px;
-    border-radius: 4px;
+    padding: 4px 10px;
+    border-radius: 15px;
 }
 
 .phone-row {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 15px;
 }
 
 .phone-number {
     font-size: 18px;
     font-weight: bold;
     color: #333;
+    letter-spacing: 1px;
 }
 
 .btn-copy {
-    background: #f0f0f0;
+    background-color: #e0e0e0;
     color: #333;
-    padding: 4px 8px;
+    padding: 6px 12px;
     font-size: 12px;
     width: auto;
+    border-radius: 4px;
+}
+
+.status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.status-label-title {
+    font-size: 13px;
+    color: #666;
+}
+
+.status-value {
+    font-size: 13px;
+    font-weight: bold;
+    color: #ee4d2d;
 }
 
 .otp-display {
-    background: #f8f9fa;
-    border: 2px dashed #28a745;
-    padding: 10px;
+    background: #e8f5e9;
+    border: 1px solid #c8e6c9;
+    padding: 15px;
     text-align: center;
     border-radius: 6px;
-    margin: 10px 0;
+    margin-bottom: 15px;
+}
+
+.otp-title {
+    font-size: 12px;
+    color: #2e7d32;
+    margin-bottom: 5px;
+    font-weight: bold;
 }
 
 .otp-code {
-    font-size: 24px;
+    font-size: 28px;
     font-weight: bold;
-    color: #28a745;
-    letter-spacing: 2px;
+    color: #1b5e20;
+    letter-spacing: 3px;
 }
 
-.status-label { font-size: 12px; color: #666; }
+.action-buttons {
+    display: flex;
+    gap: 10px;
+}
 
-/* ... (Gaya tombol btn-danger dan btn-success dari kode sebelumnya) ... */
+.btn-danger { 
+    background-color: #dc3545; 
+}
+
+.btn-success { 
+    background-color: #28a745; 
+}
