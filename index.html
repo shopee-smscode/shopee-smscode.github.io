@@ -3,27 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shopee OTP Multi-Order</title>
+    <title>Shopee OTP Pro 🇮🇩</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <h1>Shopee OTP Pro 🇮🇩</h1>
-        
+        <p class="subtitle">Ambil nomor virtual untuk verifikasi.</p>
+
         <div class="section">
-            <label>Pilih Server & Harga:</label>
+            <label class="section-label">Pilih Harga (Server):</label>
             <div id="productList" class="product-list">
-                <div class="status-text">Memuat layanan Shopee...</div>
+                <div class="status-text">Memuat data Shopee Indonesia...</div>
             </div>
+            
             <button id="btnOrder" disabled>Pesan Nomor Baru</button>
         </div>
 
         <hr>
 
         <div class="section">
-            <h3>Pesanan Aktif</h3>
+            <h3 class="section-title">Pesanan Aktif Anda</h3>
             <div id="activeOrdersContainer">
-                <div class="status-text">Tidak ada pesanan aktif.</div>
+                <div class="status-text">Belum ada pesanan aktif.</div>
             </div>
         </div>
     </div>
