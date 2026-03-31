@@ -485,3 +485,142 @@ async function syncServerOrders() {
         console.log("Sinkronisasi gagal:", error);
     }
 }
+
+// ==========================================
+// 9. AKSI TOMBOL PESANAN & GANTI NOMOR
+// ==========================================
+
+window.replaceSpecificOrder = async function(orderId, productId) {
+    const btnReplace = document.getElementById(`btn-replace-${orderId}`);
+    
+    if (!productId || productId === 'null') {
+        showToast("ID Server tidak ditemukan. Pilih server manual.");
+        return;
+    }
+
+    if (btnReplace) {
+        btnReplace.disabled = true;
+        // Ganti tampilan kotak menjadi animasi loading spinner kecil saat diproses
+        btnReplace.innerHTML = `<div class="loader" style="width: 14px; height: 14px; border-width: 2px;"></div>`;
+    }
+
+    try {
+        const cancelRes = await apiCall('/orders/cancel', 'POST', { id: orderId });
+        
+        if (cancelRes.success || (cancelRes.error && cancelRes.error.code === 'NOT_FOUND')) {
+            activeOrders = activeOrders.filter(order => order.id !== orderId);
+            
+            const createRes = await apiCall('/orders/create', 'POST', { product_id: parseInt(productId), quantity: 1 });
+            
+            if (createRes.success) {
+                const orderData = createRes.data.orders[0];
+                const productInfo = availableProducts.find(p => String(p.id) === String(productId));
+                const finalPrice = orderData.price || orderData.cost || orderData.amount || (productInfo ? productInfo.price : 0);
+                
+                const expiresAtMs = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
+                const createdAtMs = orderData.created_at ? new Date(orderData.created_at).getTime() : Date.now();
+                const cancelUnlockMs = createdAtMs + (120 * 1000); 
+                
+                const newOrder = {
+                    id: orderData.id,
+                    productId: parseInt(productId),
+                    phone: orderData.phone_number,
+                    price: finalPrice,
+                    otp: null, 
+                    status: "ACTIVE",
+                    expiresAt: expiresAtMs,
+                    cancelUnlockTime: cancelUnlockMs,
+                    isAutoCanceling: false
+                };
+                
+                activeOrders.unshift(newOrder); 
+                saveToStorage();
+                startPollingAndTimer(); 
+                fetchBalance(); 
+
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                copyToClipboard(newOrder.phone);
+                showToast("Nomor berhasil diganti!");
+
+            } else {
+                saveToStorage(); 
+                fetchBalance();
+                showToast(`Gagal pesan baru: ${createRes.error.message}`);
+            }
+        } else {
+            showToast(`Gagal membatalkan pesanan lama.`);
+            if (btnReplace) { 
+                btnReplace.disabled = false; 
+                btnReplace.innerHTML = `<div style="font-size: 16px; line-height: 1;">↻</div><div style="font-size: 9px; font-weight: 800; margin-top: 3px;">GANTI</div>`; 
+            }
+        }
+    } catch (error) {
+        showToast("Kesalahan jaringan.");
+        if (btnReplace) { 
+            btnReplace.disabled = false; 
+            btnReplace.innerHTML = `<div style="font-size: 16px; line-height: 1;">↻</div><div style="font-size: 9px; font-weight: 800; margin-top: 3px;">GANTI</div>`; 
+        }
+    }
+}
+
+window.cancelSpecificOrder = async function(orderId, isAuto = false) {
+    const btnCancel = document.getElementById(`btn-cancel-${orderId}`);
+    if (btnCancel) {
+        btnCancel.disabled = true;
+        btnCancel.innerText = "Memproses...";
+    }
+
+    try {
+        const res = await apiCall('/orders/cancel', 'POST', { id: orderId });
+        if (res.success || (res.error && res.error.code === 'NOT_FOUND')) {
+            activeOrders = activeOrders.filter(order => order.id !== orderId);
+            saveToStorage();
+            fetchBalance(); 
+            if(isAuto) showToast("Otomatis batal (waktu sisa 1 menit)");
+        } else {
+            showToast(`Gagal dibatalkan.`);
+            if (btnCancel) btnCancel.disabled = false;
+        }
+    } catch (error) {
+        if (btnCancel) btnCancel.disabled = false;
+    }
+}
+
+window.finishSpecificOrder = async function(orderId) {
+    const btnFinish = document.getElementById(`btn-finish-${orderId}`);
+    if (btnFinish) { btnFinish.disabled = true; btnFinish.innerText = "Menutup..."; }
+    try { await apiCall('/orders/finish', 'POST', { id: orderId }); } catch (error) {}
+    activeOrders = activeOrders.filter(order => order.id !== orderId);
+    saveToStorage();
+}
+
+async function initMainApp() {
+    balanceDisplay.innerText = "Memuat...";
+    productList.innerHTML = '<div class="status-text">Memuat data Shopee Indonesia...</div>';
+    
+    btnOrder.disabled = !selectedProductId; 
+    
+    fetchBalance(); 
+    await loadShopeeIndonesia();
+    renderOrders();
+    
+    if (activeOrders.length > 0) {
+        startPollingAndTimer();
+    }
+
+    syncServerOrders(); 
+}
+
+// ==========================================
+// INISIALISASI SAAT PERTAMA KALI DIBUKA
+// ==========================================
+window.onload = () => {
+    history.pushState(null, null, window.location.href);
+
+    const savedAccount = sessionStorage.getItem('savedAccountName');
+    if (savedAccount) {
+        loginAccount(savedAccount);
+    } else {
+        fetchAccounts();
+    }
+};
