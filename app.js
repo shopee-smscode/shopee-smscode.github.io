@@ -120,9 +120,9 @@ function showToast(pesan) {
 
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
-        showToast("Berhasil disalin!"); // Notifikasi ringkas
+        showToast("Berhasil disalin!"); 
     }).catch(err => {
-        showToast("Gagal disalin."); // Notifikasi ringkas
+        showToast("Gagal disalin."); 
     });
 }
 
@@ -173,7 +173,7 @@ async function loadShopeeIndonesia() {
                 card.innerHTML = `
                     <div class="product-info">
                         <h4>Server ID: ${product.id}</h4>
-                        <p>Stok Tersedia: ${product.available} Nomor</p>
+                        <p>Stok: ${product.available} Nomor</p>
                     </div>
                     <div class="product-price">Rp ${product.price}</div>
                 `;
@@ -235,10 +235,10 @@ btnOrder.onclick = async () => {
             startPollingAndTimer(); 
             fetchBalance(); 
         } else {
-            showToast(`Gagal: ${res.error.message}`); // Notifikasi error via Toast
+            showToast(`Gagal: ${res.error.message}`); 
         }
     } catch (error) {
-        showToast("Kesalahan jaringan."); // Notifikasi ringkas
+        showToast("Kesalahan jaringan."); 
     }
     
     btnOrder.innerText = originalText;
@@ -290,7 +290,7 @@ function renderOrders() {
             
             <div class="bottom-grid">
                 <div class="otp-display">
-                    ${order.status === "OTP_RECEIVED" ? '<div class="otp-title">KODE OTP:</div>' : ''}
+                    ${order.status === "OTP_RECEIVED" ? '<div class="otp-title">KODE OTP</div>' : ''}
                     ${otpHtml}
                 </div>
                 
@@ -340,7 +340,8 @@ function startPollingAndTimer() {
                 if (btnCancel) {
                     btnCancel.disabled = true;
                     btnCancel.innerText = "Sukses";
-                    btnCancel.style.backgroundColor = "#cccccc";
+                    btnCancel.style.backgroundColor = "#e5e7eb";
+                    btnCancel.style.color = "#9ca3af";
                 }
                 if (btnFinish) btnFinish.disabled = false;
             } else {
@@ -417,7 +418,7 @@ window.cancelSpecificOrder = async function(orderId) {
             saveToStorage();
             fetchBalance(); 
         } else {
-            showToast(`Gagal dibatalkan.`); // Notifikasi ringkas
+            showToast(`Gagal dibatalkan.`);
             if (btnCancel) btnCancel.disabled = false;
         }
     } catch (error) {
@@ -463,10 +464,8 @@ window.onload = () => {
     const savedAccount = localStorage.getItem('savedAccountName');
     
     if (savedAccount) {
-        // Jika ada sesi yang tersimpan, langsung masuk ke akun tersebut
         loginAccount(savedAccount);
     } else {
-        // Jika tidak ada, tampilkan pilihan akun
         fetchAccounts();
     }
 };
