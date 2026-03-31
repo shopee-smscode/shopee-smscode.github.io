@@ -3,35 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auto OTP Shopee Indonesia</title>
+    <title>Shopee OTP Multi-Order</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Auto OTP Shopee 🇮🇩</h1>
-        <p>Ambil nomor virtual untuk verifikasi.</p>
-
-        <div class="form-group">
-            <label>Pilih Harga (Server):</label>
+        <h1>Shopee OTP Pro 🇮🇩</h1>
+        
+        <div class="section">
+            <label>Pilih Server & Harga:</label>
             <div id="productList" class="product-list">
-                <div class="status-text">Memuat data Shopee Indonesia...</div>
+                <div class="status-text">Memuat layanan Shopee...</div>
             </div>
+            <button id="btnOrder" disabled>Pesan Nomor Baru</button>
         </div>
 
-        <button id="btnOrder" disabled>Dapatkan Nomor</button>
+        <hr>
 
-        <div id="statusArea" class="hidden">
-            <h3>Status Pesanan</h3>
-            <p><strong>Nomor:</strong> <span id="displayNumber" class="text-large">-</span></p>
-            <p><strong>Status:</strong> <span id="displayStatus">Menunggu...</span></p>
-            <div class="otp-box">
-                <p><strong>KODE OTP:</strong></p>
-                <span id="displayOtp">-</span>
-            </div>
-            
-            <div class="action-buttons">
-                 <button id="btnCancel" class="btn-danger hidden">Batalkan Pesanan</button>
-                 <button id="btnFinish" class="btn-success hidden">Selesai (Tutup)</button>
+        <div class="section">
+            <h3>Pesanan Aktif</h3>
+            <div id="activeOrdersContainer">
+                <div class="status-text">Tidak ada pesanan aktif.</div>
             </div>
         </div>
     </div>
