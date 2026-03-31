@@ -229,15 +229,17 @@ btnOrder.onclick = async () => {
             const orderData = res.data.orders[0];
             const productInfo = availableProducts.find(p => p.id === parseInt(selectedProductId));
             
-            // Perbaikan Kalkulasi Waktu Batal (120 detik sejak dibuat)
+            // Mengamankan Harga Saat Pemesanan Baru
+            const finalPrice = orderData.price || orderData.cost || (productInfo ? productInfo.price : 0);
+            
             const expiresAtMs = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
             const createdAtMs = orderData.created_at ? new Date(orderData.created_at).getTime() : Date.now();
-            const cancelUnlockMs = createdAtMs + (120 * 1000); // Tepat 2 menit setelah dibuat
+            const cancelUnlockMs = createdAtMs + (120 * 1000); 
             
             const newOrder = {
                 id: orderData.id,
                 phone: orderData.phone_number,
-                price: productInfo ? productInfo.price : 0,
+                price: finalPrice,
                 otp: null, 
                 status: "ACTIVE",
                 expiresAt: expiresAtMs,
@@ -265,7 +267,7 @@ btnOrder.onclick = async () => {
 };
 
 // ==========================================
-// 6. RENDER KARTU & EFEK GLOW RGB
+// 6. RENDER KARTU (ANIMASI MODERN & GLOW)
 // ==========================================
 function renderOrders() {
     activeCount.innerText = activeOrders.length;
@@ -287,12 +289,21 @@ function renderOrders() {
         if (isSuccess) {
             otpHtml = `<div class="otp-code" id="otp-${order.id}">${order.otp}</div>`;
         } else {
-            otpHtml = `<div class="loader"></div><div class="waiting-text">Menunggu SMS</div>`;
+            // Animasi Loading Dots Modern
+            otpHtml = `
+                <div class="modern-loader">
+                    <span></span><span></span><span></span>
+                </div>
+                <div class="waiting-text">MENUNGGU SMS</div>
+            `;
         }
+
+        // Format harga menjadi Rp XXX
+        const displayPrice = order.price ? `Rp ${order.price}` : 'Rp 0';
 
         card.innerHTML = `
             <div class="order-header">
-                <div><span class="order-id-label">#${order.id}</span> <span class="order-price">Rp ${order.price}</span></div>
+                <div><span class="order-id-label">#${order.id}</span> <span class="order-price">${displayPrice}</span></div>
                 <span class="timer" id="timer-${order.id}">--:--</span>
             </div>
             
@@ -398,7 +409,7 @@ function startPollingAndTimer() {
 }
 
 // ==========================================
-// 8. PEMULIHAN DATA SERVER (DI SINKRONISASI)
+// 8. PEMULIHAN DATA SERVER & FIX HARGA
 // ==========================================
 async function syncServerOrders() {
     try {
@@ -417,16 +428,17 @@ async function syncServerOrders() {
                     if (!existing) {
                         hasNewOrder = true;
                         
-                        // Perbaikan Kalkulasi Waktu Batal dari Server saat Sync
+                        // Fallback logika untuk mengambil harga agar tidak Rp 0
+                        const syncedPrice = order.price || order.cost || 0;
+                        
                         const expiresAtMs = order.expires_at ? new Date(order.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
-                        // Jika server tidak mengirim created_at, asumsikan dibuat 20 menit sebelum expires_at
                         const createdAtMs = order.created_at ? new Date(order.created_at).getTime() : (expiresAtMs - (20 * 60 * 1000));
                         const cancelUnlockMs = createdAtMs + (120 * 1000); 
 
                         activeOrders.unshift({
                             id: order.id,
                             phone: order.phone_number || order.phone || '-',
-                            price: order.price || 0,
+                            price: syncedPrice,
                             otp: order.otp_code || null,
                             status: order.status || "ACTIVE",
                             expiresAt: expiresAtMs,
@@ -509,8 +521,4 @@ window.onload = () => {
 
     const savedAccount = sessionStorage.getItem('savedAccountName');
     if (savedAccount) {
-        loginAccount(savedAccount);
-    } else {
-        fetchAccounts();
-    }
-};
+        login
