@@ -267,7 +267,7 @@ btnOrder.onclick = async () => {
 };
 
 // ==========================================
-// 6. RENDER KARTU (ANIMASI MODERN & GLOW)
+// 6. RENDER KARTU & EFEK GLOW RGB
 // ==========================================
 function renderOrders() {
     activeCount.innerText = activeOrders.length;
@@ -300,6 +300,7 @@ function renderOrders() {
         const displayPrice = (order.price && order.price != 0) ? `Rp ${order.price}` : 'Rp -';
         const passProductId = order.productId ? `'${order.productId}'` : 'null';
 
+        // Strukutur Box Replace dan Batal/Selesai dibuat sejajar
         card.innerHTML = `
             <div class="order-header">
                 <div><span class="order-id-label">#${order.id}</span> <span class="order-price">${displayPrice}</span></div>
@@ -316,10 +317,15 @@ function renderOrders() {
                     ${isSuccess ? '<div class="otp-title">KODE OTP</div>' : ''}
                     ${otpHtml}
                 </div>
-                <div class="action-buttons">
-                    <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id}, ${passProductId})">Ganti Nomor</button>
-                    <button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder(${order.id})">Batalkan</button>
-                    <button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder(${order.id})" disabled>Selesai</button>
+                <div style="display: flex; gap: 6px;">
+                    <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id}, ${passProductId})">
+                        <div style="font-size: 16px; line-height: 1;">↻</div>
+                        <div style="font-size: 9px; font-weight: 800; margin-top: 3px;">GANTI</div>
+                    </button>
+                    <div class="action-buttons">
+                        <button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder(${order.id})">Batalkan</button>
+                        <button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder(${order.id})" disabled>Selesai</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -362,7 +368,7 @@ function startPollingAndTimer() {
 
             if (order.status === "OTP_RECEIVED") {
                 if (btnCancel) { btnCancel.disabled = true; btnCancel.innerText = "Sukses"; btnCancel.style.backgroundColor = "#e5e7eb"; btnCancel.style.color = "#9ca3af"; }
-                if (btnReplace) { btnReplace.disabled = true; btnReplace.innerText = "-"; btnReplace.style.backgroundColor = "#e5e7eb"; btnReplace.style.color = "#9ca3af"; }
+                if (btnReplace) { btnReplace.disabled = true; btnReplace.innerHTML = '<div style="font-size: 16px;">✓</div>'; btnReplace.style.backgroundColor = "#e5e7eb"; btnReplace.style.color = "#9ca3af"; }
                 if (btnFinish) btnFinish.disabled = false;
             } else {
                 if (btnFinish) btnFinish.disabled = true;
@@ -373,16 +379,18 @@ function startPollingAndTimer() {
                         btnCancel.disabled = true;
                         btnCancel.innerText = `Tunggu ${sisaTunggu}s`;
                         
+                        // Tombol Replace yang berbentuk kotak diubah menjadi angka mundur
                         if (btnReplace) {
                             btnReplace.disabled = true;
-                            btnReplace.innerText = `Tunggu ${sisaTunggu}s`;
+                            btnReplace.innerHTML = `<div style="font-size: 13px; font-weight: 800;">${sisaTunggu}s</div>`;
                         }
                     } else {
                         btnCancel.disabled = false;
                         btnCancel.innerText = "Batalkan";
+                        // Kembalikan kotak tombol replace ke tampilan icon saat siap digunakan
                         if (btnReplace) {
                             btnReplace.disabled = false;
-                            btnReplace.innerText = "Ganti Nomor";
+                            btnReplace.innerHTML = `<div style="font-size: 16px; line-height: 1;">↻</div><div style="font-size: 9px; font-weight: 800; margin-top: 3px;">GANTI</div>`;
                         }
                     }
                 }
@@ -477,135 +485,3 @@ async function syncServerOrders() {
         console.log("Sinkronisasi gagal:", error);
     }
 }
-
-// ==========================================
-// 9. AKSI TOMBOL PESANAN & GANTI NOMOR
-// ==========================================
-
-window.replaceSpecificOrder = async function(orderId, productId) {
-    const btnReplace = document.getElementById(`btn-replace-${orderId}`);
-    
-    if (!productId || productId === 'null') {
-        showToast("ID Server tidak ditemukan. Pilih server manual.");
-        return;
-    }
-
-    if (btnReplace) {
-        btnReplace.disabled = true;
-        btnReplace.innerText = "Mengganti...";
-    }
-
-    try {
-        const cancelRes = await apiCall('/orders/cancel', 'POST', { id: orderId });
-        
-        if (cancelRes.success || (cancelRes.error && cancelRes.error.code === 'NOT_FOUND')) {
-            activeOrders = activeOrders.filter(order => order.id !== orderId);
-            
-            const createRes = await apiCall('/orders/create', 'POST', { product_id: parseInt(productId), quantity: 1 });
-            
-            if (createRes.success) {
-                const orderData = createRes.data.orders[0];
-                const productInfo = availableProducts.find(p => String(p.id) === String(productId));
-                const finalPrice = orderData.price || orderData.cost || orderData.amount || (productInfo ? productInfo.price : 0);
-                
-                const expiresAtMs = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
-                const createdAtMs = orderData.created_at ? new Date(orderData.created_at).getTime() : Date.now();
-                const cancelUnlockMs = createdAtMs + (120 * 1000); 
-                
-                const newOrder = {
-                    id: orderData.id,
-                    productId: parseInt(productId),
-                    phone: orderData.phone_number,
-                    price: finalPrice,
-                    otp: null, 
-                    status: "ACTIVE",
-                    expiresAt: expiresAtMs,
-                    cancelUnlockTime: cancelUnlockMs,
-                    isAutoCanceling: false
-                };
-                
-                activeOrders.unshift(newOrder); 
-                saveToStorage();
-                startPollingAndTimer(); 
-                fetchBalance(); 
-
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                copyToClipboard(newOrder.phone);
-                showToast("Nomor berhasil diganti!");
-
-            } else {
-                saveToStorage(); 
-                fetchBalance();
-                showToast(`Gagal pesan baru: ${createRes.error.message}`);
-            }
-        } else {
-            showToast(`Gagal membatalkan pesanan lama.`);
-            if (btnReplace) { btnReplace.disabled = false; btnReplace.innerText = "Ganti Nomor"; }
-        }
-    } catch (error) {
-        showToast("Kesalahan jaringan.");
-        if (btnReplace) { btnReplace.disabled = false; btnReplace.innerText = "Ganti Nomor"; }
-    }
-}
-
-window.cancelSpecificOrder = async function(orderId, isAuto = false) {
-    const btnCancel = document.getElementById(`btn-cancel-${orderId}`);
-    if (btnCancel) {
-        btnCancel.disabled = true;
-        btnCancel.innerText = "Memproses...";
-    }
-
-    try {
-        const res = await apiCall('/orders/cancel', 'POST', { id: orderId });
-        if (res.success || (res.error && res.error.code === 'NOT_FOUND')) {
-            activeOrders = activeOrders.filter(order => order.id !== orderId);
-            saveToStorage();
-            fetchBalance(); 
-            if(isAuto) showToast("Otomatis batal (waktu sisa 1 menit)");
-        } else {
-            showToast(`Gagal dibatalkan.`);
-            if (btnCancel) btnCancel.disabled = false;
-        }
-    } catch (error) {
-        if (btnCancel) btnCancel.disabled = false;
-    }
-}
-
-window.finishSpecificOrder = async function(orderId) {
-    const btnFinish = document.getElementById(`btn-finish-${orderId}`);
-    if (btnFinish) { btnFinish.disabled = true; btnFinish.innerText = "Menutup..."; }
-    try { await apiCall('/orders/finish', 'POST', { id: orderId }); } catch (error) {}
-    activeOrders = activeOrders.filter(order => order.id !== orderId);
-    saveToStorage();
-}
-
-async function initMainApp() {
-    balanceDisplay.innerText = "Memuat...";
-    productList.innerHTML = '<div class="status-text">Memuat data Shopee Indonesia...</div>';
-    
-    btnOrder.disabled = !selectedProductId; 
-    
-    fetchBalance(); 
-    await loadShopeeIndonesia();
-    renderOrders();
-    
-    if (activeOrders.length > 0) {
-        startPollingAndTimer();
-    }
-
-    syncServerOrders(); 
-}
-
-// ==========================================
-// INISIALISASI SAAT PERTAMA KALI DIBUKA
-// ==========================================
-window.onload = () => {
-    history.pushState(null, null, window.location.href);
-
-    const savedAccount = sessionStorage.getItem('savedAccountName');
-    if (savedAccount) {
-        loginAccount(savedAccount);
-    } else {
-        fetchAccounts();
-    }
-};
