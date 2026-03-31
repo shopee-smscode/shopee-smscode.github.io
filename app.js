@@ -71,7 +71,7 @@ btnSwitchAccount.onclick = () => {
 };
 
 // ==========================================
-// 2. FUNGSI MULTI-AKUN (DIPERBAIKI)
+// 2. FUNGSI MULTI-AKUN
 // ==========================================
 async function fetchAccounts() {
     try {
@@ -106,12 +106,10 @@ function loginAccount(accountName) {
     accountView.classList.add('hidden');
     appView.classList.remove('hidden');
 
-    // [PERBAIKAN] Bersihkan memori lokal dari pesanan kadaluarsa sebelum di render
     const now = Date.now();
     const rawOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || [];
     activeOrders = rawOrders.filter(o => o.expiresAt > now);
     
-    // Jika ada yang dibersihkan, simpan ulang memori lokal yang sudah bersih
     if (rawOrders.length !== activeOrders.length) saveToStorage();
 
     initMainApp();
@@ -151,7 +149,7 @@ function copyToClipboard(text) {
 }
 
 // ==========================================
-// 4. LOAD SERVER (TOP 3 & FOKUS SELEKSI)
+// 4. LOAD SERVER
 // ==========================================
 async function fetchBalance() {
     try {
@@ -215,7 +213,7 @@ async function loadShopeeIndonesia() {
 }
 
 // ==========================================
-// 5. PESAN BARU (AUTO SCROLL & AUTO COPY)
+// 5. PESAN BARU
 // ==========================================
 btnOrder.onclick = async () => {
     if (!selectedProductId) return;
@@ -231,14 +229,19 @@ btnOrder.onclick = async () => {
             const orderData = res.data.orders[0];
             const productInfo = availableProducts.find(p => p.id === parseInt(selectedProductId));
             
+            // Perbaikan Kalkulasi Waktu Batal (120 detik sejak dibuat)
+            const expiresAtMs = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
+            const createdAtMs = orderData.created_at ? new Date(orderData.created_at).getTime() : Date.now();
+            const cancelUnlockMs = createdAtMs + (120 * 1000); // Tepat 2 menit setelah dibuat
+            
             const newOrder = {
                 id: orderData.id,
                 phone: orderData.phone_number,
                 price: productInfo ? productInfo.price : 0,
                 otp: null, 
                 status: "ACTIVE",
-                expiresAt: orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000),
-                cancelUnlockTime: Date.now() + (120 * 1000),
+                expiresAt: expiresAtMs,
+                cancelUnlockTime: cancelUnlockMs,
                 isAutoCanceling: false
             };
             
@@ -314,7 +317,7 @@ function renderOrders() {
 }
 
 // ==========================================
-// 7. TIMER, POLLING & AUTO BATAL 1 MENIT (DIPERBAIKI)
+// 7. TIMER, POLLING & AUTO BATAL 1 MENIT
 // ==========================================
 function startPollingAndTimer() {
     if (timerInterval) clearInterval(timerInterval);
@@ -382,7 +385,6 @@ function startPollingAndTimer() {
                         activeOrders[i].otp = res.data.otp_code;
                         hasChanged = true;
                     } 
-                    // [PERBAIKAN] Jika status selain ACTIVE atau PENDING, buang dari layar!
                     else if (serverStatus !== "ACTIVE" && serverStatus !== "PENDING") {
                         activeOrders = activeOrders.filter(o => o.id !== order.id);
                         hasChanged = true;
@@ -396,7 +398,7 @@ function startPollingAndTimer() {
 }
 
 // ==========================================
-// 8. PEMULIHAN DATA SERVER (DIPERBAIKI)
+// 8. PEMULIHAN DATA SERVER (DI SINKRONISASI)
 // ==========================================
 async function syncServerOrders() {
     try {
@@ -405,7 +407,6 @@ async function syncServerOrders() {
         if (res.success && res.data) {
             let serverOrders = Array.isArray(res.data) ? res.data : (res.data.data || []);
             
-            // [PERBAIKAN] HANYA ambil status ACTIVE, PENDING, atau OTP_RECEIVED
             serverOrders = serverOrders.filter(o => o.status === 'ACTIVE' || o.status === 'OTP_RECEIVED' || o.status === 'PENDING');
 
             if (serverOrders.length > 0) {
@@ -415,14 +416,21 @@ async function syncServerOrders() {
                     const existing = activeOrders.find(o => o.id === order.id);
                     if (!existing) {
                         hasNewOrder = true;
+                        
+                        // Perbaikan Kalkulasi Waktu Batal dari Server saat Sync
+                        const expiresAtMs = order.expires_at ? new Date(order.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
+                        // Jika server tidak mengirim created_at, asumsikan dibuat 20 menit sebelum expires_at
+                        const createdAtMs = order.created_at ? new Date(order.created_at).getTime() : (expiresAtMs - (20 * 60 * 1000));
+                        const cancelUnlockMs = createdAtMs + (120 * 1000); 
+
                         activeOrders.unshift({
                             id: order.id,
                             phone: order.phone_number || order.phone || '-',
                             price: order.price || 0,
                             otp: order.otp_code || null,
                             status: order.status || "ACTIVE",
-                            expiresAt: order.expires_at ? new Date(order.expires_at).getTime() : Date.now() + (20 * 60 * 1000),
-                            cancelUnlockTime: Date.now() + (120 * 1000), 
+                            expiresAt: expiresAtMs,
+                            cancelUnlockTime: cancelUnlockMs, 
                             isAutoCanceling: false
                         });
                     }
