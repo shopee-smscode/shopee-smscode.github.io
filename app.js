@@ -1,10 +1,9 @@
-const BASE_URL = "https://shopee-otp-proxy.masreno6pro.workers.dev/";
+// 1. GANTI URL INI DENGAN URL CLOUDFLARE WORKER ANDA
+// Contoh: "https://shopee-otp-proxy.username-anda.workers.dev"
+const BASE_URL = "https://shopee-otp-proxy.masreno6pro.workers.dev"; 
 
-// Asumsi dari Docs (Anda bisa menambahkan fungsi pencarian otomatis jika ID ini berubah)
 const COUNTRY_ID_INDO = 6;
-// Anda perlu mencari Platform ID untuk Shopee. Misalnya kita asumsikan ID-nya 10.
-// (Anda bisa mencari ID aslinya dengan mengecek endpoint /catalog/services?country_id=6)
-const PLATFORM_ID_SHOPEE = 10; 
+const PLATFORM_ID_SHOPEE = 10; // Pastikan ID platform Shopee benar (bisa dicek di dokumentasi)
 
 let currentOrderId = null;
 let pollingInterval = null;
@@ -19,12 +18,12 @@ const displayOtp = document.getElementById('displayOtp');
 const btnCancel = document.getElementById('btnCancel');
 const btnFinish = document.getElementById('btnFinish');
 
-// Fungsi pembantu untuk memanggil API
+// Fungsi pembantu untuk memanggil API via Cloudflare
 async function apiCall(endpoint, method = "GET", body = null) {
     const options = {
         method: method,
         headers: {
-            "Authorization": `Bearer ${API_TOKEN}`,
+            // Token dihapus dari sini, Cloudflare yang akan menyisipkannya
             "Content-Type": "application/json"
         }
     };
@@ -34,39 +33,42 @@ async function apiCall(endpoint, method = "GET", body = null) {
     return await response.json();
 }
 
-// 1. Muat Daftar Produk Shopee Indonesia saat halaman dibuka
+// Muat Daftar Produk Shopee Indonesia
 async function loadProducts() {
     try {
         const res = await apiCall(`/catalog/products?country_id=${COUNTRY_ID_INDO}&platform_id=${PLATFORM_ID_SHOPEE}`);
         
         if (res.success && res.data.length > 0) {
-            productSelect.innerHTML = ""; // Bersihkan opsi "Memuat..."
-            
+            productSelect.innerHTML = ""; 
             res.data.forEach(product => {
                 const option = document.createElement("option");
                 option.value = product.id;
-                option.text = `${product.name} - Harga: Rp ${product.price} (Stok: ${product.available})`;
+                option.text = `${product.name} - Rp ${product.price} (${product.available})`;
                 productSelect.appendChild(option);
             });
-            
             productSelect.disabled = false;
             btnOrder.disabled = false;
         } else {
-            productSelect.innerHTML = '<option value="">Produk tidak tersedia</option>';
+            productSelect.innerHTML = '<option value="">Produk kosong</option>';
         }
     } catch (error) {
-    productSelect.innerHTML = '<option value="">Error: ' + error.message + '</option>';
+        productSelect.innerHTML = '<option value="">Koneksi error</option>';
+    }
 }
 
-}
-
-// 2. Fungsi untuk Memesan Nomor
+// Fungsi Memesan Nomor
 async function orderNumber() {
     const productId = productSelect.value;
-    if (!productId) return alert("Pilih produk terlebih dahulu!");
+    if (!productId) {
+        displayStatus.innerText = "Pilih produk!";
+        return;
+    }
 
     btnOrder.disabled = true;
+    statusArea.classList.remove('hidden');
     displayStatus.innerText = "Memesan...";
+    displayNumber.innerText = "-";
+    displayOtp.innerText = "-";
 
     try {
         const res = await apiCall('/orders/create', 'POST', { product_id: parseInt(productId), quantity: 1 });
@@ -75,76 +77,91 @@ async function orderNumber() {
             const order = res.data.orders[0];
             currentOrderId = order.id;
             
-            statusArea.classList.remove('hidden');
             displayNumber.innerText = order.phone_number;
-            displayStatus.innerText = "Menunggu SMS...";
+            displayStatus.innerText = "Tunggu SMS...";
             btnCancel.classList.remove('hidden');
+            btnFinish.classList.add('hidden');
             
-            // Mulai mengecek OTP setiap 5 detik
             startPolling(); 
         } else {
-            alert("Gagal memesan: " + res.error.message);
+            displayStatus.innerText = "Gagal pesan";
             btnOrder.disabled = false;
         }
     } catch (error) {
-        alert("Terjadi kesalahan saat memesan.");
+        displayStatus.innerText = "Error jaringan";
         btnOrder.disabled = false;
     }
 }
 
-// 3. Fungsi Polling (Mengecek OTP berulang kali)
+// Fungsi Mengecek OTP
 function startPolling() {
     if (pollingInterval) clearInterval(pollingInterval);
     
     pollingInterval = setInterval(async () => {
         if (!currentOrderId) return;
 
-        const res = await apiCall(`/orders/${currentOrderId}`);
-        if (res.success) {
-            const orderStatus = res.data.status;
-            displayStatus.innerText = `Status: ${orderStatus}`;
-
-            if (orderStatus === "OTP_RECEIVED") {
-                displayOtp.innerText = res.data.otp_code;
-                clearInterval(pollingInterval);
-                btnCancel.classList.add('hidden');
-                btnFinish.classList.remove('hidden');
-            } else if (orderStatus === "CANCELED" || orderStatus === "EXPIRED") {
-                clearInterval(pollingInterval);
-                displayStatus.innerText = `Pesanan ${orderStatus}`;
-                btnCancel.classList.add('hidden');
-                btnOrder.disabled = false;
+        try {
+            const res = await apiCall(`/orders/${currentOrderId}`);
+            if (res.success) {
+                const orderStatus = res.data.status;
+                
+                if (orderStatus === "OTP_RECEIVED") {
+                    displayStatus.innerText = "OTP Masuk!";
+                    displayOtp.innerText = res.data.otp_code;
+                    clearInterval(pollingInterval);
+                    btnCancel.classList.add('hidden');
+                    btnFinish.classList.remove('hidden');
+                } else if (orderStatus === "CANCELED" || orderStatus === "EXPIRED") {
+                    displayStatus.innerText = "Pesanan batal/kadaluarsa";
+                    clearInterval(pollingInterval);
+                    btnCancel.classList.add('hidden');
+                    btnOrder.disabled = false;
+                }
             }
+        } catch (error) {
+            displayStatus.innerText = "Gagal cek status";
         }
     }, 5000); // Cek setiap 5 detik
 }
 
-// 4. Fungsi Batalkan Pesanan
+// Fungsi Batalkan Pesanan
 async function cancelOrder() {
     if (!currentOrderId) return;
     
-    const res = await apiCall('/orders/cancel', 'POST', { id: currentOrderId });
-    if (res.success) {
-        clearInterval(pollingInterval);
-        displayStatus.innerText = "Dibatalkan. Saldo dikembalikan.";
-        btnCancel.classList.add('hidden');
-        btnOrder.disabled = false;
-        currentOrderId = null;
-    } else {
-         alert("Gagal membatalkan: " + res.error.message);
+    displayStatus.innerText = "Membatalkan...";
+    try {
+        const res = await apiCall('/orders/cancel', 'POST', { id: currentOrderId });
+        if (res.success) {
+            clearInterval(pollingInterval);
+            displayStatus.innerText = "Dibatalkan (Saldo kembali)";
+            btnCancel.classList.add('hidden');
+            btnOrder.disabled = false;
+            currentOrderId = null;
+        } else {
+             displayStatus.innerText = "Gagal batal";
+        }
+    } catch (error) {
+        displayStatus.innerText = "Error batal";
     }
 }
 
-// 5. Fungsi Selesaikan Pesanan
+// Fungsi Selesaikan Pesanan
 async function finishOrder() {
      if (!currentOrderId) return;
      
-     const res = await apiCall('/orders/finish', 'POST', { id: currentOrderId });
-     if (res.success) {
-         displayStatus.innerText = "Selesai.";
-         btnFinish.classList.add('hidden');
-         btnOrder.disabled = false;
-         currentOrderId = null;
+     displayStatus.innerText = "Menyelesaikan...";
+     try {
+         const res = await apiCall('/orders/finish', 'POST', { id: currentOrderId });
+         if (res.success) {
+             displayStatus.innerText = "Selesai";
+             btnFinish.classList.add('hidden');
+             btnOrder.disabled = false;
+             currentOrderId = null;
+         } else {
+             displayStatus.innerText = "Gagal selesai";
+         }
+     } catch (error) {
+         displayStatus.innerText = "Error selesai";
      }
 }
 
