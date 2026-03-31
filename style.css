@@ -1,44 +1,75 @@
 body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f4f9;
-    padding: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #f5f5f5;
+    padding: 15px;
+    margin: 0;
 }
 .container {
-    max-width: 500px;
+    max-width: 400px; /* Diperkecil agar lebih pas di layar HP */
     margin: 0 auto;
     background: white;
     padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+h1 { color: #ee4d2d; font-size: 24px; margin-bottom: 5px; }
+
+/* Desain List Produk */
+.product-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+    margin-bottom: 20px;
+    max-height: 250px; /* Bisa discroll jika kepanjangan */
+    overflow-y: auto;
+}
+.product-card {
+    border: 2px solid #e0e0e0;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-.form-group {
-    margin-bottom: 15px;
-}
-select, button {
-    width: 100%;
-    padding: 10px;
-    margin-top: 5px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-}
-button {
-    background-color: #007bff;
-    color: white;
+    padding: 12px;
     cursor: pointer;
-    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #fff;
+    transition: all 0.2s ease;
+}
+.product-card.selected {
+    border-color: #ee4d2d; /* Warna khas Shopee */
+    background-color: #fff3ed;
+}
+.product-info h4 { margin: 0 0 4px 0; font-size: 15px; color: #333; }
+.product-info p { margin: 0; font-size: 12px; color: #666; }
+.product-price { font-weight: bold; color: #ee4d2d; font-size: 15px; }
+
+/* Desain Tombol & Input */
+button {
+    width: 100%;
+    padding: 12px;
+    border-radius: 6px;
     border: none;
-}
-button:disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
-}
-.hidden {
-    display: none;
-}
-.highlight {
-    font-size: 1.5em;
-    color: #e74c3c;
+    font-size: 16px;
     font-weight: bold;
+    cursor: pointer;
+    background-color: #ee4d2d;
+    color: white;
 }
+button:disabled { background-color: #cccccc; cursor: not-allowed; }
 .btn-danger { background-color: #dc3545; margin-top: 10px; }
 .btn-success { background-color: #28a745; margin-top: 10px; }
+
+/* Status dan Notifikasi */
+.hidden { display: none; }
+.status-text { color: #555; font-style: italic; font-size: 14px; }
+.text-large { font-size: 18px; font-weight: bold; letter-spacing: 1px; }
+.otp-box {
+    background-color: #e8f5e9;
+    border: 1px solid #c8e6c9;
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    margin-top: 15px;
+}
+.otp-box p { margin: 0 0 5px 0; font-size: 12px; color: #2e7d32; }
+#displayOtp { font-size: 28px; font-weight: bold; color: #1b5e20; letter-spacing: 3px; }
