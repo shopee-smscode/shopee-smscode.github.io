@@ -19,26 +19,44 @@ const activeCount = document.getElementById('activeCount');
 const balanceDisplay = document.getElementById('balanceDisplay');
 
 // ==========================================
-// 1. SISTEM BACK BUTTON & MODAL
+// 1. SISTEM BACK BUTTON & MODAL KELUAR
 // ==========================================
+let isExitModalOpen = false;
+
 window.addEventListener('popstate', (e) => {
     if (activeAccountName !== null) {
         // Jika sedang di page SMS, logout dan kembali ke Lobi
         logoutAccount();
     } else {
-        // Jika di page Lobi, munculkan modal keluar dan jebak tombol back
-        document.getElementById('exitModal').classList.remove('hidden');
-        history.pushState({ page: 'lobi' }, "", ""); 
+        // Jika sedang di page Lobi (Pilih Akun)
+        if (isExitModalOpen) {
+            // Jika modal sudah terbuka dan ditekan back lagi, paksa keluar
+            confirmExit();
+        } else {
+            // Tampilkan modal dan jebak history browser lagi agar tidak langsung keluar
+            document.getElementById('exitModal').classList.remove('hidden');
+            isExitModalOpen = true;
+            history.pushState(null, null, window.location.href); 
+        }
     }
 });
 
 function closeExitModal() {
     document.getElementById('exitModal').classList.add('hidden');
+    isExitModalOpen = false;
 }
 
 function confirmExit() {
-    window.close();       // Tutup web
-    window.history.go(-2); // Fallback ke home device jika dibuka dari app/webview
+    // Menutup aplikasi secara paksa
+    window.close();
+    // Fallback jika dibuka dari WebView / App Android
+    if (navigator.app) {
+        navigator.app.exitApp();
+    } else if (navigator.device) {
+        navigator.device.exitApp();
+    } else {
+        window.history.go(-2);
+    }
 }
 
 function logoutAccount() {
@@ -51,11 +69,13 @@ function logoutAccount() {
     accountView.classList.remove('hidden');
     activeAccountName = null;
     fetchAccounts();
+    
+    // Pasang kembali jebakan tombol back untuk halaman Lobi
+    history.pushState(null, null, window.location.href);
 }
 
 btnSwitchAccount.onclick = () => {
     logoutAccount();
-    history.replaceState({ page: 'lobi' }, "", "");
 };
 
 // ==========================================
@@ -89,11 +109,13 @@ function loginAccount(accountName) {
     currentAccountName.innerText = accountName;
     
     sessionStorage.setItem('savedAccountName', accountName);
-    history.pushState({ page: 'sms' }, "", "#sms"); // Set state HP
+    // Tambahkan jejak "#sms" agar tombol back HP memicu event popstate
+    history.pushState(null, null, "#sms"); 
     
     accountView.classList.add('hidden');
     appView.classList.remove('hidden');
 
+    // Ambil data lokal (jika ada)
     activeOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || [];
     initMainApp();
 }
@@ -246,7 +268,7 @@ btnOrder.onclick = async () => {
 };
 
 // ==========================================
-// 6. RENDER KARTU (EFEK GLOW RGB)
+// 6. RENDER KARTU & EFEK GLOW RGB
 // ==========================================
 function renderOrders() {
     activeCount.innerText = activeOrders.length;
@@ -271,7 +293,6 @@ function renderOrders() {
             otpHtml = `<div class="loader"></div><div class="waiting-text">Menunggu SMS</div>`;
         }
 
-        // Tambahkan class 'success-glow' untuk animasi mutar jika OTP didapat
         card.innerHTML = `
             <div class="order-header">
                 <div><span class="order-id-label">#${order.id}</span> <span class="order-price">Rp ${order.price}</span></div>
@@ -299,7 +320,7 @@ function renderOrders() {
 }
 
 // ==========================================
-// 7. TIMER & AUTO BATAL (<= 1 MENIT)
+// 7. TIMER, POLLING & AUTO BATAL 1 MENIT
 // ==========================================
 function startPollingAndTimer() {
     if (timerInterval) clearInterval(timerInterval);
@@ -325,7 +346,7 @@ function startPollingAndTimer() {
                 if (timerElement) timerElement.innerText = `${minutes < 10 ? '0'+minutes : minutes}:${seconds < 10 ? '0'+seconds : seconds}`;
             }
 
-            // [FITUR BARU] AUTO BATAL JIKA WAKTU TINGGAL 1 MENIT (60 Detik)
+            // AUTO BATAL JIKA WAKTU TINGGAL 1 MENIT (60 Detik)
             if (timeLeft <= 60000 && order.status !== "OTP_RECEIVED" && !order.isAutoCanceling) {
                 order.isAutoCanceling = true; 
                 cancelSpecificOrder(order.id, true); // true = auto batal
@@ -381,7 +402,55 @@ function startPollingAndTimer() {
 }
 
 // ==========================================
-// 8. AKSI TOMBOL PESANAN
+// 8. PEMULIHAN DATA SERVER (SYNC)
+// ==========================================
+async function syncServerOrders() {
+    try {
+        const res = await apiCall('/orders'); 
+        
+        if (res.success && res.data) {
+            let serverOrders = Array.isArray(res.data) ? res.data : (res.data.data || []);
+            
+            // Ambil hanya orderan yang masih aktif dari Server
+            serverOrders = serverOrders.filter(o => o.status !== 'CANCELED' && o.status !== 'EXPIRED');
+
+            if (serverOrders.length > 0) {
+                let hasNewOrder = false;
+                
+                serverOrders.forEach(order => {
+                    // Jika nomor ini belum ada di tampilan lokal, tambahkan!
+                    const existing = activeOrders.find(o => o.id === order.id);
+                    if (!existing) {
+                        hasNewOrder = true;
+                        activeOrders.unshift({
+                            id: order.id,
+                            phone: order.phone_number || order.phone || '-',
+                            price: order.price || 0,
+                            otp: order.otp_code || null,
+                            status: order.status || "ACTIVE",
+                            expiresAt: order.expires_at ? new Date(order.expires_at).getTime() : Date.now() + (20 * 60 * 1000),
+                            cancelUnlockTime: Date.now() + (120 * 1000), 
+                            isAutoCanceling: false
+                        });
+                    }
+                });
+
+                if (hasNewOrder) {
+                    saveToStorage();
+                    renderOrders();
+                    startPollingAndTimer();
+                    fetchBalance();
+                    showToast("Pesanan aktif berhasil dipulihkan!");
+                }
+            }
+        }
+    } catch (error) {
+        console.log("Sinkronisasi gagal:", error);
+    }
+}
+
+// ==========================================
+// 9. AKSI TOMBOL PESANAN
 // ==========================================
 window.cancelSpecificOrder = async function(orderId, isAuto = false) {
     const btnCancel = document.getElementById(`btn-cancel-${orderId}`);
@@ -418,23 +487,28 @@ function initMainApp() {
     balanceDisplay.innerText = "Memuat...";
     productList.innerHTML = '<div class="status-text">Memuat data Shopee Indonesia...</div>';
     
-    // Jangan reset selectedProductId agar highlight merahnya tetap bertahan saat di-render ulang!
     btnOrder.disabled = !selectedProductId; 
     
     fetchBalance(); 
     loadShopeeIndonesia();
     renderOrders();
-    if (activeOrders.length > 0) startPollingAndTimer();
+    
+    if (activeOrders.length > 0) {
+        startPollingAndTimer();
+    }
+
+    // Tarik data dari server untuk mengembalikan nomor yang hilang jika app dihapus/clear data
+    syncServerOrders(); 
 }
 
 // ==========================================
 // INISIALISASI SAAT PERTAMA KALI DIBUKA
 // ==========================================
 window.onload = () => {
-    history.replaceState({ page: 'lobi' }, "", "");
-    // Menggunakan sessionStorage agar login reset ketika aplikasi/tab di close bersih
+    // Memasang perangkap awal untuk sistem Back HP
+    history.pushState(null, null, window.location.href);
+
     const savedAccount = sessionStorage.getItem('savedAccountName');
-    
     if (savedAccount) {
         loginAccount(savedAccount);
     } else {
