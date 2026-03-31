@@ -1,6 +1,20 @@
 /* --- BASE & TYPOGRAPHY --- */
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif; background-color: #f0f2f5; padding: 10px; margin: 0; color: #1f2937; }
-.container { max-width: 480px; margin: 0 auto; background: #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 8px 24px rgba(149, 157, 165, 0.2); position: relative; }
+body { 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif; 
+    background-color: #f0f2f5; 
+    padding: 10px; 
+    margin: 0; 
+    color: #1f2937; 
+}
+.container { 
+    max-width: 480px; 
+    margin: 0 auto; 
+    background: #ffffff; 
+    padding: 20px; 
+    border-radius: 16px; 
+    box-shadow: 0 8px 24px rgba(149, 157, 165, 0.2); 
+    position: relative; 
+}
 .hidden { display: none !important; }
 .status-text { color: #6b7280; font-size: 13px; text-align: center; padding: 15px; }
 
@@ -41,6 +55,11 @@ h1 { color: #ee4d2d; font-size: 22px; margin: 0 0 4px 0; font-weight: 800; lette
 .product-info p { margin: 0; font-size: 11px; color: #6b7280; } 
 .product-price { font-weight: 700; color: #ee4d2d; font-size: 12px; background: #fff5f2; padding: 4px 8px; border-radius: 6px; }
 
+/* Scrollbar Customization untuk List Server */
+.product-list::-webkit-scrollbar { width: 4px; }
+.product-list::-webkit-scrollbar-track { background: #f3f4f6; border-radius: 10px; }
+.product-list::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+
 /* --- ORDER CARDS --- */
 .order-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; margin-bottom: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.04); }
 .order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 12px; border-bottom: 1px dashed #e5e7eb; padding-bottom: 8px; }
@@ -50,7 +69,7 @@ h1 { color: #ee4d2d; font-size: 22px; margin: 0 0 4px 0; font-weight: 800; lette
 .phone-row { display: flex; justify-content: space-between; align-items: center; background-color: #f3f4f6; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e5e7eb;}
 .phone-number { font-size: 19px; font-weight: 800; color: #ea580c; letter-spacing: 1.5px; }
 
-/* --- TOMBOL SALIN BARU --- */
+/* --- TOMBOL SALIN --- */
 .btn-copy { background-color: #3b82f6; color: #ffffff; padding: 8px 16px; font-size: 12px; font-weight: 700; border-radius: 8px; border: none; cursor: pointer; transition: background 0.2s; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3); }
 .btn-copy:hover { background-color: #2563eb; }
 
@@ -58,11 +77,43 @@ h1 { color: #ee4d2d; font-size: 22px; margin: 0 0 4px 0; font-weight: 800; lette
 .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .otp-display { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; text-align: center; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; }
 .otp-title { font-size: 10px; color: #166534; font-weight: 700; margin-bottom: 4px; text-transform: uppercase; }
-.otp-code { font-size: 20px; font-weight: 800; color: #15803d; letter-spacing: 2px; }
 
-.success-glow { position: relative; overflow: hidden; border: 1px solid transparent !important; background: transparent !important; z-index: 1; }
-.success-glow::before { content: ""; position: absolute; top: -100%; left: -100%; right: -100%; bottom: -100%; background: conic-gradient(from 0deg, transparent 0%, transparent 60%, #22c55e 100%); animation: spin-glow 1.5s linear infinite; z-index: -2; }
-.success-glow::after { content: ""; position: absolute; inset: 2px; background: #f0fdf4; border-radius: 6px; z-index: -1; }
+/* Teks OTP Super Besar & Tebal */
+.otp-code { 
+    font-size: 32px; 
+    font-weight: 900; 
+    color: #059669; 
+    letter-spacing: 4px; 
+    text-shadow: 1px 1px 0px #fff;
+}
+
+/* Efek Glow RGB yang Lebih Tebal & Berwarna Mencolok */
+.success-glow { 
+    position: relative; 
+    overflow: hidden; 
+    border: none !important; 
+    background: transparent !important; 
+    z-index: 1; 
+}
+.success-glow::before { 
+    content: ""; 
+    position: absolute; 
+    top: -150%; 
+    left: -150%; 
+    right: -150%; 
+    bottom: -150%; 
+    background: conic-gradient(from 0deg, #ff0000, #ff00ea, #004cff, #00ff22, #ffea00, #ff0000); 
+    animation: spin-glow 2s linear infinite; 
+    z-index: -2; 
+}
+.success-glow::after { 
+    content: ""; 
+    position: absolute; 
+    inset: 4px; /* Border tebal 4px */
+    background: #f0fdf4; 
+    border-radius: 6px; 
+    z-index: -1; 
+}
 @keyframes spin-glow { 100% { transform: rotate(360deg); } }
 
 /* --- ANIMASI LOADING OTP MODERN --- */
@@ -75,9 +126,9 @@ h1 { color: #ee4d2d; font-size: 22px; margin: 0 0 4px 0; font-weight: 800; lette
 .waiting-text { font-size: 11px; color: #166534; margin-top: 4px; font-weight: 700; letter-spacing: 0.5px; animation: textPulse 1.5s infinite; }
 @keyframes textPulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
 
-/* --- BUTTONS & MODAL --- */
+/* --- BUTTONS (BATAL, SELESAI, GANTI) --- */
 .action-buttons { display: flex; flex-direction: column; gap: 6px; justify-content: center; flex: 1; min-width: 0; }
-.action-buttons button { padding: 10px; font-size: 13px; border-radius: 6px; width: 100%; } /* Ukuran Batal & Selesai kembali seperti semula */
+.action-buttons button { padding: 10px; font-size: 13px; border-radius: 6px; width: 100%; }
 
 /* Desain Kotak Tombol Replace */
 .btn-replace { background-color: #f59e0b; color: white; border: none; cursor: pointer; transition: opacity 0.2s; border-radius: 6px; width: 48px; display: flex; flex-direction: column; justify-content: center; align-items: center; flex-shrink: 0; padding: 0; }
@@ -92,6 +143,11 @@ h1 { color: #ee4d2d; font-size: 22px; margin: 0 0 4px 0; font-weight: 800; lette
 .btn-success { background-color: #22c55e; color: white; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
 .btn-success:disabled { background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
 
+/* Loader standar untuk spinner di tombol */
+.loader { border: 2px solid #e5e7eb; border-top: 2px solid #6b7280; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; margin: 0 auto; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* --- MODAL EXIT KELUAR --- */
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 99999; display: flex; justify-content: center; align-items: center; opacity: 1; transition: opacity 0.2s; }
 .modal-content { background: #fff; padding: 25px 20px; border-radius: 16px; text-align: center; width: 85%; max-width: 320px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 .modal-title { margin: 0 0 10px 0; color: #ee4d2d; font-size: 18px; font-weight: 800; }
@@ -99,13 +155,6 @@ h1 { color: #ee4d2d; font-size: 22px; margin: 0 0 4px 0; font-weight: 800; lette
 .modal-actions { display: flex; justify-content: space-between; gap: 10px; }
 @keyframes popUp { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
+/* --- TOAST --- */
 .toast { visibility: hidden; min-width: 200px; background-color: #1f2937; color: #fff; text-align: center; border-radius: 30px; padding: 10px 16px; position: fixed; z-index: 9999; left: 50%; transform: translateX(-50%); bottom: 20px; font-size: 13px; font-weight: 600; opacity: 0; transition: opacity 0.3s, bottom 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 .toast.show { visibility: visible; opacity: 1; bottom: 35px; }
-
-/* Menyiapkan loader standar (untuk efek spinner di tombol) */
-.loader { border: 2px solid #e5e7eb; border-top: 2px solid #6b7280; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; margin: 0 auto; }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-.product-list::-webkit-scrollbar { width: 4px; }
-.product-list::-webkit-scrollbar-track { background: #f3f4f6; border-radius: 10px; }
-.product-list::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
