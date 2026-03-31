@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto OTP Shopee Indonesia</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Auto OTP Shopee 🇮🇩</h1>
+        <p>Ambil nomor virtual untuk verifikasi Shopee.</p>
+
+        <div class="form-group">
+            <label for="productSelect">Pilih Produk & Harga:</label>
+            <select id="productSelect" disabled>
+                <option value="">Memuat data...</option>
+            </select>
+        </div>
+
+        <button id="btnOrder" disabled>Dapatkan Nomor</button>
+
+        <div id="statusArea" class="hidden">
+            <h3>Status Pesanan</h3>
+            <p><strong>Nomor:</strong> <span id="displayNumber">-</span></p>
+            <p><strong>Status:</strong> <span id="displayStatus">Menunggu...</span></p>
+            <p><strong>OTP:</strong> <span id="displayOtp" class="highlight">-</span></p>
+            
+            <div class="action-buttons">
+                 <button id="btnCancel" class="btn-danger hidden">Batalkan Pesanan</button>
+                 <button id="btnFinish" class="btn-success hidden">Selesai (OTP Diterima)</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
