@@ -28,7 +28,12 @@ window.addEventListener('popstate', (e) => {
         logoutAccount();
     } else {
         if (isExitModalOpen) {
-            confirmExit();
+            // [PERBAIKAN LOGIKA]
+            // Jika modal sedang terbuka dan user menekan Back HP, 
+            // maka TUTUP MODAL (Batal), JANGAN keluar aplikasi!
+            closeExitModal();
+            // Pasang jebakan history lagi agar tidak jebol
+            history.pushState(null, null, window.location.href); 
         } else {
             document.getElementById('exitModal').classList.remove('hidden');
             isExitModalOpen = true;
@@ -229,7 +234,6 @@ btnOrder.onclick = async () => {
             const orderData = res.data.orders[0];
             const productInfo = availableProducts.find(p => p.id === parseInt(selectedProductId));
             
-            // Mengamankan Harga Saat Pemesanan Baru
             const finalPrice = orderData.price || orderData.cost || (productInfo ? productInfo.price : 0);
             
             const expiresAtMs = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
@@ -289,7 +293,6 @@ function renderOrders() {
         if (isSuccess) {
             otpHtml = `<div class="otp-code" id="otp-${order.id}">${order.otp}</div>`;
         } else {
-            // Animasi Loading Dots Modern
             otpHtml = `
                 <div class="modern-loader">
                     <span></span><span></span><span></span>
@@ -298,7 +301,6 @@ function renderOrders() {
             `;
         }
 
-        // Format harga menjadi Rp XXX
         const displayPrice = order.price ? `Rp ${order.price}` : 'Rp 0';
 
         card.innerHTML = `
@@ -409,7 +411,7 @@ function startPollingAndTimer() {
 }
 
 // ==========================================
-// 8. PEMULIHAN DATA SERVER & FIX HARGA
+// 8. PEMULIHAN DATA SERVER
 // ==========================================
 async function syncServerOrders() {
     try {
@@ -428,7 +430,6 @@ async function syncServerOrders() {
                     if (!existing) {
                         hasNewOrder = true;
                         
-                        // Fallback logika untuk mengambil harga agar tidak Rp 0
                         const syncedPrice = order.price || order.cost || 0;
                         
                         const expiresAtMs = order.expires_at ? new Date(order.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
@@ -521,4 +522,8 @@ window.onload = () => {
 
     const savedAccount = sessionStorage.getItem('savedAccountName');
     if (savedAccount) {
-        login
+        loginAccount(savedAccount);
+    } else {
+        fetchAccounts();
+    }
+};
