@@ -46,12 +46,23 @@
 
         <div class="section">
             <div class="section-header">
-                <h3 class="section-title">Pilih Harga & Server</h3>
+                <h3 class="section-title">Top 3 Harga Termurah</h3>
             </div>
             <div id="productList" class="product-list">
                 <div class="status-text">Memuat data Shopee Indonesia...</div>
             </div>
             <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
+        </div>
+    </div>
+
+    <div id="exitModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 class="modal-title">Keluar Aplikasi?</h3>
+            <p class="modal-desc">Apakah Anda yakin ingin menutup dan keluar dari aplikasi ini?</p>
+            <div class="modal-actions">
+                <button onclick="closeExitModal()" class="btn-switch" style="width:48%; padding:12px;">Batal</button>
+                <button onclick="confirmExit()" class="btn-danger" style="width:48%; padding:12px; border-radius:8px;">Keluar</button>
+            </div>
         </div>
     </div>
 
