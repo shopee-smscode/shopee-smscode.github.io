@@ -1,191 +1,168 @@
-// URL Worker Cloudflare yang sudah diperbarui
 const BASE_URL = "https://shopee-otp-proxy.masreno6pro.workers.dev"; 
 
-let currentOrderId = null;
-let pollingInterval = null;
-let selectedProductId = null; // Menyimpan ID produk yang dipilih dari kartu
+let activeOrders = JSON.parse(localStorage.getItem('shopee_orders')) || [];
+let selectedProductId = null;
 
-// Elemen DOM
 const productList = document.getElementById('productList');
 const btnOrder = document.getElementById('btnOrder');
-const statusArea = document.getElementById('statusArea');
-const displayNumber = document.getElementById('displayNumber');
-const displayStatus = document.getElementById('displayStatus');
-const displayOtp = document.getElementById('displayOtp');
-const btnCancel = document.getElementById('btnCancel');
-const btnFinish = document.getElementById('btnFinish');
+const activeOrdersContainer = document.getElementById('activeOrdersContainer');
+
+// --- LOGIKA UTAMA ---
 
 async function apiCall(endpoint, method = "GET", body = null) {
-    const options = { 
-        method: method, 
-        headers: { "Content-Type": "application/json" } 
-    };
+    const options = { method, headers: { "Content-Type": "application/json" } };
     if (body) options.body = JSON.stringify(body);
-    
-    // Memanggil proxy Cloudflare Worker
     const response = await fetch(`${BASE_URL}${endpoint}`, options);
     return await response.json();
 }
 
-// Fungsi: Pencarian ID Otomatis & Merakit Antarmuka Kartu
-async function loadShopeeIndonesia() {
+// Simpan ke LocalStorage agar tidak hilang saat refresh
+function saveToStorage() {
+    localStorage.setItem('shopee_orders', JSON.stringify(activeOrders));
+    renderOrders();
+}
+
+// Fungsi Salin Nomor
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text);
+    alert("Nomor berhasil disalin!");
+}
+
+// Memuat Produk Shopee
+async function loadProducts() {
     try {
-        productList.innerHTML = '<div class="status-text">Mencari ID Indonesia...</div>';
         const countriesRes = await apiCall('/catalog/countries');
-        
-        // Mencari objek negara Indonesia
         const indo = countriesRes.data.find(c => c.name.toLowerCase() === 'indonesia');
-        if (!indo) throw new Error("Negara Indonesia tidak ditemukan di server");
-
-        productList.innerHTML = '<div class="status-text">Mencari layanan Shopee...</div>';
         const servicesRes = await apiCall(`/catalog/services?country_id=${indo.id}`);
-        
-        // Mencari layanan Shopee secara dinamis
         const shopee = servicesRes.data.find(s => s.name.toLowerCase().includes('shopee'));
-        if (!shopee) throw new Error("Layanan Shopee tidak tersedia saat ini");
-
-        productList.innerHTML = '<div class="status-text">Memuat daftar harga...</div>';
         const productsRes = await apiCall(`/catalog/products?country_id=${indo.id}&platform_id=${shopee.id}`);
         
-        if (productsRes.success && productsRes.data.length > 0) {
-            productList.innerHTML = ""; // Bersihkan status teks
-            
-            productsRes.data.forEach(product => {
-                // Membuat elemen kartu produk
-                const card = document.createElement("div");
-                card.className = "product-card";
-                card.innerHTML = `
-                    <div class="product-info">
-                        <h4>Server ${product.id}</h4>
-                        <p>Tersedia: ${product.available} nomor</p>
-                    </div>
-                    <div class="product-price">Rp ${product.price}</div>
-                `;
-                
-                // Logika pemilihan kartu
-                card.onclick = () => {
-                    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
-                    card.classList.add('selected');
-                    selectedProductId = product.id;
-                    btnOrder.disabled = false;
-                };
-                
-                productList.appendChild(card);
-            });
-        } else {
-            productList.innerHTML = '<div class="status-text">Maaf, stok nomor Shopee sedang kosong.</div>';
-        }
-    } catch (error) {
-        productList.innerHTML = `<div class="status-text" style="color:red;">Gagal: ${error.message}</div>`;
-    }
-}
-
-// Fungsi: Memesan Nomor Baru
-async function orderNumber() {
-    if (!selectedProductId) return;
-
-    btnOrder.disabled = true;
-    statusArea.classList.remove('hidden');
-    displayStatus.innerText = "Memproses pesanan nomor...";
-    displayNumber.innerText = "-";
-    displayOtp.innerText = "-";
-
-    try {
-        const res = await apiCall('/orders/create', 'POST', { 
-            product_id: parseInt(selectedProductId), 
-            quantity: 1 
+        productList.innerHTML = "";
+        productsRes.data.forEach(product => {
+            const card = document.createElement("div");
+            card.className = "product-card";
+            card.innerHTML = `<div><h4>Server ${product.id}</h4><p>Stok: ${product.available}</p></div><div class="product-price">Rp ${product.price}</div>`;
+            card.onclick = () => {
+                document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                selectedProductId = product.id;
+                btnOrder.disabled = false;
+            };
+            productList.appendChild(card);
         });
-        
-        if (res.success) {
-            const order = res.data.orders[0];
-            currentOrderId = order.id;
-            
-            displayNumber.innerText = order.phone_number;
-            displayStatus.innerText = "Nomor siap! Menunggu SMS masuk...";
-            btnCancel.classList.remove('hidden');
-            btnFinish.classList.add('hidden');
-            
-            // Mulai mengecek status OTP secara berkala
-            startPolling(); 
-        } else {
-            displayStatus.innerText = `Error: ${res.error.message}`;
-            btnOrder.disabled = false;
-        }
-    } catch (error) {
-        displayStatus.innerText = "Terjadi kesalahan jaringan.";
-        btnOrder.disabled = false;
-    }
+    } catch (e) { productList.innerHTML = "Gagal memuat produk."; }
 }
 
-// Fungsi: Polling (Cek Status OTP setiap 5 detik)
-function startPolling() {
-    if (pollingInterval) clearInterval(pollingInterval);
-    
-    pollingInterval = setInterval(async () => {
-        if (!currentOrderId) return;
-        try {
-            const res = await apiCall(`/orders/${currentOrderId}`);
-            if (res.success) {
-                const orderStatus = res.data.status;
-                
-                if (orderStatus === "OTP_RECEIVED") {
-                    displayStatus.innerText = "SUKSES! OTP DITERIMA";
-                    displayOtp.innerText = res.data.otp_code;
-                    clearInterval(pollingInterval);
-                    btnCancel.classList.add('hidden');
-                    btnFinish.classList.remove('hidden');
-                } else if (orderStatus === "CANCELED" || orderStatus === "EXPIRED") {
-                    displayStatus.innerText = `Status: ${orderStatus}`;
-                    clearInterval(pollingInterval);
-                    btnCancel.classList.add('hidden');
-                    btnOrder.disabled = false;
-                }
-            }
-        } catch (error) {
-            // Error polling biasanya karena masalah jaringan sementara
-        }
-    }, 5000); 
-}
-
-// Fungsi: Membatalkan Pesanan
-async function cancelOrder() {
-    if (!currentOrderId) return;
-    displayStatus.innerText = "Membatalkan pesanan...";
+// Memesan Nomor Baru
+btnOrder.onclick = async () => {
+    btnOrder.disabled = true;
     try {
-        const res = await apiCall('/orders/cancel', 'POST', { id: currentOrderId });
+        const res = await apiCall('/orders/create', 'POST', { product_id: parseInt(selectedProductId), quantity: 1 });
         if (res.success) {
-            clearInterval(pollingInterval);
-            displayStatus.innerText = "Dibatalkan. Saldo telah dikembalikan.";
-            btnCancel.classList.add('hidden');
-            btnOrder.disabled = false;
-            currentOrderId = null;
+            const newOrder = {
+                id: res.data.orders[0].id,
+                phone: res.data.orders[0].phone_number,
+                otp: "-",
+                status: "Menunggu SMS",
+                expiry: Date.now() + (20 * 60 * 1000) // 20 Menit dari sekarang
+            };
+            activeOrders.push(newOrder);
+            saveToStorage();
         }
-    } catch (error) {
-        displayStatus.innerText = "Gagal membatalkan.";
+    } catch (e) { alert("Gagal pesan nomor."); }
+    btnOrder.disabled = false;
+};
+
+// Render daftar pesanan ke layar
+function renderOrders() {
+    if (activeOrders.length === 0) {
+        activeOrdersContainer.innerHTML = '<div class="status-text">Tidak ada pesanan aktif.</div>';
+        return;
     }
+
+    activeOrdersContainer.innerHTML = "";
+    activeOrders.forEach(order => {
+        const card = document.createElement("div");
+        card.className = "order-card";
+        card.innerHTML = `
+            <div class="order-header">
+                <span class="status-label">ID: ${order.id}</span>
+                <span class="timer" id="timer-${order.id}">--:--</span>
+            </div>
+            <div class="phone-row">
+                <span class="phone-number">${order.phone}</span>
+                <button class="btn-copy" onclick="copyToClipboard('${order.phone}')">Salin</button>
+            </div>
+            <div class="status-label">Status: ${order.status}</div>
+            <div class="otp-display">
+                <div class="otp-code">${order.otp}</div>
+            </div>
+            <div class="action-buttons">
+                <button class="btn-danger" onclick="cancelOrder(${order.id})">Batalkan</button>
+                <button class="btn-success" onclick="finishOrder(${order.id})">Selesai</button>
+            </div>
+        `;
+        activeOrdersContainer.appendChild(card);
+    });
 }
 
-// Fungsi: Menyelesaikan Pesanan
-async function finishOrder() {
-     if (!currentOrderId) return;
-     displayStatus.innerText = "Menutup pesanan...";
-     try {
-         const res = await apiCall('/orders/finish', 'POST', { id: currentOrderId });
-         if (res.success) {
-             displayStatus.innerText = "Pesanan selesai.";
-             btnFinish.classList.add('hidden');
-             btnOrder.disabled = false;
-             currentOrderId = null;
-         }
-     } catch (error) {
-         displayStatus.innerText = "Error saat menutup pesanan.";
-     }
+// Fungsi Update Timer & Auto-Close
+setInterval(() => {
+    activeOrders.forEach((order, index) => {
+        const now = Date.now();
+        const diff = order.expiry - now;
+
+        if (diff <= 0) {
+            // Jika waktu habis, hapus otomatis
+            activeOrders.splice(index, 1);
+            saveToStorage();
+        } else {
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            const timerEl = document.getElementById(`timer-${order.id}`);
+            if (timerEl) timerEl.innerText = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        }
+    });
+}, 1000);
+
+// Polling Status OTP untuk semua pesanan
+setInterval(async () => {
+    for (let order of activeOrders) {
+        if (order.status === "OTP_RECEIVED") continue;
+        try {
+            const res = await apiCall(`/orders/${order.id}`);
+            if (res.success) {
+                order.status = res.data.status;
+                if (res.data.otp_code) order.otp = res.data.otp_code;
+                if (order.status === "CANCELED" || orderStatus === "EXPIRED") {
+                    activeOrders = activeOrders.filter(o => o.id !== order.id);
+                }
+                saveToStorage();
+            }
+        } catch (e) {}
+    }
+}, 5000);
+
+// Fungsi Hapus/Selesai/Batal
+async function cancelOrder(id) {
+    if (!confirm("Batalkan pesanan ini? Saldo akan kembali.")) return;
+    try {
+        await apiCall('/orders/cancel', 'POST', { id });
+        activeOrders = activeOrders.filter(o => o.id !== id);
+        saveToStorage();
+    } catch (e) {}
 }
 
-// Hubungkan tombol dengan fungsinya
-btnOrder.addEventListener('click', orderNumber);
-btnCancel.addEventListener('click', cancelOrder);
-btnFinish.addEventListener('click', finishOrder);
+async function finishOrder(id) {
+    // Sesuai permintaan: Membersihkan semua bagian pesanan tersebut
+    try {
+        await apiCall('/orders/finish', 'POST', { id });
+    } catch (e) {}
+    activeOrders = activeOrders.filter(o => o.id !== id);
+    saveToStorage();
+}
 
-// Jalankan pencarian produk saat halaman pertama kali dimuat
-window.onload = loadShopeeIndonesia;
+window.onload = () => {
+    loadProducts();
+    renderOrders();
+};
