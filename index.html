@@ -19,11 +19,15 @@
     </div>
 
     <div id="appView" class="container hidden">
-        <button id="btnSwitchAccount" class="btn-switch">⇄ Ganti Akun</button>
-
-        <div class="header-app">
-            <h1>Shopee OTP Pro 🇮🇩</h1>
-            <p class="subtitle">Akun: <strong id="currentAccountName">-</strong></p>
+        <div class="app-header-container">
+            <div class="header-titles">
+                <h1>Shopee OTP Pro 🇮🇩</h1>
+                <p class="subtitle">Akun: <strong id="currentAccountName">-</strong></p>
+            </div>
+            <button id="btnSwitchAccount" class="btn-switch">⇄ Ganti Akun</button>
+        </div>
+        
+        <div style="text-align: center; margin-bottom: 20px;">
             <div class="balance-badge">Saldo: <span id="balanceDisplay">Memuat...</span></div>
         </div>
 
@@ -43,6 +47,13 @@
             </div>
             <button id="btnOrder" disabled>Pesan Nomor Baru</button>
         </div>
+    </div>
+
+    <div id="toast" class="toast">Berhasil disalin!</div>
+
+    <div class="scroll-controls" id="scrollControls">
+        <button id="btnScrollUp">▲</button>
+        <button id="btnScrollDown">▼</button>
     </div>
 
     <script src="app.js"></script>
