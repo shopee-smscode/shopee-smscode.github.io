@@ -3,7 +3,7 @@ const BASE_URL = "https://shopee-otp-proxy.masreno6pro.workers.dev";
 
 // Data Global
 let activeOrders = JSON.parse(localStorage.getItem('shopee_orders')) || [];
-let availableProducts = []; // Menyimpan data produk untuk mengambil harga
+let availableProducts = []; 
 let selectedProductId = null;
 let timerInterval = null;
 let pollingInterval = null;
@@ -13,6 +13,7 @@ const productList = document.getElementById('productList');
 const btnOrder = document.getElementById('btnOrder');
 const activeOrdersContainer = document.getElementById('activeOrdersContainer');
 const activeCount = document.getElementById('activeCount');
+const balanceDisplay = document.getElementById('balanceDisplay');
 
 // ==========================================
 // FUNGSI BANTUAN API & PENYIMPANAN
@@ -45,12 +46,32 @@ function copyToClipboard(text) {
 }
 
 // ==========================================
+// FUNGSI SALDO (REAL-TIME)
+// ==========================================
+async function fetchBalance() {
+    try {
+        const res = await apiCall('/balance');
+        if (res.success) {
+            // Format angka menjadi mata uang Rupiah
+            const formatter = new Intl.NumberFormat('id-ID', { 
+                style: 'currency', 
+                currency: 'IDR', 
+                minimumFractionDigits: 0 
+            });
+            balanceDisplay.innerText = formatter.format(res.data.balance);
+        }
+    } catch (error) {
+        balanceDisplay.innerText = "Error";
+    }
+}
+
+// ==========================================
 // FUNGSI 1: MEMUAT PRODUK
 // ==========================================
 
 async function loadShopeeIndonesia() {
     try {
-        productList.innerHTML = '<div class="status-text" style="grid-column: span 2;">Mencari Server...</div>';
+        productList.innerHTML = '<div class="status-text">Mencari Server...</div>';
         
         const countriesRes = await apiCall('/catalog/countries');
         const indo = countriesRes.data.find(c => c.name.toLowerCase() === 'indonesia');
@@ -63,7 +84,7 @@ async function loadShopeeIndonesia() {
         const productsRes = await apiCall(`/catalog/products?country_id=${indo.id}&platform_id=${shopee.id}`);
         
         if (productsRes.success && productsRes.data.length > 0) {
-            availableProducts = productsRes.data; // Simpan untuk referensi harga
+            availableProducts = productsRes.data; 
             productList.innerHTML = ""; 
             
             availableProducts.forEach(product => {
@@ -71,8 +92,8 @@ async function loadShopeeIndonesia() {
                 card.className = "product-card";
                 card.innerHTML = `
                     <div class="product-info">
-                        <h4>Srv ${product.id}</h4>
-                        <p>Stok: ${product.available}</p>
+                        <h4>Server ID: ${product.id}</h4>
+                        <p>Stok Tersedia: ${product.available} Nomor</p>
                     </div>
                     <div class="product-price">Rp ${product.price}</div>
                 `;
@@ -87,15 +108,15 @@ async function loadShopeeIndonesia() {
                 productList.appendChild(card);
             });
         } else {
-            productList.innerHTML = '<div class="status-text" style="grid-column: span 2;">Stok kosong.</div>';
+            productList.innerHTML = '<div class="status-text">Stok kosong.</div>';
         }
     } catch (error) {
-        productList.innerHTML = `<div class="status-text" style="color:red; grid-column: span 2;">Error: ${error.message}</div>`;
+        productList.innerHTML = `<div class="status-text" style="color:red;">Error: ${error.message}</div>`;
     }
 }
 
 // ==========================================
-// FUNGSI 2: MEMESAN NOMOR (Sinkron Server)
+// FUNGSI 2: MEMESAN NOMOR
 // ==========================================
 
 btnOrder.onclick = async () => {
@@ -113,22 +134,17 @@ btnOrder.onclick = async () => {
         
         if (res.success) {
             const orderData = res.data.orders[0];
-            
-            // Cari harga dari daftar produk
             const productInfo = availableProducts.find(p => p.id === parseInt(selectedProductId));
             const price = productInfo ? productInfo.price : 0;
 
-            // Waktu dari server (jika ada expires_at dari server, gunakan itu. Jika tidak, tambah 20 menit)
             const expiresAt = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
-            
-            // Kunci pembatalan selama 2 menit dari waktu sekarang
-            const cancelUnlockTime = Date.now() + (120 * 1000); 
+            const cancelUnlockTime = Date.now() + (120 * 1000); // 2 Menit masa tunggu cancel
 
             const newOrder = {
                 id: orderData.id,
                 phone: orderData.phone_number,
                 price: price,
-                otp: null, // null berarti sedang menunggu
+                otp: null, 
                 status: "ACTIVE",
                 expiresAt: expiresAt,
                 cancelUnlockTime: cancelUnlockTime
@@ -137,6 +153,9 @@ btnOrder.onclick = async () => {
             activeOrders.unshift(newOrder); 
             saveToStorage();
             startPollingAndTimer(); 
+            
+            // Perbarui saldo segera setelah berhasil pesan (terpotong)
+            fetchBalance(); 
         } else {
             alert(`Gagal: ${res.error.message}`);
         }
@@ -149,7 +168,7 @@ btnOrder.onclick = async () => {
 };
 
 // ==========================================
-// FUNGSI 3: MERENDER KARTU (UI Kompak)
+// FUNGSI 3: MERENDER KARTU PESANAN
 // ==========================================
 
 function renderOrders() {
@@ -167,12 +186,10 @@ function renderOrders() {
         card.className = "order-card";
         card.id = `order-card-${order.id}`; 
         
-        // Tentukan Tampilan OTP (Menunggu atau Berhasil)
         let otpHtml = "";
         if (order.status === "OTP_RECEIVED" && order.otp) {
             otpHtml = `<div class="otp-code" id="otp-${order.id}">${order.otp}</div>`;
         } else {
-            // Animasi Loading
             otpHtml = `
                 <div class="loader"></div>
                 <div class="waiting-text">Menunggu SMS</div>
@@ -211,7 +228,7 @@ function renderOrders() {
 }
 
 // ==========================================
-// FUNGSI 4: TIMER (TERHUBUNG SERVER) & LOGIKA TOMBOL
+// FUNGSI 4: TIMER & POLLING SERVER
 // ==========================================
 
 function startPollingAndTimer() {
@@ -228,13 +245,12 @@ function startPollingAndTimer() {
             const btnCancel = document.getElementById(`btn-cancel-${order.id}`);
             const btnFinish = document.getElementById(`btn-finish-${order.id}`);
 
-            // --- Logika Timer Server ---
             if (timeLeft <= 0) {
                 if (timerElement) timerElement.innerText = "00:00";
-                // Kadaluarsa: Hapus diam-diam
                 activeOrders.splice(index, 1);
                 saveToStorage(); 
-                return; // Lanjut ke order berikutnya
+                fetchBalance(); // Saldo otomatis direfund server saat expired
+                return; 
             } else {
                 const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
                 const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
@@ -243,9 +259,7 @@ function startPollingAndTimer() {
                 if (timerElement) timerElement.innerText = `${displayM}:${displayS}`;
             }
 
-            // --- Logika Tombol Sesuai Status Server ---
             if (order.status === "OTP_RECEIVED") {
-                // OTP Masuk: Tombol Batal MATI, Tombol Selesai HIDUP
                 if (btnCancel) {
                     btnCancel.disabled = true;
                     btnCancel.innerText = "Sukses";
@@ -253,18 +267,15 @@ function startPollingAndTimer() {
                 }
                 if (btnFinish) btnFinish.disabled = false;
             } else {
-                // OTP Belum Masuk: Tombol Selesai MATI, Tombol Batal dikunci 2 menit awal
                 if (btnFinish) btnFinish.disabled = true;
                 
                 if (btnCancel) {
                     const cancelWaitLeft = order.cancelUnlockTime - now;
                     if (cancelWaitLeft > 0) {
-                        // Masih dalam masa tunggu 2 menit
                         btnCancel.disabled = true;
                         const waitSecs = Math.ceil(cancelWaitLeft / 1000);
                         btnCancel.innerText = `Tunggu ${waitSecs}s`;
                     } else {
-                        // Kunci pembatalan terbuka
                         btnCancel.disabled = false;
                         btnCancel.innerText = "Batalkan";
                     }
@@ -302,6 +313,7 @@ function startPollingAndTimer() {
                     else if (serverStatus === "CANCELED" || serverStatus === "EXPIRED") {
                         activeOrders = activeOrders.filter(o => o.id !== order.id);
                         hasChanged = true;
+                        fetchBalance(); // Perbarui saldo jika server membatalkan
                     }
 
                     if (hasChanged) saveToStorage();
@@ -312,14 +324,14 @@ function startPollingAndTimer() {
 }
 
 // ==========================================
-// FUNGSI 5: AKSI TOMBOL Batal & Selesai
+// FUNGSI 5: AKSI TOMBOL
 // ==========================================
 
 window.cancelSpecificOrder = async function(orderId) {
     const btnCancel = document.getElementById(`btn-cancel-${orderId}`);
     if (btnCancel) {
         btnCancel.disabled = true;
-        btnCancel.innerText = "Memproses...";
+        btnCancel.innerText = "Proses...";
     }
 
     try {
@@ -327,8 +339,9 @@ window.cancelSpecificOrder = async function(orderId) {
         if (res.success || (res.error && res.error.code === 'NOT_FOUND')) {
             activeOrders = activeOrders.filter(order => order.id !== orderId);
             saveToStorage();
+            fetchBalance(); // Perbarui saldo saat sukses refund
         } else {
-            alert(`Gagal: ${res.error.message}`);
+            alert(`Gagal Batal: ${res.error.message}`);
             if (btnCancel) btnCancel.disabled = false;
         }
     } catch (error) {
@@ -347,15 +360,15 @@ window.finishSpecificOrder = async function(orderId) {
         await apiCall('/orders/finish', 'POST', { id: orderId });
     } catch (error) {}
 
-    // Bersihkan dari lokal
     activeOrders = activeOrders.filter(order => order.id !== orderId);
     saveToStorage();
 }
 
 // ==========================================
-// INISIALISASI
+// INISIALISASI AWAL
 // ==========================================
 window.onload = () => {
+    fetchBalance(); // Ambil saldo saat pertama buka
     loadShopeeIndonesia();
     renderOrders();
     if (activeOrders.length > 0) {
