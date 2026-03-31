@@ -57,9 +57,9 @@ async function loadProducts() {
             productSelect.innerHTML = '<option value="">Produk tidak tersedia</option>';
         }
     } catch (error) {
-        alert("Gagal memuat produk. Cek API Token atau koneksi.");
-        console.error(error);
-    }
+    productSelect.innerHTML = '<option value="">Error: ' + error.message + '</option>';
+}
+
 }
 
 // 2. Fungsi untuk Memesan Nomor
