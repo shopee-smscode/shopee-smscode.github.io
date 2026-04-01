@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shopee OTP Pro 🇮🇩</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,7 +30,14 @@
                 <h1>Shopee OTP 🇮🇩</h1>
                 <p class="subtitle">👨‍💻 Akun: <strong id="currentAccountName">-</strong></p>
             </div>
-            <button id="btnSwitchAccount" class="btn-switch">⇄ Ganti</button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button id="btnOpenNotes" class="btn-switch" style="background-color: #fef08a; color: #b45309; border-color: #fde68a;">
+                    <i class="fas fa-sticky-note"></i> Catatan
+                </button>
+                <button id="btnSwitchAccount" class="btn-switch">
+                    <i class="fas fa-exchange-alt"></i> Ganti
+                </button>
+            </div>
         </div>
         
         <div class="balance-container">
@@ -52,6 +64,52 @@
                 <div class="status-text">Memuat data Shopee Indonesia...</div>
             </div>
             <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
+        </div>
+    </div>
+
+    <div id="notesListModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column; max-width: 400px; width: 90%;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin:0; font-size: 18px; color: #ee4d2d; font-weight: 800;">Catatanku</h3>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="openAddNoteModal()" class="btn-success" style="padding: 6px 12px; border-radius: 6px; font-size: 12px;"><i class="fas fa-plus"></i> Baru</button>
+                    <button onclick="closeNotesListModal()" class="btn-danger" style="padding: 6px 12px; border-radius: 6px;"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div id="notes-grid" class="notes-list" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left;">
+                <div class="status-text">Memuat catatan...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="noteFormModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 400px; width: 90%;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 id="form-modal-title" style="margin:0; font-size: 18px; font-weight: 800;">Catatan Baru</h3>
+                <button onclick="handleCancelNoteForm()" class="btn-danger" style="padding: 6px 12px; border-radius: 6px;"><i class="fas fa-times"></i></button>
+            </div>
+            <input type="text" id="note-title" class="form-input" placeholder="Judul (Kosong = Auto Number)" style="margin-bottom:10px; font-weight:700;">
+            <textarea id="note-content" class="form-input" placeholder="Tulis catatan Anda di sini..." style="min-height: 200px; resize: vertical; margin-bottom: 15px; font-size: 13px;"></textarea>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn-switch" style="flex:1; padding: 12px; width: 100%; border: 1px solid #d1d5db;" onclick="handleCancelNoteForm()">Batal</button>
+                <button class="btn-success" style="flex:2; padding: 12px; width: 100%;" onclick="handleSaveNote()"><i class="fas fa-check"></i> Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="noteDetailModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column; max-width: 400px; width: 90%;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <span id="view-tag" style="font-size: 11px; font-weight: bold; color: #9ca3af;"></span>
+                <button onclick="closeNoteDetailModal()" class="btn-danger" style="padding: 6px 12px; border-radius: 6px;"><i class="fas fa-times"></i></button>
+            </div>
+            <input type="text" id="view-title" readonly style="width:100%; border:none; padding:0; font-size:20px; font-weight:800; margin-bottom:15px; background:transparent; outline: none; color: #1f2937;">
+            <div id="view-content" style="flex:1; overflow-y: auto; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; white-space: pre-wrap; word-wrap: break-word; text-align: left; font-size: 13px; margin-bottom: 15px; min-height: 150px; color: #374151;"></div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn-primary" style="flex:1; padding: 10px; background: #3b82f6; box-shadow: none;" onclick="editFromDetail()"><i class="fas fa-edit"></i> Edit</button>
+                <button class="btn-replace" style="flex:1; padding: 10px; border-radius: 10px; width: auto;" onclick="copyNoteContent()"><i class="fas fa-copy"></i> Salin</button>
+                <button class="btn-danger" style="padding: 10px 15px; border-radius: 10px;" onclick="confirmDeleteNote()"><i class="fas fa-trash"></i></button>
+            </div>
         </div>
     </div>
 
