@@ -1,7 +1,7 @@
 const BASE_URL = "https://shopee-otp-proxy.masreno6pro.workers.dev"; 
 
 // ==========================================
-// 0. KONFIGURASI FIREBASE
+// 0. KONFIGURASI FIREBASE CATATANKU
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0",
@@ -23,7 +23,7 @@ let selectedNoteKey = null;
 let isEditingNote = false;
 let currentNoteRawContent = "";
 
-// Referensi Firebase Presence
+// Referensi Firebase Presence (Status Online/Offline)
 let viewingPresenceRef = null;
 let isPresenceListenerAttached = false;
 
@@ -52,6 +52,7 @@ const exitModal = document.getElementById('exitModal');
 const notesListModal = document.getElementById('notesListModal');
 const noteFormModal = document.getElementById('noteFormModal');
 const noteDetailModal = document.getElementById('noteDetailModal');
+const notesCountDisplay = document.getElementById('notesCount');
 
 // ==========================================
 // 1. SISTEM BACK BUTTON & MULTI-MODAL
@@ -86,7 +87,7 @@ window.addEventListener('popstate', (e) => {
 
 function closeExitModal() { exitModal.classList.add('hidden'); isExitModalOpen = false; }
 function confirmExit() {
-    setAccountViewingStatus(false); // Matikan sensor online saat keluar
+    setAccountViewingStatus(false);
     window.close();
     if (navigator.app) navigator.app.exitApp();
     else if (navigator.device) navigator.device.exitApp();
@@ -97,12 +98,17 @@ function logoutAccount() {
     if (timerInterval) clearInterval(timerInterval);
     if (pollingInterval) clearInterval(pollingInterval);
     
-    setAccountViewingStatus(false); // Matikan sensor online akun ini
+    setAccountViewingStatus(false);
     
     sessionStorage.removeItem('savedAccountName');
     appView.classList.add('hidden');
     accountView.classList.remove('hidden');
     activeAccountName = null;
+    
+    // Tutup dropdown saat logout
+    accountListContainer.classList.add('hidden');
+    document.getElementById('accountListIcon').className = "fas fa-chevron-down";
+    
     fetchAccounts();
     history.pushState(null, null, window.location.href);
 }
@@ -110,20 +116,29 @@ function logoutAccount() {
 btnSwitchAccount.onclick = () => logoutAccount();
 
 // ==========================================
-// 2. FUNGSI MULTI-AKUN & REAL-TIME PRESENCE
+// 2. FUNGSI MULTI-AKUN (DENGAN DROPDOWN)
 // ==========================================
 
-// Fungsi 1: Sensor jika akun sedang DIBUKA oleh seseorang
+// Fungsi Buka/Tutup Dropdown Akun
+window.toggleAccountList = function() {
+    const isHidden = accountListContainer.classList.contains('hidden');
+    const icon = document.getElementById('accountListIcon');
+    if (isHidden) {
+        accountListContainer.classList.remove('hidden');
+        icon.className = "fas fa-chevron-up";
+    } else {
+        accountListContainer.classList.add('hidden');
+        icon.className = "fas fa-chevron-down";
+    }
+}
+
 function setAccountViewingStatus(isViewing) {
     if (!activeAccountName) return;
-    
     if (isViewing) {
         const connectedRef = db.ref('.info/connected');
         viewingPresenceRef = db.ref(`presence/${activeAccountName}/is_viewing`);
-        
         connectedRef.on('value', (snap) => {
             if (snap.val() === true) {
-                // Jika koneksi internet terputus / tab ditutup paksa, otomatis false
                 viewingPresenceRef.onDisconnect().set(false);
                 viewingPresenceRef.set(true);
             }
@@ -136,21 +151,18 @@ function setAccountViewingStatus(isViewing) {
     }
 }
 
-// Fungsi 2: Sensor jika akun SEDANG ADA PESANAN AKTIF
 function updateAccountOrdersStatus() {
     if (!activeAccountName) return;
     const hasOrders = activeOrders.length > 0;
     db.ref(`presence/${activeAccountName}/has_orders`).set(hasOrders);
 }
 
-// Fungsi 3: Menggambar UI Lobi Berdasarkan Kedua Sensor Di Atas
 function syncPresenceUI() {
     if (isPresenceListenerAttached) return;
     isPresenceListenerAttached = true;
 
     db.ref('presence').on('value', snapshot => {
         const data = snapshot.val() || {};
-        
         document.querySelectorAll('.account-card').forEach(card => {
             const accName = card.querySelector('.account-name').innerText;
             const safeId = `status-${accName.replace(/[^a-zA-Z0-9]/g, '-')}`;
@@ -158,9 +170,7 @@ function syncPresenceUI() {
             
             if (statusSpan) {
                 const accData = data[accName] || {};
-                // LOGIKA CERDAS: Online jika sedang dibuka ATAU ada pesanan aktif
                 const isOnline = accData.is_viewing === true || accData.has_orders === true;
-                
                 if (isOnline) {
                     statusSpan.innerText = "Online";
                     statusSpan.className = "account-status status-online";
@@ -200,10 +210,7 @@ async function fetchAccounts() {
                 card.onclick = () => loginAccount(accountName);
                 accountListContainer.appendChild(card);
             });
-            
-            // Aktifkan pemantau status
             syncPresenceUI();
-
         } else {
             accountListContainer.innerHTML = '<div class="status-text">Tidak ada akun ditemukan.</div>';
         }
@@ -217,7 +224,6 @@ function loginAccount(accountName) {
     currentAccountName.innerText = accountName;
     sessionStorage.setItem('savedAccountName', accountName);
     
-    // Setel sensor bahwa akun ini sedang dilihat
     setAccountViewingStatus(true);
 
     history.pushState(null, null, "#sms"); 
@@ -243,7 +249,7 @@ async function apiCall(endpoint, method = "GET", body = null) {
 
 function saveToStorage() {
     localStorage.setItem(`orders_${activeAccountName}`, JSON.stringify(activeOrders));
-    updateAccountOrdersStatus(); // Setel sensor setiap ada perubahan pesanan
+    updateAccountOrdersStatus(); 
     renderOrders(); 
 }
 
@@ -291,6 +297,9 @@ function initNotesSync() {
         grid.innerHTML = '';
         let items = [];
         snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); });
+        
+        // Update jumlah catatan secara realtime
+        notesCountDisplay.innerText = `(${items.length})`;
         
         if(items.length === 0) {
             grid.innerHTML = '<div class="status-text">Belum ada catatan.</div>';
@@ -421,7 +430,7 @@ function copyNoteContent() {
 }
 
 // ==========================================
-// 4. LOAD SERVER
+// 4. LOAD SERVER & AUTO SELECT HARGA TERMURAH
 // ==========================================
 async function fetchBalance() {
     try {
@@ -445,10 +454,17 @@ async function loadShopeeIndonesia() {
         if (productsRes.success && productsRes.data.length > 0) {
             availableProducts = productsRes.data.sort((a, b) => parseFloat(a.price) - parseFloat(b.price)).slice(0, 3);
             productList.innerHTML = ""; 
+            
+            // AUTO SELECT: Pilih produk termurah (indeks 0) secara otomatis
+            if (availableProducts.length > 0) {
+                selectedProductId = availableProducts[0].id;
+                btnOrder.disabled = false;
+            }
+
             availableProducts.forEach(product => {
                 const card = document.createElement("div");
                 card.className = "product-card";
-                if (selectedProductId === product.id) { card.classList.add('selected'); btnOrder.disabled = false; }
+                if (selectedProductId === product.id) { card.classList.add('selected'); }
                 card.innerHTML = `<div class="product-info"><h4>Server ID: ${product.id}</h4><p>Stok: ${product.available}</p></div><div class="product-price">Rp ${product.price}</div>`;
                 card.onclick = () => {
                     document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
@@ -499,7 +515,7 @@ btnOrder.onclick = async () => {
 };
 
 // ==========================================
-// 6. RENDER KARTU
+// 6. RENDER KARTU & POSISI TOMBOL BARU
 // ==========================================
 function renderOrders() {
     activeCount.innerText = activeOrders.length;
@@ -522,45 +538,47 @@ function renderOrders() {
         const wait = order.cancelUnlockTime - now;
         let cancelBtnAttr = "";
         let cancelBtnText = "Batalkan";
-        let squareBtnAttr = "";
-        let replaceBtnText = '<div style="font-size: 16px; line-height: 1;">↻</div><div style="font-size: 9px; font-weight: 800; margin-top: 3px;">GANTI</div>';
+        let actionBtnAttr = "";
+        let replaceBtnText = '<i class="fas fa-sync-alt"></i> Ganti';
+        let resendBtnText = '<i class="fas fa-envelope"></i> Ulang';
         let finishBtnAttr = "disabled";
 
         if (isSuccess) {
             cancelBtnAttr = "disabled";
             cancelBtnText = "Sukses";
-            squareBtnAttr = "disabled";
-            replaceBtnText = '<div style="font-size: 16px;">✓</div>';
+            actionBtnAttr = "disabled";
+            replaceBtnText = '<i class="fas fa-check"></i>';
+            resendBtnText = '<i class="fas fa-check"></i>';
             finishBtnAttr = ""; 
         } else if (wait > 0 && !order.isAutoCanceling) {
             const sec = Math.ceil(wait / 1000);
             cancelBtnAttr = "disabled";
             cancelBtnText = `Tunggu ${sec}s`;
-            squareBtnAttr = "disabled";
-            replaceBtnText = `<div style="font-size: 13px; font-weight: 800;">${sec}s</div>`;
+            actionBtnAttr = "disabled";
+            replaceBtnText = `${sec}s`;
+            resendBtnText = `${sec}s`;
         } else if (order.isAutoCanceling) {
             cancelBtnAttr = "disabled";
             cancelBtnText = "Memproses...";
-            squareBtnAttr = "disabled";
+            actionBtnAttr = "disabled";
         }
 
         const displayPrice = (order.price && order.price != 0) ? `Rp ${order.price}` : 'Rp -';
 
+        // Tata letak diperbarui: Kotak OTP di atas, 4 Tombol Aksi berada di bawah
         card.innerHTML = `
             <div class="order-header"><div><span class="order-id-label">#${order.id}</span> <span class="order-price">${displayPrice}</span></div><span class="timer" id="timer-${order.id}">--:--</span></div>
             <div class="phone-row"><span class="phone-number">${order.phone}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')">Salin</button></div>
-            <div class="bottom-grid">
-                <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${isSuccess ? '<div class="otp-title">KODE OTP</div>' : ''}${otpHtml}</div>
-                <div style="display: flex; gap: 6px;">
-                    <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id}, ${passProductId})" ${squareBtnAttr}>
-                        ${replaceBtnText}
-                    </button>
-                    <div class="action-buttons">
-                        <button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder(${order.id})" ${cancelBtnAttr}>${cancelBtnText}</button>
-                        <button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder(${order.id})" ${finishBtnAttr}>Selesai</button>
-                    </div>
-                </div>
-            </div>`;
+            
+            <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${isSuccess ? '<div class="otp-title">KODE OTP</div>' : ''}${otpHtml}</div>
+            
+            <div class="action-buttons-grid">
+                <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id}, ${passProductId})" ${actionBtnAttr}>${replaceBtnText}</button>
+                <button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder(${order.id})" ${actionBtnAttr}>${resendBtnText}</button>
+                <button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder(${order.id})" ${cancelBtnAttr}>${cancelBtnText}</button>
+                <button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder(${order.id})" ${finishBtnAttr}>Selesai</button>
+            </div>
+        `;
         activeOrdersContainer.appendChild(card);
     });
 }
@@ -590,21 +608,28 @@ function startPollingAndTimer() {
 
             const btnCancel = document.getElementById(`btn-cancel-${order.id}`);
             const btnReplace = document.getElementById(`btn-replace-${order.id}`);
+            const btnResend = document.getElementById(`btn-resend-${order.id}`);
             const btnFinish = document.getElementById(`btn-finish-${order.id}`);
             
             if (order.status === "OTP_RECEIVED") {
                 if (btnCancel) { btnCancel.disabled = true; btnCancel.innerText = "Sukses"; }
-                if (btnReplace) { btnReplace.disabled = true; btnReplace.innerHTML = '<div style="font-size: 16px;">✓</div>'; }
+                if (btnReplace) { btnReplace.disabled = true; btnReplace.innerHTML = '<i class="fas fa-check"></i>'; }
+                if (btnResend) { btnResend.disabled = true; btnResend.innerHTML = '<i class="fas fa-check"></i>'; }
                 if (btnFinish) btnFinish.disabled = false;
             } else {
                 const wait = order.cancelUnlockTime - now;
                 if (wait > 0) {
                     const sec = Math.ceil(wait/1000);
                     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerText = `Tunggu ${sec}s`; }
-                    if (btnReplace) { btnReplace.disabled = true; btnReplace.innerHTML = `<div style="font-size: 13px; font-weight: 800;">${sec}s</div>`; }
+                    if (btnReplace) { btnReplace.disabled = true; btnReplace.innerHTML = `${sec}s`; }
+                    if (btnResend) { btnResend.disabled = true; btnResend.innerHTML = `${sec}s`; }
                 } else if (!order.isAutoCanceling) {
                     if (btnCancel) { btnCancel.disabled = false; btnCancel.innerText = "Batalkan"; }
-                    if (btnReplace) { btnReplace.disabled = false; btnReplace.innerHTML = '<div style="font-size:16px;line-height:1">↻</div><div style="font-size:9px;font-weight:800;margin-top:3px">GANTI</div>'; }
+                    if (btnReplace) { btnReplace.disabled = false; btnReplace.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
+                    // Jika tombol belum pernah ditekan dan dalam masa aktif, beri teks default
+                    if (btnResend && !btnResend.innerHTML.includes('loader')) { 
+                        btnResend.disabled = false; btnResend.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; 
+                    }
                 }
             }
         });
@@ -664,12 +689,12 @@ async function syncServerOrders() {
 }
 
 // ==========================================
-// 9. AKSI TOMBOL (REPLACE, CANCEL, FINISH)
+// 9. AKSI TOMBOL (REPLACE, RESEND, CANCEL, FINISH)
 // ==========================================
 window.replaceSpecificOrder = async function(orderId, productId) {
     const btn = document.getElementById(`btn-replace-${orderId}`);
     if (!productId || productId === 'null') return showToast("Pilih server manual.");
-    if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader" style="width:14px;height:14px;border-width:2px"></div>'; }
+    if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         const c = await apiCall('/orders/cancel', 'POST', { id: orderId });
         if (c.success || (c.error && c.error.code === 'NOT_FOUND')) {
@@ -691,11 +716,36 @@ window.replaceSpecificOrder = async function(orderId, productId) {
             } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru."); }
         } else {
             showToast("Gagal batal lama.");
-            if (btn) { btn.disabled = false; btn.innerHTML = '<div style="font-size:16px;line-height:1">↻</div><div style="font-size:9px;font-weight:800;margin-top:3px">GANTI</div>'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
         }
     } catch (e) { 
         showToast("Error Jaringan."); 
-        if (btn) { btn.disabled = false; btn.innerHTML = '<div style="font-size:16px;line-height:1">↻</div><div style="font-size:9px;font-weight:800;margin-top:3px">GANTI</div>'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
+    }
+};
+
+window.resendSpecificOrder = async function(orderId) {
+    const btn = document.getElementById(`btn-resend-${orderId}`);
+    if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
+    try {
+        const res = await apiCall('/orders/resend', 'POST', { id: orderId });
+        if (res.success) {
+            showToast("Meminta ulang SMS...");
+            // Nonaktifkan tombol sesaat setelah ditekan
+            setTimeout(() => {
+                const currentBtn = document.getElementById(`btn-resend-${orderId}`);
+                if(currentBtn && !currentBtn.innerHTML.includes('fa-check')) {
+                    currentBtn.disabled = false;
+                    currentBtn.innerHTML = '<i class="fas fa-envelope"></i> Ulang';
+                }
+            }, 30000); // 30 detik cooldown
+        } else {
+            showToast(res.error ? res.error.message : "Gagal meminta ulang.");
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; }
+        }
+    } catch (e) {
+        showToast("Kesalahan jaringan.");
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; }
     }
 };
 
@@ -727,7 +777,7 @@ window.finishSpecificOrder = async function(id) {
 
 async function initMainApp() {
     balanceDisplay.innerText = "...";
-    await loadShopeeIndonesia();
+    await loadShopeeIndonesia(); // Ini akan otomatis memilih produk termurah!
     renderOrders();
     if (activeOrders.length > 0) startPollingAndTimer();
     syncServerOrders();
@@ -737,6 +787,7 @@ async function initMainApp() {
 }
 
 window.onload = () => {
+    setAccountViewingStatus(false);
     history.pushState(null, null, window.location.href);
     const saved = sessionStorage.getItem('savedAccountName');
     if (saved) loginAccount(saved); else fetchAccounts();
