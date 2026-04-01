@@ -1,5 +1,29 @@
 const BASE_URL = "https://shopee-otp-proxy.masreno6pro.workers.dev"; 
 
+// ==========================================
+// 0. KONFIGURASI FIREBASE CATATANKU
+// ==========================================
+const firebaseConfig = {
+    apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0",
+    authDomain: "catatanku-app-ce60b.firebaseapp.com",
+    databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "catatanku-app-ce60b",
+    storageBucket: "catatanku-app-ce60b.firebasestorage.app",
+    messagingSenderId: "291744292263",
+    appId: "1:291744292263:web:ab8d32ba52bc19cbffea82"
+};
+
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.database();
+const DB_PATH = 'notes/public';
+
+let selectedNoteKey = null;
+let isEditingNote = false;
+let currentNoteRawContent = "";
+
+// Variabel Global OTP
 let activeAccountName = null;
 let activeOrders = [];
 let availableProducts = []; 
@@ -7,6 +31,7 @@ let selectedProductId = null;
 let timerInterval = null;
 let pollingInterval = null;
 
+// DOM Elements OTP
 const accountView = document.getElementById('accountView');
 const appView = document.getElementById('appView');
 const accountListContainer = document.getElementById('accountListContainer');
@@ -17,32 +42,46 @@ const btnOrder = document.getElementById('btnOrder');
 const activeOrdersContainer = document.getElementById('activeOrdersContainer');
 const activeCount = document.getElementById('activeCount');
 const balanceDisplay = document.getElementById('balanceDisplay');
+const exitModal = document.getElementById('exitModal');
+
+// DOM Elements Catatan
+const notesListModal = document.getElementById('notesListModal');
+const noteFormModal = document.getElementById('noteFormModal');
+const noteDetailModal = document.getElementById('noteDetailModal');
 
 // ==========================================
-// 1. SISTEM BACK BUTTON & MODAL
+// 1. SISTEM BACK BUTTON & MULTI-MODAL
 // ==========================================
 let isExitModalOpen = false;
 
 window.addEventListener('popstate', (e) => {
     if (activeAccountName !== null) {
-        logoutAccount();
+        // Cek jika modal catatan sedang terbuka
+        if (!noteFormModal.classList.contains('hidden')) {
+            handleCancelNoteForm();
+            history.pushState(null, null, "#sms");
+        } else if (!noteDetailModal.classList.contains('hidden')) {
+            closeNoteDetailModal();
+            history.pushState(null, null, "#sms");
+        } else if (!notesListModal.classList.contains('hidden')) {
+            closeNotesListModal();
+            history.pushState(null, null, "#sms");
+        } else {
+            logoutAccount();
+        }
     } else {
         if (isExitModalOpen) {
             closeExitModal();
             history.pushState(null, null, window.location.href); 
         } else {
-            document.getElementById('exitModal').classList.remove('hidden');
+            exitModal.classList.remove('hidden');
             isExitModalOpen = true;
             history.pushState(null, null, window.location.href); 
         }
     }
 });
 
-function closeExitModal() {
-    document.getElementById('exitModal').classList.add('hidden');
-    isExitModalOpen = false;
-}
-
+function closeExitModal() { exitModal.classList.add('hidden'); isExitModalOpen = false; }
 function confirmExit() {
     window.close();
     if (navigator.app) navigator.app.exitApp();
@@ -70,7 +109,9 @@ async function fetchAccounts() {
     try {
         const res = await fetch(`${BASE_URL}/api/accounts`);
         const data = await res.json();
+        
         accountListContainer.innerHTML = "";
+        
         if (data.accounts && data.accounts.length > 0) {
             data.accounts.forEach(accountName => {
                 const card = document.createElement('div');
@@ -127,7 +168,167 @@ function showToast(pesan) {
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
         showToast("Berhasil disalin!"); 
+    }).catch(err => {
+        copyFallback(text);
     });
+}
+
+function copyFallback(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute('readonly', ''); 
+    ta.style.position = "absolute"; ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, 99999);
+    try { document.execCommand('copy'); showToast("Berhasil disalin!"); } 
+    catch (err) { showToast("Gagal menyalin."); }
+    document.body.removeChild(ta);
+}
+
+// ==========================================
+// 3. FUNGSI CATATANKU (FIREBASE)
+// ==========================================
+document.getElementById('btnOpenNotes').onclick = () => {
+    notesListModal.classList.remove('hidden');
+    history.pushState(null, null, "#notes");
+};
+
+function closeNotesListModal() {
+    notesListModal.classList.add('hidden');
+}
+
+function initNotesSync() {
+    const grid = document.getElementById('notes-grid');
+    db.ref(DB_PATH).orderByChild('timestamp').on('value', snapshot => {
+        grid.innerHTML = '';
+        let items = [];
+        snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); });
+        
+        if(items.length === 0) {
+            grid.innerHTML = '<div class="status-text">Belum ada catatan.</div>';
+            return;
+        }
+
+        items.reverse().forEach((d) => {
+            const card = document.createElement('div');
+            card.className = 'note-card';
+            card.onclick = () => openNoteDetailModal(d.key, d);
+            const previewText = escapeHTML(d.content).replace(/\n/g, ' ');
+            card.innerHTML = `
+                <div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div>
+                <div class="note-preview">${previewText}</div>
+                <div class="note-date">${formatDate(d.timestamp)}</div>
+            `;
+            grid.appendChild(card);
+        });
+    });
+}
+
+function formatDate(ts) {
+    if(!ts) return "---";
+    const d = new Date(ts);
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`;
+}
+
+function escapeHTML(str) {
+    if(!str) return "";
+    return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+}
+
+function openAddNoteModal() {
+    isEditingNote = false;
+    document.getElementById('form-modal-title').innerText = "Catatan Baru";
+    document.getElementById('note-title').value = "";
+    document.getElementById('note-content').value = "";
+    notesListModal.classList.add('hidden');
+    noteFormModal.classList.remove('hidden');
+    history.pushState(null, null, "#noteForm");
+}
+
+function openNoteDetailModal(key, data) {
+    selectedNoteKey = key;
+    currentNoteRawContent = data.content;
+    document.getElementById('view-tag').innerText = `Dibuat: ${new Date(data.timestamp).toLocaleDateString()}`;
+    document.getElementById('view-title').value = data.title || "Tanpa Judul";
+    document.getElementById('view-content').innerText = data.content;
+    
+    notesListModal.classList.add('hidden');
+    noteDetailModal.classList.remove('hidden');
+    history.pushState(null, null, "#noteDetail");
+}
+
+function closeNoteDetailModal() {
+    noteDetailModal.classList.add('hidden');
+    notesListModal.classList.remove('hidden');
+}
+
+function handleCancelNoteForm() {
+    noteFormModal.classList.add('hidden');
+    if (isEditingNote) {
+        noteDetailModal.classList.remove('hidden');
+    } else {
+        notesListModal.classList.remove('hidden');
+    }
+}
+
+function editFromDetail() {
+    const t = document.getElementById('view-title').value;
+    const c = currentNoteRawContent;
+    noteDetailModal.classList.add('hidden');
+    isEditingNote = true;
+    document.getElementById('form-modal-title').innerText = "Edit Catatan";
+    document.getElementById('note-title').value = (t === "Tanpa Judul") ? "" : t; 
+    document.getElementById('note-content').value = c;
+    noteFormModal.classList.remove('hidden');
+}
+
+function handleSaveNote() {
+    let t = document.getElementById('note-title').value.trim();
+    const c = document.getElementById('note-content').value;
+    if(!c || c.trim() === "") return showToast("Konten tidak boleh kosong!");
+    
+    if (!t) {
+        db.ref(DB_PATH).once('value').then(snapshot => {
+            let usedNumbers = new Set();
+            snapshot.forEach(child => {
+                let titleStr = child.val().title;
+                if (titleStr && /^\d+$/.test(titleStr.toString().trim())) {
+                    usedNumbers.add(parseInt(titleStr.toString().trim()));
+                }
+            });
+            let nextNum = 1;
+            while (usedNumbers.has(nextNum)) { nextNum++; }
+            executeSaveNote(nextNum.toString(), c);
+        });
+    } else {
+        executeSaveNote(t, c);
+    }
+}
+
+function executeSaveNote(title, content) {
+    const data = { title: title, content: content, timestamp: Date.now() };
+    const promise = (isEditingNote && selectedNoteKey) 
+        ? db.ref(`${DB_PATH}/${selectedNoteKey}`).update(data)
+        : db.ref(DB_PATH).push(data);
+    promise.then(() => {
+        noteFormModal.classList.add('hidden');
+        notesListModal.classList.remove('hidden');
+        isEditingNote = false;
+        showToast("Catatan tersimpan!");
+    });
+}
+
+function confirmDeleteNote() {
+    if(confirm("Hapus catatan ini?")) {
+        db.ref(`${DB_PATH}/${selectedNoteKey}`).remove().then(() => {
+            noteDetailModal.classList.add('hidden');
+            notesListModal.classList.remove('hidden');
+            showToast("Catatan dihapus.");
+        });
+    }
+}
+
+function copyNoteContent() {
+    copyToClipboard(currentNoteRawContent);
 }
 
 // ==========================================
@@ -192,7 +393,7 @@ btnOrder.onclick = async () => {
                 id: orderData.id,
                 productId: parseInt(selectedProductId),
                 phone: orderData.phone_number,
-                price: orderData.price || orderData.cost || (productInfo ? productInfo.price : 0),
+                price: orderData.price || orderData.cost || orderData.amount || (productInfo ? productInfo.price : 0),
                 otp: null, 
                 status: "ACTIVE",
                 expiresAt: expiresAtMs,
@@ -209,7 +410,7 @@ btnOrder.onclick = async () => {
 };
 
 // ==========================================
-// 6. RENDER KARTU (PERBAIKAN BUG TOMBOL MENYALA)
+// 6. RENDER KARTU
 // ==========================================
 function renderOrders() {
     activeCount.innerText = activeOrders.length;
@@ -229,39 +430,40 @@ function renderOrders() {
         let otpHtml = isSuccess ? `<div class="otp-code">${order.otp}</div>` : `<div class="modern-loader"><span></span><span></span><span></span></div><div class="waiting-text">MENUNGGU SMS</div>`;
         const passProductId = order.productId ? `'${order.productId}'` : 'null';
 
-        // --- MENGHITUNG STATUS TOMBOL SEJAK AWAL RENDER AGAR TIDAK BERKEDIP ---
         const wait = order.cancelUnlockTime - now;
         let cancelBtnAttr = "";
         let cancelBtnText = "Batalkan";
-        let replaceBtnAttr = "";
+        let squareBtnAttr = "";
         let replaceBtnText = '<div style="font-size: 16px; line-height: 1;">↻</div><div style="font-size: 9px; font-weight: 800; margin-top: 3px;">GANTI</div>';
         let finishBtnAttr = "disabled";
 
         if (isSuccess) {
             cancelBtnAttr = "disabled";
             cancelBtnText = "Sukses";
-            replaceBtnAttr = "disabled";
+            squareBtnAttr = "disabled";
             replaceBtnText = '<div style="font-size: 16px;">✓</div>';
-            finishBtnAttr = ""; // Aktifkan tombol selesai
+            finishBtnAttr = ""; 
         } else if (wait > 0 && !order.isAutoCanceling) {
             const sec = Math.ceil(wait / 1000);
             cancelBtnAttr = "disabled";
             cancelBtnText = `Tunggu ${sec}s`;
-            replaceBtnAttr = "disabled";
+            squareBtnAttr = "disabled";
             replaceBtnText = `<div style="font-size: 13px; font-weight: 800;">${sec}s</div>`;
         } else if (order.isAutoCanceling) {
             cancelBtnAttr = "disabled";
             cancelBtnText = "Memproses...";
-            replaceBtnAttr = "disabled";
+            squareBtnAttr = "disabled";
         }
 
+        const displayPrice = (order.price && order.price != 0) ? `Rp ${order.price}` : 'Rp -';
+
         card.innerHTML = `
-            <div class="order-header"><div><span class="order-id-label">#${order.id}</span> <span class="order-price">Rp ${order.price || 0}</span></div><span class="timer" id="timer-${order.id}">--:--</span></div>
+            <div class="order-header"><div><span class="order-id-label">#${order.id}</span> <span class="order-price">${displayPrice}</span></div><span class="timer" id="timer-${order.id}">--:--</span></div>
             <div class="phone-row"><span class="phone-number">${order.phone}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')">Salin</button></div>
             <div class="bottom-grid">
                 <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${isSuccess ? '<div class="otp-title">KODE OTP</div>' : ''}${otpHtml}</div>
                 <div style="display: flex; gap: 6px;">
-                    <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id}, ${passProductId})" ${replaceBtnAttr}>
+                    <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id}, ${passProductId})" ${squareBtnAttr}>
                         ${replaceBtnText}
                     </button>
                     <div class="action-buttons">
@@ -275,7 +477,7 @@ function renderOrders() {
 }
 
 // ==========================================
-// 7. TIMER & AUTO BATAL
+// 7. TIMER & AUTO BATAL (10 Menit)
 // ==========================================
 function startPollingAndTimer() {
     if (timerInterval) clearInterval(timerInterval);
@@ -343,7 +545,7 @@ function startPollingAndTimer() {
 }
 
 // ==========================================
-// 8. SYNC & REPLACE
+// 8. SYNC DATA SERVER
 // ==========================================
 async function syncServerOrders() {
     try {
@@ -373,7 +575,7 @@ async function syncServerOrders() {
 }
 
 // ==========================================
-// 9. AKSI TOMBOL
+// 9. AKSI TOMBOL (REPLACE, CANCEL, FINISH)
 // ==========================================
 window.replaceSpecificOrder = async function(orderId, productId) {
     const btn = document.getElementById(`btn-replace-${orderId}`);
@@ -440,6 +642,9 @@ async function initMainApp() {
     renderOrders();
     if (activeOrders.length > 0) startPollingAndTimer();
     syncServerOrders();
+    
+    // Inisialisasi Firebase Database untuk catatan
+    initNotesSync();
 }
 
 window.onload = () => {
