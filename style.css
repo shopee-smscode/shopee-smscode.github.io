@@ -1,6 +1,22 @@
-/* --- BASE & TYPOGRAPHY --- */
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif; background-color: #f0f2f5; padding: 10px; margin: 0; color: #1f2937; }
-.container { max-width: 480px; margin: 0 auto; background: #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 8px 24px rgba(149, 157, 165, 0.2); position: relative; }
+/* --- BASE & BACKGROUND ANIMASI HIDUP --- */
+body { 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif; 
+    /* Background Gradasi Animasi */
+    background: linear-gradient(-45deg, #fceabb, #f8b500, #fbc2eb, #a18cd1);
+    background-size: 400% 400%;
+    animation: gradientBG 15s ease infinite;
+    padding: 15px 10px; 
+    margin: 0; 
+    color: #1f2937; 
+}
+
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.container { max-width: 480px; margin: 0 auto; background: #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); position: relative; }
 .hidden { display: none !important; }
 .status-text { color: #6b7280; font-size: 13px; text-align: center; padding: 15px; }
 
@@ -11,39 +27,31 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxyge
 h1 { color: #ee4d2d; font-size: 22px; margin: 0 0 4px 0; font-weight: 800; letter-spacing: -0.5px; }
 .subtitle { font-size: 13px; color: #6b7280; margin: 0; }
 
-/* --- BUTTON HEADER SERAGAM --- */
+/* --- BUTTON HEADER & DROPDOWN --- */
 .btn-switch { background-color: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; padding: 8px 12px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; height: 36px; box-sizing: border-box; }
 .btn-switch:hover { background-color: #e5e7eb; color: #1f2937; }
 
+.btn-dropdown-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; background: #ffffff; color: #1f2937; border: 1px solid #d1d5db; padding: 14px 18px; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+.btn-dropdown-toggle:hover { border-color: #ee4d2d; }
+
 /* --- LOGIN PAGE CARDS (MODERN UI & STATUS) --- */
-.account-list { display: flex; flex-direction: column; gap: 12px; }
+.account-list { display: flex; flex-direction: column; gap: 10px; }
 .account-card { 
     display: flex; align-items: center; justify-content: space-between;
-    border: 1px solid #e5e7eb; padding: 14px 18px; border-radius: 14px; 
-    background: #ffffff; cursor: pointer; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); 
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02); 
+    border: 1px solid #e5e7eb; padding: 12px 16px; border-radius: 12px; 
+    background: #ffffff; cursor: pointer; transition: all 0.2s ease; 
 }
-.account-card:hover { 
-    transform: translateY(-3px); box-shadow: 0 8px 18px rgba(238, 77, 45, 0.12); 
-    border-color: #fca5a5; background: #fffaf9; 
-}
-.account-info-wrapper { display: flex; align-items: center; gap: 14px; }
-.account-avatar { 
-    width: 42px; height: 42px; border-radius: 50%; background: #fff3ed; 
-    color: #ee4d2d; display: flex; align-items: center; justify-content: center; 
-    font-size: 18px; font-weight: 800;
-}
+.account-card:hover { transform: translateY(-2px); border-color: #fca5a5; background: #fffaf9; }
+.account-info-wrapper { display: flex; align-items: center; gap: 12px; }
+.account-avatar { width: 38px; height: 38px; border-radius: 50%; background: #fff3ed; color: #ee4d2d; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; }
 .account-details { display: flex; flex-direction: column; text-align: left; }
-.account-name { font-weight: 700; font-size: 15px; color: #1f2937; margin-bottom: 2px; }
+.account-name { font-weight: 700; font-size: 14px; color: #1f2937; margin-bottom: 2px; }
 .account-status { font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 5px; transition: color 0.3s; }
 .account-status::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; transition: background-color 0.3s, box-shadow 0.3s; }
-
-/* Warna Status Indikator */
 .status-online { color: #059669; }
 .status-online::before { background-color: #10b981; box-shadow: 0 0 4px #10b981; }
 .status-offline { color: #6b7280; }
 .status-offline::before { background-color: #9ca3af; box-shadow: none; }
-
 .chevron-icon { color: #d1d5db; font-size: 14px; transition: transform 0.2s, color 0.2s; }
 .account-card:hover .chevron-icon { transform: translateX(4px); color: #ee4d2d; }
 
@@ -96,10 +104,9 @@ h1 { color: #ee4d2d; font-size: 22px; margin: 0 0 4px 0; font-weight: 800; lette
 .btn-copy:hover { background-color: #2563eb; }
 
 /* --- OTP BOX & GLOW ANIMATION --- */
-.bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.otp-display { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; text-align: center; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; }
+.otp-display { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; text-align: center; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; margin-bottom: 12px; }
 .otp-title { font-size: 10px; color: #166534; font-weight: 700; margin-bottom: 4px; text-transform: uppercase; }
-.otp-code { font-size: 32px; font-weight: 900; color: #059669; letter-spacing: 4px; text-shadow: 1px 1px 0px #fff; }
+.otp-code { font-size: 36px; font-weight: 900; color: #059669; letter-spacing: 4px; text-shadow: 1px 1px 0px #fff; }
 
 .success-glow { position: relative; overflow: hidden; border: none !important; background: transparent !important; z-index: 1; }
 .success-glow::before { content: ""; position: absolute; top: -150%; left: -150%; right: -150%; bottom: -150%; background: conic-gradient(from 0deg, #ff0000, #ff00ea, #004cff, #00ff22, #ffea00, #ff0000); animation: spin-glow 2s linear infinite; z-index: -2; }
@@ -116,20 +123,23 @@ h1 { color: #ee4d2d; font-size: 22px; margin: 0 0 4px 0; font-weight: 800; lette
 @keyframes textPulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
 
 /* --- BUTTONS --- */
-.action-buttons { display: flex; flex-direction: column; gap: 6px; justify-content: center; flex: 1; min-width: 0; }
-.action-buttons button { padding: 10px; font-size: 13px; border-radius: 6px; width: 100%; }
+.action-buttons-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
-.btn-replace { background-color: #f59e0b; color: white; border: none; cursor: pointer; transition: opacity 0.2s; border-radius: 6px; width: 44px; display: flex; flex-direction: column; justify-content: center; align-items: center; flex-shrink: 0; padding: 0; }
+.btn-replace { background-color: #f59e0b; color: white; border: none; cursor: pointer; transition: opacity 0.2s; border-radius: 8px; padding: 10px; font-size: 13px; font-weight: 600; width: 100%; display: flex; justify-content: center; align-items: center; gap: 6px;}
 .btn-replace:disabled { background-color: #e5e7eb !important; color: #9ca3af !important; cursor: not-allowed; }
+
+.btn-resend { background-color: #6366f1; color: white; border: none; cursor: pointer; transition: opacity 0.2s; border-radius: 8px; padding: 10px; font-size: 13px; font-weight: 600; width: 100%; display: flex; justify-content: center; align-items: center; gap: 6px;}
+.btn-resend:disabled { background-color: #e5e7eb !important; color: #9ca3af !important; cursor: not-allowed; }
+
+.btn-danger { background-color: #ef4444; color: white; border: none; font-weight: 600; font-size: 13px; cursor: pointer; transition: opacity 0.2s; border-radius: 8px; padding: 10px; width: 100%;}
+.btn-danger:disabled { background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
+
+.btn-success { background-color: #22c55e; color: white; border: none; font-weight: 600; font-size: 13px; cursor: pointer; transition: opacity 0.2s; border-radius: 8px; padding: 10px; width: 100%;}
+.btn-success:disabled { background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
 
 .btn-primary { width: 100%; padding: 14px; border-radius: 10px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; color: white; background: linear-gradient(135deg, #ff6a00 0%, #ee4d2d 100%); box-shadow: 0 4px 10px rgba(238, 77, 45, 0.3); transition: transform 0.1s, opacity 0.2s; }
 .btn-primary:active { transform: scale(0.98); }
 .btn-primary:disabled { background: #d1d5db; box-shadow: none; cursor: not-allowed; color: #9ca3af; }
-
-.btn-danger { background-color: #ef4444; color: white; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
-.btn-danger:disabled { background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
-.btn-success { background-color: #22c55e; color: white; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
-.btn-success:disabled { background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
 
 .loader { border: 2px solid #e5e7eb; border-top: 2px solid #6b7280; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; margin: 0 auto; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
