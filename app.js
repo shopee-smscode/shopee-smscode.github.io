@@ -1,7 +1,7 @@
 const BASE_URL = "https://shopee-otp-proxy.masreno6pro.workers.dev"; 
 
 // ==========================================
-// 0. KONFIGURASI FIREBASE CATATANKU
+// 0. KONFIGURASI FIREBASE
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0",
@@ -22,6 +22,10 @@ const DB_PATH = 'notes/public';
 let selectedNoteKey = null;
 let isEditingNote = false;
 let currentNoteRawContent = "";
+
+// Referensi Firebase Presence
+let viewingPresenceRef = null;
+let isPresenceListenerAttached = false;
 
 // Variabel Global OTP
 let activeAccountName = null;
@@ -56,7 +60,6 @@ let isExitModalOpen = false;
 
 window.addEventListener('popstate', (e) => {
     if (activeAccountName !== null) {
-        // Cek jika modal catatan sedang terbuka
         if (!noteFormModal.classList.contains('hidden')) {
             handleCancelNoteForm();
             history.pushState(null, null, "#sms");
@@ -83,6 +86,7 @@ window.addEventListener('popstate', (e) => {
 
 function closeExitModal() { exitModal.classList.add('hidden'); isExitModalOpen = false; }
 function confirmExit() {
+    setAccountViewingStatus(false); // Matikan sensor online saat keluar
     window.close();
     if (navigator.app) navigator.app.exitApp();
     else if (navigator.device) navigator.device.exitApp();
@@ -92,6 +96,9 @@ function confirmExit() {
 function logoutAccount() {
     if (timerInterval) clearInterval(timerInterval);
     if (pollingInterval) clearInterval(pollingInterval);
+    
+    setAccountViewingStatus(false); // Matikan sensor online akun ini
+    
     sessionStorage.removeItem('savedAccountName');
     appView.classList.add('hidden');
     accountView.classList.remove('hidden');
@@ -103,8 +110,69 @@ function logoutAccount() {
 btnSwitchAccount.onclick = () => logoutAccount();
 
 // ==========================================
-// 2. FUNGSI MULTI-AKUN (MODERN UI)
+// 2. FUNGSI MULTI-AKUN & REAL-TIME PRESENCE
 // ==========================================
+
+// Fungsi 1: Sensor jika akun sedang DIBUKA oleh seseorang
+function setAccountViewingStatus(isViewing) {
+    if (!activeAccountName) return;
+    
+    if (isViewing) {
+        const connectedRef = db.ref('.info/connected');
+        viewingPresenceRef = db.ref(`presence/${activeAccountName}/is_viewing`);
+        
+        connectedRef.on('value', (snap) => {
+            if (snap.val() === true) {
+                // Jika koneksi internet terputus / tab ditutup paksa, otomatis false
+                viewingPresenceRef.onDisconnect().set(false);
+                viewingPresenceRef.set(true);
+            }
+        });
+    } else {
+        if (viewingPresenceRef) {
+            viewingPresenceRef.set(false);
+            viewingPresenceRef.onDisconnect().cancel();
+        }
+    }
+}
+
+// Fungsi 2: Sensor jika akun SEDANG ADA PESANAN AKTIF
+function updateAccountOrdersStatus() {
+    if (!activeAccountName) return;
+    const hasOrders = activeOrders.length > 0;
+    db.ref(`presence/${activeAccountName}/has_orders`).set(hasOrders);
+}
+
+// Fungsi 3: Menggambar UI Lobi Berdasarkan Kedua Sensor Di Atas
+function syncPresenceUI() {
+    if (isPresenceListenerAttached) return;
+    isPresenceListenerAttached = true;
+
+    db.ref('presence').on('value', snapshot => {
+        const data = snapshot.val() || {};
+        
+        document.querySelectorAll('.account-card').forEach(card => {
+            const accName = card.querySelector('.account-name').innerText;
+            const safeId = `status-${accName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+            const statusSpan = document.getElementById(safeId);
+            
+            if (statusSpan) {
+                const accData = data[accName] || {};
+                // LOGIKA CERDAS: Online jika sedang dibuka ATAU ada pesanan aktif
+                const isOnline = accData.is_viewing === true || accData.has_orders === true;
+                
+                if (isOnline) {
+                    statusSpan.innerText = "Online";
+                    statusSpan.className = "account-status status-online";
+                } else {
+                    statusSpan.innerText = "Offline";
+                    statusSpan.className = "account-status status-offline";
+                }
+            }
+        });
+    });
+}
+
 async function fetchAccounts() {
     try {
         const res = await fetch(`${BASE_URL}/api/accounts`);
@@ -114,27 +182,28 @@ async function fetchAccounts() {
         
         if (data.accounts && data.accounts.length > 0) {
             data.accounts.forEach(accountName => {
-                // Ambil huruf pertama dari nama akun untuk dijadikan Inisial Avatar
                 const initial = accountName.charAt(0).toUpperCase();
+                const safeId = `status-${accountName.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
                 const card = document.createElement('div');
                 card.className = "account-card";
-                
-                // Struktur HTML baru dengan Avatar, Status, dan Ikon Panah
                 card.innerHTML = `
                     <div class="account-info-wrapper">
                         <div class="account-avatar">${initial}</div>
                         <div class="account-details">
                             <span class="account-name">${accountName}</span>
-                            <span class="account-status">Tersambung</span>
+                            <span id="${safeId}" class="account-status status-offline">Offline</span>
                         </div>
                     </div>
                     <i class="fas fa-chevron-right chevron-icon"></i>
                 `;
-                
                 card.onclick = () => loginAccount(accountName);
                 accountListContainer.appendChild(card);
             });
+            
+            // Aktifkan pemantau status
+            syncPresenceUI();
+
         } else {
             accountListContainer.innerHTML = '<div class="status-text">Tidak ada akun ditemukan.</div>';
         }
@@ -147,6 +216,10 @@ function loginAccount(accountName) {
     activeAccountName = accountName;
     currentAccountName.innerText = accountName;
     sessionStorage.setItem('savedAccountName', accountName);
+    
+    // Setel sensor bahwa akun ini sedang dilihat
+    setAccountViewingStatus(true);
+
     history.pushState(null, null, "#sms"); 
     accountView.classList.add('hidden');
     appView.classList.remove('hidden');
@@ -170,6 +243,7 @@ async function apiCall(endpoint, method = "GET", body = null) {
 
 function saveToStorage() {
     localStorage.setItem(`orders_${activeAccountName}`, JSON.stringify(activeOrders));
+    updateAccountOrdersStatus(); // Setel sensor setiap ada perubahan pesanan
     renderOrders(); 
 }
 
