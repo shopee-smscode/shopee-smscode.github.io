@@ -1,120 +1,35 @@
-/* --- BASE & TYPOGRAPHY --- */
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif; background-color: #f0f2f5; padding: 10px; margin: 0; color: #1f2937; }
-.container { max-width: 480px; margin: 0 auto; background: #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 8px 24px rgba(149, 157, 165, 0.2); position: relative; }
-.hidden { display: none !important; }
-.status-text { color: #6b7280; font-size: 13px; text-align: center; padding: 15px; }
-
-/* --- HEADERS --- */
-.login-header { text-align: center; margin-bottom: 25px; padding-top: 10px; }
-.logo-circle { font-size: 32px; background: #fff3ed; width: 60px; height: 60px; line-height: 60px; border-radius: 50%; margin: 0 auto 10px auto; border: 2px solid #f9ded8; }
-.app-header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #f3f4f6; }
-h1 { color: #ee4d2d; font-size: 22px; margin: 0 0 4px 0; font-weight: 800; letter-spacing: -0.5px; }
-.subtitle { font-size: 13px; color: #6b7280; margin: 0; }
-
-/* --- BUTTON HEADER SERAGAM --- */
-.btn-switch { background-color: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; padding: 8px 12px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; height: 36px; box-sizing: border-box; }
-.btn-switch:hover { background-color: #e5e7eb; color: #1f2937; }
-
-/* --- LOGIN PAGE CARDS --- */
-.account-list { display: flex; flex-direction: column; gap: 10px; }
-.account-card { border: 1px solid #e5e7eb; border-left: 4px solid #ee4d2d; padding: 15px 20px; border-radius: 10px; background: #ffffff; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-.account-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-color: #d1d5db; background: #fffaf9; }
-.account-name { font-weight: 700; font-size: 16px; color: #1f2937; }
-
-/* --- SALDO WIDGET --- */
-.balance-container { text-align: center; margin-bottom: 20px; }
-.balance-badge { display: inline-flex; align-items: center; gap: 10px; background-color: #f0fdf4; padding: 8px 16px; border-radius: 30px; border: 1px solid #bbf7d0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-.balance-label { font-size: 12px; color: #166534; }
-.balance-value { font-weight: 800; font-size: 15px; color: #15803d; }
-
-/* --- SECTIONS & FORMS --- */
-.section { margin-bottom: 20px; }
-.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.section-title { font-size: 15px; color: #1f2937; margin: 0; font-weight: 700; }
-.form-input { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; box-sizing: border-box; font-family: inherit; transition: border-color 0.2s; }
-.form-input:focus { outline: none; border-color: #059669; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); }
-
-/* --- PRODUCT LIST (HARGA & SERVER) --- */
-.product-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 15px; max-height: 220px; overflow-y: auto; padding-right: 4px; }
-.product-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px; cursor: pointer; background-color: #ffffff; transition: all 0.15s; display: flex; justify-content: space-between; align-items: center; }
-.product-card:hover { background-color: #f9fafb; border-color: #d1d5db; }
-.product-card.selected { border-color: #ee4d2d; background-color: #fffaf9; border-width: 2px; padding: 7px 11px; }
-.product-info h4 { margin: 0 0 2px 0; font-size: 13px; color: #374151; font-weight: 600; } 
-.product-info p { margin: 0; font-size: 11px; color: #6b7280; } 
-.product-price { font-weight: 700; color: #ee4d2d; font-size: 12px; background: #fff5f2; padding: 4px 8px; border-radius: 6px; }
-
-/* Scrollbar Customization */
-.product-list::-webkit-scrollbar, .notes-list::-webkit-scrollbar, #view-content::-webkit-scrollbar { width: 4px; }
-.product-list::-webkit-scrollbar-track, .notes-list::-webkit-scrollbar-track, #view-content::-webkit-scrollbar-track { background: #f3f4f6; border-radius: 10px; }
-.product-list::-webkit-scrollbar-thumb, .notes-list::-webkit-scrollbar-thumb, #view-content::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
-
-/* --- NOTES UI --- */
-.notes-list { display: flex; flex-direction: column; gap: 8px; }
-.note-card { background: #ffffff; padding: 12px 15px; border-radius: 8px; border: 1px solid #e5e7eb; border-left: 4px solid #f59e0b; cursor: pointer; transition: transform 0.2s; text-align: left; }
-.note-card:hover { transform: translateY(-2px); border-color: #d1d5db; background: #fffbeb; }
-.note-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.note-preview { font-size: 12px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
-.note-date { font-size: 10px; color: #9ca3af; font-weight: 700; text-align: right; }
-
-/* --- ORDER CARDS --- */
-.order-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; margin-bottom: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.04); }
-.order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 12px; border-bottom: 1px dashed #e5e7eb; padding-bottom: 8px; }
-.order-id-label { color: #6b7280; font-weight: 600; }
-.order-price { color: #ee4d2d; font-weight: 700; }
-.timer { color: #ef4444; font-weight: 700; font-variant-numeric: tabular-nums; background: #fef2f2; padding: 2px 6px; border-radius: 4px; }
-.phone-row { display: flex; justify-content: space-between; align-items: center; background-color: #f3f4f6; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; border: 1px solid #e5e7eb;}
-.phone-number { font-size: 19px; font-weight: 800; color: #ea580c; letter-spacing: 1.5px; }
-
-/* --- TOMBOL SALIN --- */
-.btn-copy { background-color: #3b82f6; color: #ffffff; padding: 8px 16px; font-size: 12px; font-weight: 700; border-radius: 8px; border: none; cursor: pointer; transition: background 0.2s; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3); }
-.btn-copy:hover { background-color: #2563eb; }
-
-/* --- OTP BOX & GLOW ANIMATION --- */
-.bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.otp-display { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; text-align: center; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; }
-.otp-title { font-size: 10px; color: #166534; font-weight: 700; margin-bottom: 4px; text-transform: uppercase; }
-.otp-code { font-size: 32px; font-weight: 900; color: #059669; letter-spacing: 4px; text-shadow: 1px 1px 0px #fff; }
-
-.success-glow { position: relative; overflow: hidden; border: none !important; background: transparent !important; z-index: 1; }
-.success-glow::before { content: ""; position: absolute; top: -150%; left: -150%; right: -150%; bottom: -150%; background: conic-gradient(from 0deg, #ff0000, #ff00ea, #004cff, #00ff22, #ffea00, #ff0000); animation: spin-glow 2s linear infinite; z-index: -2; }
-.success-glow::after { content: ""; position: absolute; inset: 4px; background: #f0fdf4; border-radius: 6px; z-index: -1; }
-@keyframes spin-glow { 100% { transform: rotate(360deg); } }
-
-/* --- ANIMASI LOADING OTP MODERN --- */
-.modern-loader { display: flex; justify-content: center; align-items: center; gap: 5px; margin-bottom: 4px; }
-.modern-loader span { width: 8px; height: 8px; background-color: #22c55e; border-radius: 50%; display: inline-block; animation: bounceDots 1.4s infinite ease-in-out both; }
-.modern-loader span:nth-child(1) { animation-delay: -0.32s; }
-.modern-loader span:nth-child(2) { animation-delay: -0.16s; }
-@keyframes bounceDots { 0%, 80%, 100% { transform: scale(0); opacity: 0.3; } 40% { transform: scale(1); opacity: 1; } }
-.waiting-text { font-size: 11px; color: #166534; margin-top: 4px; font-weight: 700; letter-spacing: 0.5px; animation: textPulse 1.5s infinite; }
-@keyframes textPulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
-
-/* --- BUTTONS --- */
-.action-buttons { display: flex; flex-direction: column; gap: 6px; justify-content: center; flex: 1; min-width: 0; }
-.action-buttons button { padding: 10px; font-size: 13px; border-radius: 6px; width: 100%; }
-
-.btn-replace { background-color: #f59e0b; color: white; border: none; cursor: pointer; transition: opacity 0.2s; border-radius: 6px; width: 44px; display: flex; flex-direction: column; justify-content: center; align-items: center; flex-shrink: 0; padding: 0; }
-.btn-replace:disabled { background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
-
-.btn-primary { width: 100%; padding: 14px; border-radius: 10px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; color: white; background: linear-gradient(135deg, #ff6a00 0%, #ee4d2d 100%); box-shadow: 0 4px 10px rgba(238, 77, 45, 0.3); transition: transform 0.1s, opacity 0.2s; }
-.btn-primary:active { transform: scale(0.98); }
-.btn-primary:disabled { background: #d1d5db; box-shadow: none; cursor: not-allowed; color: #9ca3af; }
-
-.btn-danger { background-color: #ef4444; color: white; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
-.btn-danger:disabled { background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
-.btn-success { background-color: #22c55e; color: white; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
-.btn-success:disabled { background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
-
-.loader { border: 2px solid #e5e7eb; border-top: 2px solid #6b7280; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; margin: 0 auto; }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-/* --- MODAL --- */
-.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 99999; display: flex; justify-content: center; align-items: center; opacity: 1; transition: opacity 0.2s; backdrop-filter: blur(2px); }
-.modal-content { background: #fff; padding: 20px; border-radius: 16px; text-align: center; width: 85%; max-width: 320px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-.modal-title { margin: 0 0 10px 0; color: #ee4d2d; font-size: 18px; font-weight: 800; }
-.modal-desc { font-size: 13px; color: #4b5563; margin-bottom: 20px; }
-.modal-actions { display: flex; justify-content: space-between; gap: 10px; }
-@keyframes popUp { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-
-.toast { visibility: hidden; min-width: 200px; background-color: #1f2937; color: #fff; text-align: center; border-radius: 30px; padding: 10px 16px; position: fixed; z-index: 9999; left: 50%; transform: translateX(-50%); bottom: 20px; font-size: 13px; font-weight: 600; opacity: 0; transition: opacity 0.3s, bottom 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-.toast.show { visibility: visible; opacity: 1; bottom: 35px; }
+/* --- LOGIN PAGE CARDS (MODERN UI) --- */
+.account-list { display: flex; flex-direction: column; gap: 12px; }
+.account-card { 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between;
+    border: 1px solid #e5e7eb; 
+    padding: 14px 18px; 
+    border-radius: 14px; 
+    background: #ffffff; 
+    cursor: pointer; 
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); 
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02); 
+}
+.account-card:hover { 
+    transform: translateY(-3px); 
+    box-shadow: 0 8px 18px rgba(238, 77, 45, 0.12); /* Efek glow oranye shopee */
+    border-color: #fca5a5; 
+    background: #fffaf9; 
+}
+.account-info-wrapper { display: flex; align-items: center; gap: 14px; }
+.account-avatar { 
+    width: 42px; height: 42px; 
+    border-radius: 50%; 
+    background: #fff3ed; 
+    color: #ee4d2d; 
+    display: flex; align-items: center; justify-content: center; 
+    font-size: 18px; font-weight: 800;
+}
+.account-details { display: flex; flex-direction: column; text-align: left; }
+.account-name { font-weight: 700; font-size: 15px; color: #1f2937; margin-bottom: 2px; }
+.account-status { font-size: 11px; color: #059669; font-weight: 700; display: flex; align-items: center; gap: 5px; }
+.account-status::before { content: ""; display: inline-block; width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; box-shadow: 0 0 4px #10b981;}
+.chevron-icon { color: #d1d5db; font-size: 14px; transition: transform 0.2s, color 0.2s; }
+.account-card:hover .chevron-icon { transform: translateX(4px); color: #ee4d2d; }
