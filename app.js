@@ -103,7 +103,7 @@ function logoutAccount() {
 btnSwitchAccount.onclick = () => logoutAccount();
 
 // ==========================================
-// 2. FUNGSI MULTI-AKUN
+// 2. FUNGSI MULTI-AKUN (MODERN UI)
 // ==========================================
 async function fetchAccounts() {
     try {
@@ -114,9 +114,24 @@ async function fetchAccounts() {
         
         if (data.accounts && data.accounts.length > 0) {
             data.accounts.forEach(accountName => {
+                // Ambil huruf pertama dari nama akun untuk dijadikan Inisial Avatar
+                const initial = accountName.charAt(0).toUpperCase();
+
                 const card = document.createElement('div');
                 card.className = "account-card";
-                card.innerHTML = `<div class="account-name">${accountName}</div>`;
+                
+                // Struktur HTML baru dengan Avatar, Status, dan Ikon Panah
+                card.innerHTML = `
+                    <div class="account-info-wrapper">
+                        <div class="account-avatar">${initial}</div>
+                        <div class="account-details">
+                            <span class="account-name">${accountName}</span>
+                            <span class="account-status">Tersambung</span>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right chevron-icon"></i>
+                `;
+                
                 card.onclick = () => loginAccount(accountName);
                 accountListContainer.appendChild(card);
             });
