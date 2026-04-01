@@ -17,8 +17,6 @@
         <div id="accountListContainer" class="account-list">
             <div class="status-text">Memuat daftar akun...</div>
         </div>
-        
-        <button id="btnOpenTopup" class="btn-primary" style="margin-top: 15px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);">💳 Top Up Saldo QRIS</button>
     </div>
 
     <div id="appView" class="container hidden">
@@ -54,32 +52,6 @@
                 <div class="status-text">Memuat data Shopee Indonesia...</div>
             </div>
             <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
-        </div>
-    </div>
-
-    <div id="topupModal" class="modal hidden">
-        <div class="modal-content">
-            <h3 class="modal-title">Top Up Saldo</h3>
-            <p class="modal-desc">Pembayaran otomatis via QRIS (All Payment)</p>
-            
-            <div style="text-align: left; margin-bottom: 12px;">
-                <label class="section-label" style="font-size: 12px; margin-bottom: 5px;">Pilih Akun / API:</label>
-                <select id="topupAccountSelect" class="form-input"></select>
-            </div>
-            
-            <div style="text-align: left; margin-bottom: 15px;">
-                <label class="section-label" style="font-size: 12px; margin-bottom: 5px;">Nominal (Rp):</label>
-                <input type="number" id="topupAmount" class="form-input" placeholder="Contoh: 10000" min="10000">
-            </div>
-            
-            <button id="btnGenerateQris" class="btn-primary" style="background: #059669; box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3);">Buat Kode QRIS</button>
-
-            <div id="qrisContainer" class="hidden" style="margin-top: 20px; text-align: center;">
-                <img id="qrisImage" src="" alt="QRIS" style="width: 100%; max-width: 220px; border-radius: 8px; border: 2px solid #e5e7eb; padding: 5px;">
-                <p class="status-text" style="color: #059669; font-weight: 700; padding: 5px;">Silakan scan QRIS di atas.</p>
-            </div>
-
-            <button onclick="closeTopupModal()" class="btn-switch" style="margin-top: 15px; width: 100%; padding: 12px;">Tutup</button>
         </div>
     </div>
 
