@@ -18,14 +18,6 @@ const activeOrdersContainer = document.getElementById('activeOrdersContainer');
 const activeCount = document.getElementById('activeCount');
 const balanceDisplay = document.getElementById('balanceDisplay');
 
-// DOM Topup
-const topupModal = document.getElementById('topupModal');
-const topupAccountSelect = document.getElementById('topupAccountSelect');
-const topupAmount = document.getElementById('topupAmount');
-const btnGenerateQris = document.getElementById('btnGenerateQris');
-const qrisContainer = document.getElementById('qrisContainer');
-const qrisImage = document.getElementById('qrisImage');
-
 // ==========================================
 // 1. SISTEM BACK BUTTON & MODAL
 // ==========================================
@@ -35,10 +27,7 @@ window.addEventListener('popstate', (e) => {
     if (activeAccountName !== null) {
         logoutAccount();
     } else {
-        if (!topupModal.classList.contains('hidden')) {
-            closeTopupModal();
-            history.pushState(null, null, window.location.href);
-        } else if (isExitModalOpen) {
+        if (isExitModalOpen) {
             closeExitModal();
             history.pushState(null, null, window.location.href); 
         } else {
@@ -75,30 +64,20 @@ function logoutAccount() {
 btnSwitchAccount.onclick = () => logoutAccount();
 
 // ==========================================
-// 2. FUNGSI MULTI-AKUN & TOPUP DROPDOWN
+// 2. FUNGSI MULTI-AKUN
 // ==========================================
 async function fetchAccounts() {
     try {
         const res = await fetch(`${BASE_URL}/api/accounts`);
         const data = await res.json();
-        
         accountListContainer.innerHTML = "";
-        topupAccountSelect.innerHTML = `<option value="">-- Pilih Akun --</option>`; // Reset dropdown topup
-        
         if (data.accounts && data.accounts.length > 0) {
             data.accounts.forEach(accountName => {
-                // Tambah List Lobi
                 const card = document.createElement('div');
                 card.className = "account-card";
                 card.innerHTML = `<div class="account-name">${accountName}</div>`;
                 card.onclick = () => loginAccount(accountName);
                 accountListContainer.appendChild(card);
-
-                // Tambah ke Dropdown Topup
-                const option = document.createElement('option');
-                option.value = accountName;
-                option.innerText = accountName;
-                topupAccountSelect.appendChild(option);
             });
         } else {
             accountListContainer.innerHTML = '<div class="status-text">Tidak ada akun ditemukan.</div>';
@@ -150,67 +129,6 @@ function copyToClipboard(text) {
         showToast("Berhasil disalin!"); 
     });
 }
-
-// ==========================================
-// 3. FITUR TOP UP QRIS
-// ==========================================
-document.getElementById('btnOpenTopup').onclick = () => {
-    topupModal.classList.remove('hidden');
-    qrisContainer.classList.add('hidden');
-    btnGenerateQris.classList.remove('hidden');
-    topupAmount.value = "";
-    btnGenerateQris.innerText = "Buat Kode QRIS";
-    btnGenerateQris.disabled = false;
-    history.pushState(null, null, window.location.href); // Jebak tombol back
-};
-
-window.closeTopupModal = function() {
-    topupModal.classList.add('hidden');
-};
-
-btnGenerateQris.onclick = async () => {
-    const selectedAccount = topupAccountSelect.value;
-    const amount = topupAmount.value;
-
-    if (!selectedAccount) return showToast("Silakan pilih akun/API terlebih dahulu.");
-    if (!amount || parseInt(amount) < 10000) return showToast("Minimal Top Up Rp 10.000");
-
-    btnGenerateQris.disabled = true;
-    btnGenerateQris.innerText = "Memproses...";
-
-    try {
-        // [CATATAN UNTUK PENGEMBANG]: 
-        // Ini adalah panggilan API ke Cloudflare Anda. 
-        // Pastikan Anda membuat route '/api/qris' di Worker Anda 
-        // yang terhubung dengan Payment Gateway (MutiaPay, Tripay, Paydisini, dll).
-        
-        const response = await fetch(`${BASE_URL}/api/qris`, {
-            method: 'POST',
-            headers: { 
-                "Content-Type": "application/json",
-                "X-Account-Name": selectedAccount
-            },
-            body: JSON.stringify({ amount: parseInt(amount) })
-        });
-        
-        const data = await response.json();
-
-        if (data.success && data.qris_url) {
-            qrisImage.src = data.qris_url;
-            qrisContainer.classList.remove('hidden');
-            btnGenerateQris.classList.add('hidden'); // Sembunyikan tombol
-            showToast("QRIS berhasil dibuat!");
-        } else {
-            showToast(data.message || "Gagal memproses ke Payment Gateway.");
-            btnGenerateQris.disabled = false;
-            btnGenerateQris.innerText = "Buat Kode QRIS";
-        }
-    } catch (error) {
-        showToast("Server pembayaran tidak merespons.");
-        btnGenerateQris.disabled = false;
-        btnGenerateQris.innerText = "Buat Kode QRIS";
-    }
-};
 
 // ==========================================
 // 4. LOAD SERVER
@@ -291,7 +209,7 @@ btnOrder.onclick = async () => {
 };
 
 // ==========================================
-// 6. RENDER KARTU 
+// 6. RENDER KARTU (PERBAIKAN BUG TOMBOL MENYALA)
 // ==========================================
 function renderOrders() {
     activeCount.innerText = activeOrders.length;
@@ -311,6 +229,7 @@ function renderOrders() {
         let otpHtml = isSuccess ? `<div class="otp-code">${order.otp}</div>` : `<div class="modern-loader"><span></span><span></span><span></span></div><div class="waiting-text">MENUNGGU SMS</div>`;
         const passProductId = order.productId ? `'${order.productId}'` : 'null';
 
+        // --- MENGHITUNG STATUS TOMBOL SEJAK AWAL RENDER AGAR TIDAK BERKEDIP ---
         const wait = order.cancelUnlockTime - now;
         let cancelBtnAttr = "";
         let cancelBtnText = "Batalkan";
@@ -323,7 +242,7 @@ function renderOrders() {
             cancelBtnText = "Sukses";
             replaceBtnAttr = "disabled";
             replaceBtnText = '<div style="font-size: 16px;">✓</div>';
-            finishBtnAttr = ""; 
+            finishBtnAttr = ""; // Aktifkan tombol selesai
         } else if (wait > 0 && !order.isAutoCanceling) {
             const sec = Math.ceil(wait / 1000);
             cancelBtnAttr = "disabled";
@@ -436,6 +355,7 @@ async function syncServerOrders() {
                 if (!activeOrders.find(o => o.id === order.id)) {
                     let syncedPrice = order.price || order.cost || order.amount || 0;
                     if (syncedPrice == 0 && order.product_id && availableProducts.length > 0) {
+                        const matchProduct = availableProducts.find(p => String(p.id) === String(order.product_id));
                         if (matchProduct) syncedPrice = matchProduct.price;
                     }
                     const exp = order.expires_at ? new Date(order.expires_at).getTime() : Date.now() + (20*60*1000);
@@ -527,4 +447,3 @@ window.onload = () => {
     const saved = sessionStorage.getItem('savedAccountName');
     if (saved) loginAccount(saved); else fetchAccounts();
 };
-                        
