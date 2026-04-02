@@ -74,7 +74,17 @@ window.addEventListener('popstate', (e) => {
             logoutAccount();
         }
     } else {
-        if (isExitModalOpen) {
+        // Cek jika modal catatan terbuka saat di menu lobi
+        if (!noteFormModal.classList.contains('hidden')) {
+            handleCancelNoteForm();
+            history.pushState(null, null, window.location.href);
+        } else if (!noteDetailModal.classList.contains('hidden')) {
+            closeNoteDetailModal();
+            history.pushState(null, null, window.location.href);
+        } else if (!notesListModal.classList.contains('hidden')) {
+            closeNotesListModal();
+            history.pushState(null, null, window.location.href);
+        } else if (isExitModalOpen) {
             closeExitModal();
             history.pushState(null, null, window.location.href); 
         } else {
@@ -105,7 +115,6 @@ function logoutAccount() {
     accountView.classList.remove('hidden');
     activeAccountName = null;
     
-    // Tutup dropdown saat logout
     accountListContainer.classList.add('hidden');
     document.getElementById('accountListIcon').className = "fas fa-chevron-down";
     
@@ -119,7 +128,6 @@ btnSwitchAccount.onclick = () => logoutAccount();
 // 2. FUNGSI MULTI-AKUN (DENGAN DROPDOWN)
 // ==========================================
 
-// Fungsi Buka/Tutup Dropdown Akun
 window.toggleAccountList = function() {
     const isHidden = accountListContainer.classList.contains('hidden');
     const icon = document.getElementById('accountListIcon');
@@ -282,10 +290,16 @@ function copyFallback(text) {
 // ==========================================
 // 3. FUNGSI CATATANKU (FIREBASE)
 // ==========================================
-document.getElementById('btnOpenNotes').onclick = () => {
+// Buka catatan dari mana saja
+window.openNotesFromAnywhere = function() {
     notesListModal.classList.remove('hidden');
     history.pushState(null, null, "#notes");
 };
+
+// Pasang event ke tombol-tombol Catatan
+document.getElementById('btnOpenNotes').onclick = openNotesFromAnywhere;
+// Tombol catatan di halaman Lobi
+document.querySelector('#accountView .btn-switch').onclick = openNotesFromAnywhere;
 
 function closeNotesListModal() {
     notesListModal.classList.add('hidden');
@@ -299,7 +313,7 @@ function initNotesSync() {
         snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); });
         
         // Update jumlah catatan secara realtime
-        notesCountDisplay.innerText = `(${items.length})`;
+        if(notesCountDisplay) notesCountDisplay.innerText = `(${items.length})`;
         
         if(items.length === 0) {
             grid.innerHTML = '<div class="status-text">Belum ada catatan.</div>';
@@ -455,7 +469,7 @@ async function loadShopeeIndonesia() {
             availableProducts = productsRes.data.sort((a, b) => parseFloat(a.price) - parseFloat(b.price)).slice(0, 3);
             productList.innerHTML = ""; 
             
-            // AUTO SELECT: Pilih produk termurah (indeks 0) secara otomatis
+            // AUTO SELECT: Pilih produk termurah
             if (availableProducts.length > 0) {
                 selectedProductId = availableProducts[0].id;
                 btnOrder.disabled = false;
@@ -498,6 +512,7 @@ btnOrder.onclick = async () => {
                 id: orderData.id,
                 productId: parseInt(selectedProductId),
                 phone: orderData.phone_number,
+                // Lanjutan dari yang terpotong:
                 price: orderData.price || orderData.cost || orderData.amount || (productInfo ? productInfo.price : 0),
                 otp: null, 
                 status: "ACTIVE",
@@ -565,7 +580,6 @@ function renderOrders() {
 
         const displayPrice = (order.price && order.price != 0) ? `Rp ${order.price}` : 'Rp -';
 
-        // Tata letak diperbarui: Kotak OTP di atas, 4 Tombol Aksi berada di bawah
         card.innerHTML = `
             <div class="order-header"><div><span class="order-id-label">#${order.id}</span> <span class="order-price">${displayPrice}</span></div><span class="timer" id="timer-${order.id}">--:--</span></div>
             <div class="phone-row"><span class="phone-number">${order.phone}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')">Salin</button></div>
@@ -626,7 +640,6 @@ function startPollingAndTimer() {
                 } else if (!order.isAutoCanceling) {
                     if (btnCancel) { btnCancel.disabled = false; btnCancel.innerText = "Batalkan"; }
                     if (btnReplace) { btnReplace.disabled = false; btnReplace.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
-                    // Jika tombol belum pernah ditekan dan dalam masa aktif, beri teks default
                     if (btnResend && !btnResend.innerHTML.includes('loader')) { 
                         btnResend.disabled = false; btnResend.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; 
                     }
@@ -731,14 +744,13 @@ window.resendSpecificOrder = async function(orderId) {
         const res = await apiCall('/orders/resend', 'POST', { id: orderId });
         if (res.success) {
             showToast("Meminta ulang SMS...");
-            // Nonaktifkan tombol sesaat setelah ditekan
             setTimeout(() => {
                 const currentBtn = document.getElementById(`btn-resend-${orderId}`);
                 if(currentBtn && !currentBtn.innerHTML.includes('fa-check')) {
                     currentBtn.disabled = false;
                     currentBtn.innerHTML = '<i class="fas fa-envelope"></i> Ulang';
                 }
-            }, 30000); // 30 detik cooldown
+            }, 30000); 
         } else {
             showToast(res.error ? res.error.message : "Gagal meminta ulang.");
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; }
@@ -777,12 +789,11 @@ window.finishSpecificOrder = async function(id) {
 
 async function initMainApp() {
     balanceDisplay.innerText = "...";
-    await loadShopeeIndonesia(); // Ini akan otomatis memilih produk termurah!
+    await loadShopeeIndonesia();
     renderOrders();
     if (activeOrders.length > 0) startPollingAndTimer();
     syncServerOrders();
     
-    // Inisialisasi Firebase Database untuk catatan
     initNotesSync();
 }
 
