@@ -74,7 +74,6 @@ window.addEventListener('popstate', (e) => {
             logoutAccount();
         }
     } else {
-        // Cek jika modal catatan terbuka saat di menu lobi
         if (!noteFormModal.classList.contains('hidden')) {
             handleCancelNoteForm();
             history.pushState(null, null, window.location.href);
@@ -290,16 +289,16 @@ function copyFallback(text) {
 // ==========================================
 // 3. FUNGSI CATATANKU (FIREBASE)
 // ==========================================
-// Buka catatan dari mana saja
 window.openNotesFromAnywhere = function() {
     notesListModal.classList.remove('hidden');
     history.pushState(null, null, "#notes");
 };
 
-// Pasang event ke tombol-tombol Catatan
 document.getElementById('btnOpenNotes').onclick = openNotesFromAnywhere;
-// Tombol catatan di halaman Lobi
-document.querySelector('#accountView .btn-switch').onclick = openNotesFromAnywhere;
+// Memastikan tombol catatan di lobi tetap bisa di klik
+if (document.querySelector('#accountView .btn-switch')) {
+    document.querySelector('#accountView .btn-switch').onclick = openNotesFromAnywhere;
+}
 
 function closeNotesListModal() {
     notesListModal.classList.add('hidden');
@@ -312,7 +311,6 @@ function initNotesSync() {
         let items = [];
         snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); });
         
-        // Update jumlah catatan secara realtime
         if(notesCountDisplay) notesCountDisplay.innerText = `(${items.length})`;
         
         if(items.length === 0) {
@@ -469,7 +467,6 @@ async function loadShopeeIndonesia() {
             availableProducts = productsRes.data.sort((a, b) => parseFloat(a.price) - parseFloat(b.price)).slice(0, 3);
             productList.innerHTML = ""; 
             
-            // AUTO SELECT: Pilih produk termurah
             if (availableProducts.length > 0) {
                 selectedProductId = availableProducts[0].id;
                 btnOrder.disabled = false;
@@ -495,50 +492,51 @@ async function loadShopeeIndonesia() {
 // ==========================================
 // 5. PESAN BARU
 // ==========================================
-btnOrder.onclick = async () => {
-    if (!selectedProductId) return;
-    btnOrder.disabled = true;
-    const originalText = btnOrder.innerText;
-    btnOrder.innerText = "Memproses...";
-    try {
-        const res = await apiCall('/orders/create', 'POST', { product_id: parseInt(selectedProductId), quantity: 1 });
-        if (res.success) {
-            const orderData = res.data.orders[0];
-            const productInfo = availableProducts.find(p => String(p.id) === String(selectedProductId));
-            const expiresAtMs = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
-            const createdAtMs = orderData.created_at ? new Date(orderData.created_at).getTime() : Date.now();
-            
-            activeOrders.unshift({
-                id: orderData.id,
-                productId: parseInt(selectedProductId),
-                phone: orderData.phone_number,
-                // Lanjutan dari yang terpotong:
-                price: orderData.price || orderData.cost || orderData.amount || (productInfo ? productInfo.price : 0),
-                otp: null, 
-                status: "ACTIVE",
-                expiresAt: expiresAtMs,
-                cancelUnlockTime: createdAtMs + (120 * 1000),
-                isAutoCanceling: false
-            });
-            saveToStorage(); startPollingAndTimer(); fetchBalance(); 
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            copyToClipboard(orderData.phone_number);
-        } else { showToast(`Gagal: ${res.error.message}`); }
-    } catch (error) { showToast("Kesalahan jaringan."); }
-    btnOrder.innerText = originalText;
-    btnOrder.disabled = false;
-};
+if (btnOrder) {
+    btnOrder.onclick = async () => {
+        if (!selectedProductId) return;
+        btnOrder.disabled = true;
+        const originalText = btnOrder.innerText;
+        btnOrder.innerText = "Memproses...";
+        try {
+            const res = await apiCall('/orders/create', 'POST', { product_id: parseInt(selectedProductId), quantity: 1 });
+            if (res.success) {
+                const orderData = res.data.orders[0];
+                const productInfo = availableProducts.find(p => String(p.id) === String(selectedProductId));
+                const expiresAtMs = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
+                const createdAtMs = orderData.created_at ? new Date(orderData.created_at).getTime() : Date.now();
+                
+                activeOrders.unshift({
+                    id: orderData.id,
+                    productId: parseInt(selectedProductId),
+                    phone: orderData.phone_number,
+                    price: orderData.price || orderData.cost || orderData.amount || (productInfo ? productInfo.price : 0),
+                    otp: null, 
+                    status: "ACTIVE",
+                    expiresAt: expiresAtMs,
+                    cancelUnlockTime: createdAtMs + (120 * 1000),
+                    isAutoCanceling: false
+                });
+                saveToStorage(); startPollingAndTimer(); fetchBalance(); 
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                copyToClipboard(orderData.phone_number);
+            } else { showToast(`Gagal: ${res.error.message}`); }
+        } catch (error) { showToast("Kesalahan jaringan."); }
+        btnOrder.innerText = originalText;
+        btnOrder.disabled = false;
+    };
+}
 
 // ==========================================
 // 6. RENDER KARTU & POSISI TOMBOL BARU
 // ==========================================
 function renderOrders() {
-    activeCount.innerText = activeOrders.length;
+    if (activeCount) activeCount.innerText = activeOrders.length;
     if (activeOrders.length === 0) { 
-        activeOrdersContainer.innerHTML = '<div class="status-text">Belum ada pesanan aktif.</div>'; 
+        if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Belum ada pesanan aktif.</div>'; 
         return; 
     }
-    activeOrdersContainer.innerHTML = "";
+    if (activeOrdersContainer) activeOrdersContainer.innerHTML = "";
     const now = Date.now();
 
     activeOrders.forEach(order => {
@@ -593,7 +591,7 @@ function renderOrders() {
                 <button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder(${order.id})" ${finishBtnAttr}>Selesai</button>
             </div>
         `;
-        activeOrdersContainer.appendChild(card);
+        if (activeOrdersContainer) activeOrdersContainer.appendChild(card);
     });
 }
 
@@ -788,18 +786,20 @@ window.finishSpecificOrder = async function(id) {
 };
 
 async function initMainApp() {
-    balanceDisplay.innerText = "...";
+    if (balanceDisplay) balanceDisplay.innerText = "...";
     await loadShopeeIndonesia();
     renderOrders();
     if (activeOrders.length > 0) startPollingAndTimer();
     syncServerOrders();
-    
-    initNotesSync();
 }
 
 window.onload = () => {
     setAccountViewingStatus(false);
     history.pushState(null, null, window.location.href);
+    
+    // PEMANGGILAN SYNC CATATAN DI AWAL SAAT HALAMAN DIBUKA
+    initNotesSync();
+
     const saved = sessionStorage.getItem('savedAccountName');
     if (saved) loginAccount(saved); else fetchAccounts();
 };
