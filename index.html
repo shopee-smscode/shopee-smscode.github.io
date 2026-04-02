@@ -78,9 +78,9 @@
             
             <button onclick="closeNotesListModal()" class="btn-danger" style="position: absolute; top: -12px; right: -12px; width: 36px; height: 36px; padding: 0; border-radius: 50%; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 10;"><i class="fas fa-times"></i></button>
 
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; margin-top: 5px;">
-                <h3 style="margin:0; font-size: 18px; color: #ee4d2d; font-weight: 800;">Catatanku <span id="notesCount" style="font-size:14px; color:#6b7280; font-weight:600;">(0)</span></h3>
-                <button onclick="openAddNoteModal()" class="btn-success" style="padding: 8px 20px; border-radius: 8px; font-size: 14px; font-weight: bold; box-shadow: 0 4px 10px rgba(34, 197, 94, 0.3);"><i class="fas fa-plus"></i> Baru</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; margin-top: 5px; gap: 10px;">
+                <h3 style="margin:0; font-size: 18px; color: #ee4d2d; font-weight: 800; white-space: nowrap;">Catatanku <span id="notesCount" style="font-size:14px; color:#6b7280; font-weight:600;">(0)</span></h3>
+                <button onclick="openAddNoteModal()" class="btn-success" style="width: auto; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: bold; box-shadow: 0 4px 10px rgba(34, 197, 94, 0.3); white-space: nowrap; flex-shrink: 0;"><i class="fas fa-plus"></i> Baru</button>
             </div>
             
             <div id="notes-grid" class="notes-list" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left;">
@@ -125,7 +125,7 @@
                     <i class="fas fa-edit" style="font-size: 16px;"></i>
                 </button>
                 
-                <button class="btn-success" style="flex: 1; border-radius: 10px; font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);" onclick="copyNoteContent()">
+                <button class="btn-success" style="flex: 1; border-radius: 10px; font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3); width: auto;" onclick="copyNoteContent()">
                     <i class="fas fa-copy"></i> Salin
                 </button>
                 
