@@ -115,13 +115,14 @@ function logoutAccount() {
     activeAccountName = null;
     
     accountListContainer.classList.add('hidden');
-    document.getElementById('accountListIcon').className = "fas fa-chevron-down";
+    const icon = document.getElementById('accountListIcon');
+    if (icon) icon.className = "fas fa-chevron-down";
     
     fetchAccounts();
     history.pushState(null, null, window.location.href);
 }
 
-btnSwitchAccount.onclick = () => logoutAccount();
+if (btnSwitchAccount) btnSwitchAccount.onclick = () => logoutAccount();
 
 // ==========================================
 // 2. FUNGSI MULTI-AKUN (DENGAN DROPDOWN)
@@ -132,10 +133,10 @@ window.toggleAccountList = function() {
     const icon = document.getElementById('accountListIcon');
     if (isHidden) {
         accountListContainer.classList.remove('hidden');
-        icon.className = "fas fa-chevron-up";
+        if (icon) icon.className = "fas fa-chevron-up";
     } else {
         accountListContainer.classList.add('hidden');
-        icon.className = "fas fa-chevron-down";
+        if (icon) icon.className = "fas fa-chevron-down";
     }
 }
 
@@ -171,7 +172,9 @@ function syncPresenceUI() {
     db.ref('presence').on('value', snapshot => {
         const data = snapshot.val() || {};
         document.querySelectorAll('.account-card').forEach(card => {
-            const accName = card.querySelector('.account-name').innerText;
+            const accNameElement = card.querySelector('.account-name');
+            if (!accNameElement) return;
+            const accName = accNameElement.innerText;
             const safeId = `status-${accName.replace(/[^a-zA-Z0-9]/g, '-')}`;
             const statusSpan = document.getElementById(safeId);
             
@@ -228,7 +231,7 @@ async function fetchAccounts() {
 
 function loginAccount(accountName) {
     activeAccountName = accountName;
-    currentAccountName.innerText = accountName;
+    if (currentAccountName) currentAccountName.innerText = accountName;
     sessionStorage.setItem('savedAccountName', accountName);
     
     setAccountViewingStatus(true);
@@ -262,17 +265,22 @@ function saveToStorage() {
 
 function showToast(pesan) {
     const toast = document.getElementById("toast");
+    if (!toast) return;
     toast.innerText = pesan;
     toast.classList.add("show");
     setTimeout(() => { toast.classList.remove("show"); }, 2500);
 }
 
 function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        showToast("Berhasil disalin!"); 
-    }).catch(err => {
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast("Berhasil disalin!"); 
+        }).catch(err => {
+            copyFallback(text);
+        });
+    } else {
         copyFallback(text);
-    });
+    }
 }
 
 function copyFallback(text) {
@@ -294,10 +302,12 @@ window.openNotesFromAnywhere = function() {
     history.pushState(null, null, "#notes");
 };
 
-document.getElementById('btnOpenNotes').onclick = openNotesFromAnywhere;
-// Memastikan tombol catatan di lobi tetap bisa di klik
-if (document.querySelector('#accountView .btn-switch')) {
-    document.querySelector('#accountView .btn-switch').onclick = openNotesFromAnywhere;
+const btnOpenNotes = document.getElementById('btnOpenNotes');
+if (btnOpenNotes) btnOpenNotes.onclick = openNotesFromAnywhere;
+
+const btnSwitchLobi = document.querySelector('#accountView .btn-switch');
+if (btnSwitchLobi) {
+    btnSwitchLobi.onclick = openNotesFromAnywhere;
 }
 
 function closeNotesListModal() {
@@ -306,6 +316,7 @@ function closeNotesListModal() {
 
 function initNotesSync() {
     const grid = document.getElementById('notes-grid');
+    if (!grid) return;
     db.ref(DB_PATH).orderByChild('timestamp').on('value', snapshot => {
         grid.innerHTML = '';
         let items = [];
@@ -449,14 +460,14 @@ async function fetchBalance() {
         const res = await apiCall('/balance');
         if (res.success) {
             const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
-            balanceDisplay.innerText = formatter.format(res.data.balance);
+            if (balanceDisplay) balanceDisplay.innerText = formatter.format(res.data.balance);
         }
-    } catch (error) { balanceDisplay.innerText = "Error"; }
+    } catch (error) { if (balanceDisplay) balanceDisplay.innerText = "Error"; }
 }
 
 async function loadShopeeIndonesia() {
     try {
-        productList.innerHTML = '<div class="status-text">Mencari Server...</div>';
+        if (productList) productList.innerHTML = '<div class="status-text">Mencari Server...</div>';
         const countriesRes = await apiCall('/catalog/countries');
         const indo = countriesRes.data.find(c => c.name.toLowerCase() === 'indonesia');
         const servicesRes = await apiCall(`/catalog/services?country_id=${indo.id}`);
@@ -465,11 +476,11 @@ async function loadShopeeIndonesia() {
         
         if (productsRes.success && productsRes.data.length > 0) {
             availableProducts = productsRes.data.sort((a, b) => parseFloat(a.price) - parseFloat(b.price)).slice(0, 3);
-            productList.innerHTML = ""; 
+            if (productList) productList.innerHTML = ""; 
             
             if (availableProducts.length > 0) {
                 selectedProductId = availableProducts[0].id;
-                btnOrder.disabled = false;
+                if (btnOrder) btnOrder.disabled = false;
             }
 
             availableProducts.forEach(product => {
@@ -481,12 +492,12 @@ async function loadShopeeIndonesia() {
                     document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
                     card.classList.add('selected');
                     selectedProductId = product.id;
-                    btnOrder.disabled = false;
+                    if (btnOrder) btnOrder.disabled = false;
                 };
-                productList.appendChild(card);
+                if (productList) productList.appendChild(card);
             });
         }
-    } catch (error) { productList.innerHTML = `<div class="status-text" style="color:red;">Error: ${error.message}</div>`; }
+    } catch (error) { if (productList) productList.innerHTML = `<div class="status-text" style="color:red;">Error: ${error.message}</div>`; }
 }
 
 // ==========================================
