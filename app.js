@@ -501,9 +501,41 @@ async function loadShopeeIndonesia() {
 }
 
 // ==========================================
-// 5. PESAN BARU
+// 5. PESAN BARU & PEMBUATAN TOMBOL SALIN SANDI
 // ==========================================
+
 if (btnOrder) {
+    // ---- TAMBAHAN: MEMBUAT TOMBOL SALIN SANDI OTOMATIS ----
+    const btnCopyPassword = document.createElement('button');
+    btnCopyPassword.id = 'btnCopyPassword';
+    btnCopyPassword.innerHTML = '<i class="fas fa-copy"></i> Salin Sandi';
+    
+    // Desain Tombol (Warna Abu-abu Gelap agar berbeda)
+    btnCopyPassword.style.width = "100%";
+    btnCopyPassword.style.padding = "12px";
+    btnCopyPassword.style.marginTop = "10px";
+    btnCopyPassword.style.backgroundColor = "#4a4a4a"; 
+    btnCopyPassword.style.color = "white";
+    btnCopyPassword.style.border = "none";
+    btnCopyPassword.style.borderRadius = "8px";
+    btnCopyPassword.style.fontWeight = "bold";
+    btnCopyPassword.style.fontSize = "16px";
+    btnCopyPassword.style.cursor = "pointer";
+    btnCopyPassword.style.transition = "0.3s";
+    
+    // Efek Saat Diklik
+    btnCopyPassword.onmousedown = () => btnCopyPassword.style.opacity = "0.8";
+    btnCopyPassword.onmouseup = () => btnCopyPassword.style.opacity = "1";
+    
+    // Aksi Klik (Menyalin Sandi)
+    btnCopyPassword.onclick = () => {
+        copyToClipboard("Aku123..");
+    };
+    
+    // Sisipkan tepat di bawah tombol btnOrder
+    btnOrder.parentNode.insertBefore(btnCopyPassword, btnOrder.nextSibling);
+    // -------------------------------------------------------
+
     btnOrder.onclick = async () => {
         if (!selectedProductId) return;
         btnOrder.disabled = true;
