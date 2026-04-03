@@ -54,7 +54,37 @@ const btnOpenNotes = document.getElementById('btnOpenNotes');
 const btnSwitchLobi = document.querySelector('#accountView .btn-switch');
 
 // ==========================================
-// 1. SISTEM TOMBOL KEMBALI (BACK) & KELUAR
+// 1. PEMBUATAN TOMBOL SALIN SANDI OTOMATIS
+// ==========================================
+if (btnOrder) {
+    const btnCopyPassword = document.createElement('button');
+    btnCopyPassword.innerHTML = '<i class="fas fa-copy"></i> Salin Sandi';
+    // Styling tombol agar mirip dengan tema tapi berbeda warna sedikit
+    btnCopyPassword.style.width = "100%";
+    btnCopyPassword.style.padding = "12px";
+    btnCopyPassword.style.marginTop = "10px";
+    btnCopyPassword.style.backgroundColor = "#4a4a4a"; // Warna abu-abu gelap
+    btnCopyPassword.style.color = "white";
+    btnCopyPassword.style.border = "none";
+    btnCopyPassword.style.borderRadius = "8px";
+    btnCopyPassword.style.fontWeight = "bold";
+    btnCopyPassword.style.fontSize = "16px";
+    btnCopyPassword.style.cursor = "pointer";
+    btnCopyPassword.style.transition = "0.3s";
+    
+    // Efek saat diklik
+    btnCopyPassword.onmousedown = () => btnCopyPassword.style.opacity = "0.8";
+    btnCopyPassword.onmouseup = () => btnCopyPassword.style.opacity = "1";
+    
+    // Fungsi Salin
+    btnCopyPassword.onclick = () => copyToClipboard("Aku123..");
+    
+    // Sisipkan tepat di bawah tombol Pesan Nomor Baru
+    btnOrder.parentNode.insertBefore(btnCopyPassword, btnOrder.nextSibling);
+}
+
+// ==========================================
+// 2. SISTEM TOMBOL KEMBALI (BACK) & KELUAR
 // ==========================================
 let isExitModalOpen = false;
 
@@ -87,7 +117,7 @@ function confirmExit() {
 }
 
 // ==========================================
-// 2. UTILS & STORAGE
+// 3. UTILS & STORAGE
 // ==========================================
 async function apiCall(endpoint, method = "GET", body = null) {
     const options = { method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } };
@@ -131,7 +161,7 @@ function copyFallback(t) {
 }
 
 // ==========================================
-// 3. FUNGSI MULTI-AKUN & PRESENCE
+// 4. FUNGSI MULTI-AKUN & PRESENCE
 // ==========================================
 window.toggleAccountList = function() {
     const isHidden = accountListContainer.classList.contains('hidden');
@@ -265,7 +295,7 @@ function logoutAccount() {
 if(btnSwitchAccount) btnSwitchAccount.onclick = () => logoutAccount();
 
 // ==========================================
-// 4. FUNGSI CATATANKU (FIREBASE)
+// 5. FUNGSI CATATANKU (FIREBASE)
 // ==========================================
 window.openNotesFromAnywhere = function() { 
     notesListModal.classList.remove('hidden'); 
@@ -408,7 +438,7 @@ function confirmDeleteNote() {
 function copyNoteContent() { copyToClipboard(currentNoteRawContent); }
 
 // ==========================================
-// 5. SISTEM LOAD SERVER (HERO-SMS)
+// 6. SISTEM LOAD SERVER (HERO-SMS)
 // ==========================================
 async function fetchBalance() { 
     try { 
@@ -455,7 +485,7 @@ async function loadShopeeIndonesia() {
 }
 
 // ==========================================
-// 6. RENDER KARTU PESANAN
+// 7. RENDER KARTU PESANAN
 // ==========================================
 function renderOrders() {
     if (activeCount) activeCount.innerText = activeOrders.length;
@@ -505,7 +535,7 @@ function renderOrders() {
 }
 
 // ==========================================
-// 7. TIMER & POLLING
+// 8. TIMER & POLLING
 // ==========================================
 function startPollingAndTimer() {
     if (timerInterval) clearInterval(timerInterval);
@@ -568,7 +598,7 @@ function startPollingAndTimer() {
 }
 
 // ==========================================
-// 8. AKSI TOMBOL PESAN & LAINNYA
+// 9. AKSI TOMBOL PESAN & LAINNYA
 // ==========================================
 if (btnOrder) {
     btnOrder.onclick = async () => {
@@ -673,7 +703,7 @@ window.resendSpecificOrder = async function(id) {
 };
 
 // ==========================================
-// 9. INISIALISASI UTAMA (ONLOAD)
+// 10. INISIALISASI UTAMA (ONLOAD)
 // ==========================================
 async function initMainApp() { 
     fetchBalance(); 
