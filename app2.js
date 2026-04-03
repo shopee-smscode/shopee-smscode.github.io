@@ -1,4 +1,4 @@
-const BASE_URL = "https://hero-sms-proxy.namakamu.workers.dev"; 
+const BASE_URL = "https://hero-sms-proxy.masreno6pro.workers.dev"; 
 
 // ==========================================
 // 0. KONFIGURASI FIREBASE CATATANKU
