@@ -1,4 +1,4 @@
-const BASE_URL = "https://hero-sms-proxy.namakamu.workers.dev"; // [!] GANTI DENGAN LINK WORKER HERO-SMS ANDA
+const BASE_URL = "https://hero-sms-proxy.masreno6pro.workers.dev"; // [!] GANTI DENGAN LINK WORKER HERO-SMS ANDA
 
 // ==========================================
 // 0. KONFIGURASI FIREBASE CATATANKU
