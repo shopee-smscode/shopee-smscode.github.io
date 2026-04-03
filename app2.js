@@ -242,14 +242,25 @@ function copyNoteContent() { copyToClipboard(currentNoteRawContent); }
 // 4. LOAD SERVER
 async function fetchBalance() { 
     try { 
+        if (balanceDisplay) balanceDisplay.innerText = "Menghitung...";
         const res = await apiCall('/balance'); 
         if (res.success) { 
-            // PERUBAHAN: Mata uang diubah menjadi USD (Format US Dollar)
-            const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 }); 
+            // Format angka menjadi mata uang USD ($)
+            const formatter = new Intl.NumberFormat('en-US', { 
+                style: 'currency', 
+                currency: 'USD', 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 3 
+            }); 
             if (balanceDisplay) balanceDisplay.innerText = formatter.format(res.data.balance); 
-        } 
+        } else {
+            // Jika API Key salah atau terjadi error dari server
+            if (balanceDisplay) balanceDisplay.innerText = "Gagal";
+            console.error("Error Saldo:", res.error.message);
+        }
     } catch (error) { 
         if (balanceDisplay) balanceDisplay.innerText = "Error"; 
+        console.error("Kesalahan jaringan saat memuat saldo.");
     } 
 }
 
