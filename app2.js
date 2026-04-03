@@ -25,7 +25,21 @@ let activeAccountName = null, activeOrders = [], availableProducts = [], selecte
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
 // DOM Elements
-const accountView = document.getElementById('accountView'), appView = document.getElementById('appView'), accountListContainer = document.getElementById('accountListContainer'), btnSwitchAccount = document.getElementById('btnSwitchAccount'), currentAccountName = document.getElementById('currentAccountName'), productList = document.getElementById('productList'), btnOrder = document.getElementById('btnOrder'), activeOrdersContainer = document.getElementById('activeOrdersContainer'), activeCount = document.getElementById('activeCount'), balanceDisplay = document.getElementById('balanceDisplay'), exitModal = document.getElementById('exitModal'), notesListModal = document.getElementById('notesListModal'), noteFormModal = document.getElementById('noteFormModal'), noteDetailModal = document.getElementById('noteDetailModal'), notesCountDisplay = document.getElementById('notesCount');
+const accountView = document.getElementById('accountView'), 
+      appView = document.getElementById('appView'), 
+      accountListContainer = document.getElementById('accountListContainer'), 
+      btnSwitchAccount = document.getElementById('btnSwitchAccount'), 
+      currentAccountName = document.getElementById('currentAccountName'), 
+      productList = document.getElementById('productList'), 
+      btnOrder = document.getElementById('btnOrder'), 
+      activeOrdersContainer = document.getElementById('activeOrdersContainer'), 
+      activeCount = document.getElementById('activeCount'), 
+      balanceDisplay = document.getElementById('balanceDisplay'), 
+      exitModal = document.getElementById('exitModal'), 
+      notesListModal = document.getElementById('notesListModal'), 
+      noteFormModal = document.getElementById('noteFormModal'), 
+      noteDetailModal = document.getElementById('noteDetailModal'), 
+      notesCountDisplay = document.getElementById('notesCount');
 
 // ==========================================
 // 1. SISTEM UTILS & STORAGE
@@ -44,12 +58,13 @@ function saveToStorage() {
 
 function showToast(p) { 
     const t = document.getElementById("toast"); 
-    t.innerText = p; t.classList.add("show"); 
-    setTimeout(()=>t.classList.remove("show"), 2500); 
+    if(t) { t.innerText = p; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"), 2500); }
 }
 
 function copyToClipboard(t) { 
-    navigator.clipboard.writeText(t).then(()=>showToast("Disalin!")); 
+    navigator.clipboard.writeText(t).then(()=>showToast("Berhasil disalin!")).catch(() => {
+        const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast("Berhasil disalin!");
+    });
 }
 
 // ==========================================
@@ -69,7 +84,7 @@ function renderOrders() {
         const isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
         const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : '$ -';
         
-        // Logika Hitungan Mundur 2 Menit (Tetap Berjalan di Background)
+        // Logika Hitungan Mundur 2 Menit (Lock tombol di background)
         const wait = order.cancelUnlockTime - now; 
         
         let cancelBtnAttr = ""; let cancelBtnText = "Batalkan"; 
@@ -81,7 +96,7 @@ function renderOrders() {
             actionBtnAttr = "disabled"; replaceBtnText = '<i class="fas fa-check"></i>'; resendBtnText = '<i class="fas fa-check"></i>'; 
             finishBtnAttr = ""; 
         } else if (wait > 0) {
-            // TOMBOL MATI (DISABLED) TAPI TEKS TETAP STATIS
+            // TOMBOL DISABLE TAPI TEKS TETAP STATIS (TANPA ANGKA)
             cancelBtnAttr = "disabled"; 
             actionBtnAttr = "disabled"; 
         }
@@ -113,7 +128,7 @@ function startPollingAndTimer() {
             if (left <= 0) { activeOrders.splice(i, 1); saveToStorage(); fetchBalance(); return; }
             if (el) { const m = Math.floor(left/60000), s = Math.floor((left%60000)/1000); el.innerText = `${m}:${s<10?'0':''}${s}`; }
 
-            // Update Status Tombol (Buka kunci setelah 2 menit tanpa mengubah teks)
+            // Buka kunci tombol jika sudah 2 menit
             const wait = o.cancelUnlockTime - now;
             const btnCancel = document.getElementById(`btn-cancel-${o.id}`); 
             const btnReplace = document.getElementById(`btn-replace-${o.id}`); 
@@ -124,10 +139,6 @@ function startPollingAndTimer() {
                     if (btnCancel && btnCancel.innerText !== "Memproses...") btnCancel.disabled = false;
                     if (btnReplace && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false;
                     if (btnResend && !btnResend.innerHTML.includes('loader')) btnResend.disabled = false;
-                } else {
-                    if (btnCancel) btnCancel.disabled = true;
-                    if (btnReplace) btnReplace.disabled = true;
-                    if (btnResend) btnResend.disabled = true;
                 }
             }
         });
@@ -147,7 +158,7 @@ function startPollingAndTimer() {
 }
 
 // ==========================================
-// 4. AKSI TOMBOL
+// 4. AKSI TOMBOL HERO-SMS
 // ==========================================
 btnOrder.onclick = async () => {
     btnOrder.disabled = true; btnOrder.innerText = "Memproses...";
@@ -158,7 +169,7 @@ btnOrder.onclick = async () => {
             activeOrders.unshift({ 
                 id: o.id, productId: 'ka', phone: o.phone_number, 
                 price: availableProducts[0]?.price || 0, otp: null, status: "ACTIVE", 
-                expiresAt: new Date(o.expires_at).getTime(), 
+                expiresAt: Date.now() + (20 * 60 * 1000), 
                 cancelUnlockTime: Date.now() + 120000, // Lock 2 Menit
                 isAutoCanceling: false 
             });
@@ -177,7 +188,7 @@ window.replaceSpecificOrder = async function(orderId, productId) {
         const n = await apiCall('/orders/create', 'POST', { product_id: 'ka', quantity: 1 });
         if (n.success) {
             const od = n.data.orders[0];
-            activeOrders.unshift({ id: od.id, productId: 'ka', phone: od.phone_number, price: availableProducts[0].price, otp: null, status: "ACTIVE", expiresAt: new Date(od.expires_at).getTime(), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
+            activeOrders.unshift({ id: od.id, productId: 'ka', phone: od.phone_number, price: availableProducts[0].price, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
             saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(od.phone_number); showToast("Nomor diganti!");
         } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru."); }
     } catch (e) { showToast("Error."); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
@@ -211,7 +222,7 @@ window.resendSpecificOrder = async function(id) {
 };
 
 // ==========================================
-// 5. SISTEM LOGIN & CATATAN
+// 5. SISTEM LOGIN & PRESENCE
 // ==========================================
 async function fetchBalance() { try { const res = await apiCall('/balance'); if (res.success) balanceDisplay.innerText = usdFormatter.format(res.data.balance); } catch (e) {} }
 async function loadShopeeIndonesia() {
@@ -251,6 +262,11 @@ async function fetchAccounts() {
     }); 
 }
 
+// ==========================================
+// 6. SISTEM CATATANKU (FIREBASE)
+// ==========================================
+window.openNotesFromAnywhere = function() { notesListModal.classList.remove('hidden'); history.pushState(null, null, "#notes"); };
+function closeNotesListModal() { notesListModal.classList.add('hidden'); }
 function initNotesSync() { 
     const grid = document.getElementById('notes-grid'); if (!grid) return; 
     db.ref(DB_PATH).orderByChild('timestamp').on('value', snapshot => { 
