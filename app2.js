@@ -13,36 +13,81 @@ const firebaseConfig = {
     appId: "1:291744292263:web:ab8d32ba52bc19cbffea82"
 };
 
-if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
 const db = firebase.database();
 const DB_PATH = 'notes/public';
 
 // Variabel Global
-let selectedNoteKey = null, isEditingNote = false, currentNoteRawContent = "";
-let viewingPresenceRef = null, isPresenceListenerAttached = false;
-let activeAccountName = null, activeOrders = [], availableProducts = [], selectedProductId = null, timerInterval = null, pollingInterval = null;
+let selectedNoteKey = null;
+let isEditingNote = false;
+let currentNoteRawContent = "";
+let viewingPresenceRef = null;
+let isPresenceListenerAttached = false;
+let activeAccountName = null;
+let activeOrders = [];
+let availableProducts = []; 
+let selectedProductId = null;
+let timerInterval = null;
+let pollingInterval = null;
 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
 // DOM Elements
-const accountView = document.getElementById('accountView'), 
-      appView = document.getElementById('appView'), 
-      accountListContainer = document.getElementById('accountListContainer'), 
-      btnSwitchAccount = document.getElementById('btnSwitchAccount'), 
-      currentAccountName = document.getElementById('currentAccountName'), 
-      productList = document.getElementById('productList'), 
-      btnOrder = document.getElementById('btnOrder'), 
-      activeOrdersContainer = document.getElementById('activeOrdersContainer'), 
-      activeCount = document.getElementById('activeCount'), 
-      balanceDisplay = document.getElementById('balanceDisplay'), 
-      exitModal = document.getElementById('exitModal'), 
-      notesListModal = document.getElementById('notesListModal'), 
-      noteFormModal = document.getElementById('noteFormModal'), 
-      noteDetailModal = document.getElementById('noteDetailModal'), 
-      notesCountDisplay = document.getElementById('notesCount');
+const accountView = document.getElementById('accountView');
+const appView = document.getElementById('appView');
+const accountListContainer = document.getElementById('accountListContainer');
+const btnSwitchAccount = document.getElementById('btnSwitchAccount');
+const currentAccountName = document.getElementById('currentAccountName');
+const productList = document.getElementById('productList');
+const btnOrder = document.getElementById('btnOrder');
+const activeOrdersContainer = document.getElementById('activeOrdersContainer');
+const activeCount = document.getElementById('activeCount');
+const balanceDisplay = document.getElementById('balanceDisplay');
+const exitModal = document.getElementById('exitModal');
+const notesListModal = document.getElementById('notesListModal');
+const noteFormModal = document.getElementById('noteFormModal');
+const noteDetailModal = document.getElementById('noteDetailModal');
+const notesCountDisplay = document.getElementById('notesCount');
+const btnOpenNotes = document.getElementById('btnOpenNotes');
+const btnSwitchLobi = document.querySelector('#accountView .btn-switch');
 
 // ==========================================
-// 1. SISTEM UTILS & STORAGE
+// 1. SISTEM TOMBOL KEMBALI (BACK) & KELUAR
+// ==========================================
+let isExitModalOpen = false;
+
+window.addEventListener('popstate', (e) => {
+    if (activeAccountName !== null) {
+        if (!noteFormModal.classList.contains('hidden')) { handleCancelNoteForm(); history.pushState(null, null, "#sms"); }
+        else if (!noteDetailModal.classList.contains('hidden')) { closeNoteDetailModal(); history.pushState(null, null, "#sms"); }
+        else if (!notesListModal.classList.contains('hidden')) { closeNotesListModal(); history.pushState(null, null, "#sms"); }
+        else { logoutAccount(); }
+    } else {
+        if (!noteFormModal.classList.contains('hidden')) { handleCancelNoteForm(); history.pushState(null, null, window.location.href); }
+        else if (!noteDetailModal.classList.contains('hidden')) { closeNoteDetailModal(); history.pushState(null, null, window.location.href); }
+        else if (!notesListModal.classList.contains('hidden')) { closeNotesListModal(); history.pushState(null, null, window.location.href); }
+        else if (isExitModalOpen) { closeExitModal(); history.pushState(null, null, window.location.href); }
+        else { exitModal.classList.remove('hidden'); isExitModalOpen = true; history.pushState(null, null, window.location.href); }
+    }
+});
+
+function closeExitModal() { 
+    exitModal.classList.add('hidden'); 
+    isExitModalOpen = false; 
+}
+
+function confirmExit() { 
+    setAccountViewingStatus(false); 
+    window.close(); 
+    if (navigator.app) navigator.app.exitApp(); 
+    else if (navigator.device) navigator.device.exitApp(); 
+    else window.history.go(-2); 
+}
+
+// ==========================================
+// 2. UTILS & STORAGE
 // ==========================================
 async function apiCall(endpoint, method = "GET", body = null) {
     const options = { method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } };
@@ -53,38 +98,383 @@ async function apiCall(endpoint, method = "GET", body = null) {
 
 function saveToStorage() { 
     localStorage.setItem(`hero_orders_${activeAccountName}`, JSON.stringify(activeOrders)); 
+    updateAccountOrdersStatus();
     renderOrders(); 
 }
 
 function showToast(p) { 
     const t = document.getElementById("toast"); 
-    if(t) { t.innerText = p; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"), 2500); }
+    if(t) { 
+        t.innerText = p; 
+        t.classList.add("show"); 
+        setTimeout(() => t.classList.remove("show"), 2500); 
+    }
 }
 
 function copyToClipboard(t) { 
-    navigator.clipboard.writeText(t).then(()=>showToast("Berhasil disalin!")).catch(() => {
-        const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast("Berhasil disalin!");
-    });
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(t).then(() => { showToast("Berhasil disalin!"); }).catch(err => { copyFallback(t); });
+    } else { copyFallback(t); }
+}
+
+function copyFallback(t) {
+    const ta = document.createElement("textarea"); 
+    ta.value = t; 
+    ta.setAttribute('readonly', ''); 
+    ta.style.position = "absolute"; 
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta); 
+    ta.select(); 
+    ta.setSelectionRange(0, 99999);
+    try { document.execCommand('copy'); showToast("Berhasil disalin!"); } catch (err) { showToast("Gagal menyalin."); } 
+    document.body.removeChild(ta);
 }
 
 // ==========================================
-// 2. RENDER KARTU (TEKS STATIS, LOGIKA LOCK 2 MENIT)
+// 3. FUNGSI MULTI-AKUN & PRESENCE
+// ==========================================
+window.toggleAccountList = function() {
+    const isHidden = accountListContainer.classList.contains('hidden');
+    const icon = document.getElementById('accountListIcon');
+    if (isHidden) { 
+        accountListContainer.classList.remove('hidden'); 
+        if(icon) icon.className = "fas fa-chevron-up"; 
+    } else { 
+        accountListContainer.classList.add('hidden'); 
+        if(icon) icon.className = "fas fa-chevron-down"; 
+    }
+};
+
+function setAccountViewingStatus(isViewing) {
+    if (!activeAccountName) return;
+    if (isViewing) {
+        const connectedRef = db.ref('.info/connected');
+        viewingPresenceRef = db.ref(`presence/${activeAccountName}/is_viewing`);
+        connectedRef.on('value', (snap) => {
+            if (snap.val() === true) { 
+                viewingPresenceRef.onDisconnect().set(false); 
+                viewingPresenceRef.set(true); 
+            }
+        });
+    } else {
+        if (viewingPresenceRef) { 
+            viewingPresenceRef.set(false); 
+            viewingPresenceRef.onDisconnect().cancel(); 
+        }
+    }
+}
+
+function updateAccountOrdersStatus() {
+    if (!activeAccountName) return;
+    db.ref(`presence/${activeAccountName}/has_orders`).set(activeOrders.length > 0);
+}
+
+function syncPresenceUI() {
+    if (isPresenceListenerAttached) return;
+    isPresenceListenerAttached = true;
+    db.ref('presence').on('value', snapshot => {
+        const data = snapshot.val() || {};
+        document.querySelectorAll('.account-card').forEach(card => {
+            const el = card.querySelector('.account-name');
+            if(!el) return;
+            const accName = el.innerText;
+            const safeId = `status-${accName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+            const statusSpan = document.getElementById(safeId);
+            if (statusSpan) {
+                const accData = data[accName] || {};
+                const isOnline = accData.is_viewing === true || accData.has_orders === true;
+                if (isOnline) { 
+                    statusSpan.innerText = "Online"; 
+                    statusSpan.className = "account-status status-online"; 
+                } else { 
+                    statusSpan.innerText = "Offline"; 
+                    statusSpan.className = "account-status status-offline"; 
+                }
+            }
+        });
+    });
+}
+
+async function fetchAccounts() {
+    try {
+        const res = await fetch(`${BASE_URL}/api/accounts`);
+        const data = await res.json();
+        accountListContainer.innerHTML = "";
+        if (data.accounts && data.accounts.length > 0) {
+            data.accounts.forEach(accountName => {
+                const initial = accountName.charAt(0).toUpperCase();
+                const safeId = `status-${accountName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                const card = document.createElement('div');
+                card.className = "account-card";
+                card.innerHTML = `
+                    <div class="account-info-wrapper">
+                        <div class="account-avatar">${initial}</div>
+                        <div class="account-details">
+                            <span class="account-name">${accountName}</span>
+                            <span id="${safeId}" class="account-status status-offline">Offline</span>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right chevron-icon"></i>`;
+                card.onclick = () => loginAccount(accountName);
+                accountListContainer.appendChild(card);
+            });
+            syncPresenceUI();
+        } else { 
+            accountListContainer.innerHTML = '<div class="status-text">Tidak ada akun ditemukan.</div>'; 
+        }
+    } catch (error) { 
+        accountListContainer.innerHTML = '<div class="status-text" style="color:red">Gagal terhubung ke Server.</div>'; 
+    }
+}
+
+function loginAccount(accountName) {
+    activeAccountName = accountName;
+    if(currentAccountName) currentAccountName.innerText = accountName;
+    sessionStorage.setItem('hero_savedAccountName', accountName);
+    setAccountViewingStatus(true);
+    history.pushState(null, null, "#sms"); 
+    
+    accountView.classList.add('hidden');
+    appView.classList.remove('hidden');
+    
+    const rawOrders = JSON.parse(localStorage.getItem(`hero_orders_${accountName}`)) || [];
+    activeOrders = rawOrders.filter(o => o.expiresAt > Date.now());
+    if (rawOrders.length !== activeOrders.length) saveToStorage();
+    
+    initMainApp();
+}
+
+function logoutAccount() {
+    if (timerInterval) clearInterval(timerInterval);
+    if (pollingInterval) clearInterval(pollingInterval);
+    setAccountViewingStatus(false);
+    sessionStorage.removeItem('hero_savedAccountName');
+    
+    appView.classList.add('hidden');
+    accountView.classList.remove('hidden');
+    activeAccountName = null;
+    accountListContainer.classList.add('hidden');
+    
+    const icon = document.getElementById('accountListIcon');
+    if(icon) icon.className = "fas fa-chevron-down";
+    
+    fetchAccounts();
+    history.pushState(null, null, window.location.href);
+}
+
+if(btnSwitchAccount) btnSwitchAccount.onclick = () => logoutAccount();
+
+// ==========================================
+// 4. FUNGSI CATATANKU (FIREBASE)
+// ==========================================
+window.openNotesFromAnywhere = function() { 
+    notesListModal.classList.remove('hidden'); 
+    history.pushState(null, null, "#notes"); 
+};
+
+if (btnOpenNotes) btnOpenNotes.onclick = openNotesFromAnywhere;
+if (btnSwitchLobi) btnSwitchLobi.onclick = openNotesFromAnywhere;
+
+function closeNotesListModal() { 
+    notesListModal.classList.add('hidden'); 
+}
+
+function initNotesSync() {
+    const grid = document.getElementById('notes-grid'); 
+    if (!grid) return;
+    
+    db.ref(DB_PATH).orderByChild('timestamp').on('value', snapshot => {
+        grid.innerHTML = ''; 
+        let items = []; 
+        snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); });
+        
+        if(notesCountDisplay) notesCountDisplay.innerText = `(${items.length})`;
+        
+        if(items.length === 0) { 
+            grid.innerHTML = '<div class="status-text">Belum ada catatan.</div>'; 
+            return; 
+        }
+        
+        items.reverse().forEach((d) => {
+            const card = document.createElement('div'); 
+            card.className = 'note-card'; 
+            card.onclick = () => openNoteDetailModal(d.key, d);
+            const previewText = escapeHTML(d.content).replace(/\n/g, ' ');
+            card.innerHTML = `<div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div><div class="note-preview">${previewText}</div><div class="note-date">${formatDate(d.timestamp)}</div>`;
+            grid.appendChild(card);
+        });
+    });
+}
+
+function formatDate(ts) { 
+    if(!ts) return "---"; 
+    const d = new Date(ts); 
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`; 
+}
+
+function escapeHTML(str) { 
+    if(!str) return ""; 
+    return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])); 
+}
+
+function openAddNoteModal() { 
+    isEditingNote = false; 
+    document.getElementById('form-modal-title').innerText = "Catatan Baru"; 
+    document.getElementById('note-title').value = ""; 
+    document.getElementById('note-content').value = ""; 
+    notesListModal.classList.add('hidden'); 
+    noteFormModal.classList.remove('hidden'); 
+    history.pushState(null, null, "#noteForm"); 
+}
+
+function openNoteDetailModal(key, data) { 
+    selectedNoteKey = key; 
+    currentNoteRawContent = data.content; 
+    document.getElementById('view-tag').innerText = `Dibuat: ${new Date(data.timestamp).toLocaleDateString()}`; 
+    document.getElementById('view-title').value = data.title || "Tanpa Judul"; 
+    document.getElementById('view-content').innerText = data.content; 
+    notesListModal.classList.add('hidden'); 
+    noteDetailModal.classList.remove('hidden'); 
+    history.pushState(null, null, "#noteDetail"); 
+}
+
+function closeNoteDetailModal() { 
+    noteDetailModal.classList.add('hidden'); 
+    notesListModal.classList.remove('hidden'); 
+}
+
+function handleCancelNoteForm() { 
+    noteFormModal.classList.add('hidden'); 
+    if (isEditingNote) { noteDetailModal.classList.remove('hidden'); } 
+    else { notesListModal.classList.remove('hidden'); } 
+}
+
+function editFromDetail() { 
+    const t = document.getElementById('view-title').value; 
+    const c = currentNoteRawContent; 
+    noteDetailModal.classList.add('hidden'); 
+    isEditingNote = true; 
+    document.getElementById('form-modal-title').innerText = "Edit Catatan"; 
+    document.getElementById('note-title').value = (t === "Tanpa Judul") ? "" : t; 
+    document.getElementById('note-content').value = c; 
+    noteFormModal.classList.remove('hidden'); 
+}
+
+function handleSaveNote() {
+    let t = document.getElementById('note-title').value.trim(); 
+    const c = document.getElementById('note-content').value;
+    
+    if(!c || c.trim() === "") return showToast("Konten tidak boleh kosong!");
+    
+    if (!t) {
+        db.ref(DB_PATH).once('value').then(snapshot => {
+            let usedNumbers = new Set();
+            snapshot.forEach(child => { 
+                let titleStr = child.val().title; 
+                if (titleStr && /^\d+$/.test(titleStr.toString().trim())) {
+                    usedNumbers.add(parseInt(titleStr.toString().trim())); 
+                }
+            });
+            let nextNum = 1; 
+            while (usedNumbers.has(nextNum)) { nextNum++; } 
+            executeSaveNote(nextNum.toString(), c);
+        });
+    } else { 
+        executeSaveNote(t, c); 
+    }
+}
+
+function executeSaveNote(title, content) {
+    const data = { title: title, content: content, timestamp: Date.now() };
+    const promise = (isEditingNote && selectedNoteKey) ? db.ref(`${DB_PATH}/${selectedNoteKey}`).update(data) : db.ref(DB_PATH).push(data);
+    promise.then(() => { 
+        noteFormModal.classList.add('hidden'); 
+        notesListModal.classList.remove('hidden'); 
+        isEditingNote = false; 
+        showToast("Catatan tersimpan!"); 
+    });
+}
+
+function confirmDeleteNote() { 
+    if(confirm("Hapus catatan ini?")) { 
+        db.ref(`${DB_PATH}/${selectedNoteKey}`).remove().then(() => { 
+            noteDetailModal.classList.add('hidden'); 
+            notesListModal.classList.remove('hidden'); 
+            showToast("Catatan dihapus."); 
+        }); 
+    } 
+}
+
+function copyNoteContent() { copyToClipboard(currentNoteRawContent); }
+
+// ==========================================
+// 5. SISTEM LOAD SERVER (HERO-SMS)
+// ==========================================
+async function fetchBalance() { 
+    try { 
+        if (balanceDisplay) balanceDisplay.innerText = "Menghitung...";
+        const res = await apiCall('/balance'); 
+        if (res.success) { 
+            if (balanceDisplay) balanceDisplay.innerText = usdFormatter.format(res.data.balance); 
+        } else {
+            if (balanceDisplay) balanceDisplay.innerText = "Gagal";
+        }
+    } catch (error) { 
+        if (balanceDisplay) balanceDisplay.innerText = "Error"; 
+    } 
+}
+
+async function loadShopeeIndonesia() {
+    try {
+        if (productList) productList.innerHTML = '<div class="status-text">Mencari Server...</div>';
+        const productsRes = await apiCall(`/catalog/products`);
+        if (productsRes.success && productsRes.data.length > 0) {
+            availableProducts = productsRes.data; 
+            if (productList) productList.innerHTML = ""; 
+            if (availableProducts.length > 0) { 
+                selectedProductId = availableProducts[0].id; 
+                if (btnOrder) btnOrder.disabled = false; 
+            }
+            availableProducts.forEach(product => {
+                const card = document.createElement("div"); 
+                card.className = "product-card"; 
+                if (selectedProductId === product.id) card.classList.add('selected');
+                card.innerHTML = `<div class="product-info"><h4>Server ID: ${product.id}</h4><p>Stok: ${product.available}</p></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
+                card.onclick = () => { 
+                    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
+                    card.classList.add('selected'); 
+                    selectedProductId = product.id; 
+                    if (btnOrder) btnOrder.disabled = false; 
+                };
+                if (productList) productList.appendChild(card);
+            });
+        }
+    } catch (error) { 
+        if (productList) productList.innerHTML = `<div class="status-text" style="color:red;">Error muat data.</div>`; 
+    }
+}
+
+// ==========================================
+// 6. RENDER KARTU PESANAN
 // ==========================================
 function renderOrders() {
-    activeCount.innerText = activeOrders.length;
+    if (activeCount) activeCount.innerText = activeOrders.length;
     if (activeOrders.length === 0) { 
-        activeOrdersContainer.innerHTML = '<div class="status-text">Belum ada pesanan aktif.</div>'; 
+        if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Belum ada pesanan aktif.</div>'; 
         return; 
     }
-    activeOrdersContainer.innerHTML = "";
+    if (activeOrdersContainer) activeOrdersContainer.innerHTML = "";
     const now = Date.now();
 
     activeOrders.forEach(order => {
-        const card = document.createElement("div"); card.className = "order-card"; card.id = `order-card-${order.id}`;
-        const isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
-        const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : '$ -';
+        const card = document.createElement("div"); 
+        card.className = "order-card"; 
+        card.id = `order-card-${order.id}`;
         
-        // Logika Hitungan Mundur 2 Menit (Lock tombol di background)
+        const isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
+        const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(availableProducts[0]?.price || 0);
+        
+        // Logika Hitungan Mundur 2 Menit (Background Lock)
         const wait = order.cancelUnlockTime - now; 
         
         let cancelBtnAttr = ""; let cancelBtnText = "Batalkan"; 
@@ -96,7 +486,6 @@ function renderOrders() {
             actionBtnAttr = "disabled"; replaceBtnText = '<i class="fas fa-check"></i>'; resendBtnText = '<i class="fas fa-check"></i>'; 
             finishBtnAttr = ""; 
         } else if (wait > 0) {
-            // TOMBOL DISABLE TAPI TEKS TETAP STATIS (TANPA ANGKA)
             cancelBtnAttr = "disabled"; 
             actionBtnAttr = "disabled"; 
         }
@@ -106,29 +495,39 @@ function renderOrders() {
             <div class="phone-row"><span class="phone-number">${order.phone}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')">Salin</button></div>
             <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${isSuccess ? '<div class="otp-title">KODE OTP</div><div class="otp-code">'+order.otp+'</div>' : '<div class="modern-loader"><span></span><span></span><span></span></div><div class="waiting-text">MENUNGGU SMS</div>'}</div>
             <div class="action-buttons-grid">
-                <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}', 'ka')" ${actionBtnAttr}>${replaceBtnText}</button>
+                <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${actionBtnAttr}>${replaceBtnText}</button>
                 <button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${actionBtnAttr}>${resendBtnText}</button>
                 <button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}>${cancelBtnText}</button>
                 <button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}>Selesai</button>
             </div>`;
-        activeOrdersContainer.appendChild(card);
+        if (activeOrdersContainer) activeOrdersContainer.appendChild(card);
     });
 }
 
 // ==========================================
-// 3. TIMER & POLLING
+// 7. TIMER & POLLING
 // ==========================================
 function startPollingAndTimer() {
     if (timerInterval) clearInterval(timerInterval);
+    if (pollingInterval) clearInterval(pollingInterval);
+    
     timerInterval = setInterval(() => {
         const now = Date.now();
         activeOrders.forEach((o, i) => {
             const left = o.expiresAt - now;
             const el = document.getElementById(`timer-${o.id}`);
-            if (left <= 0) { activeOrders.splice(i, 1); saveToStorage(); fetchBalance(); return; }
-            if (el) { const m = Math.floor(left/60000), s = Math.floor((left%60000)/1000); el.innerText = `${m}:${s<10?'0':''}${s}`; }
+            if (left <= 0) { 
+                activeOrders.splice(i, 1); 
+                saveToStorage(); 
+                fetchBalance(); 
+                return; 
+            }
+            if (el) { 
+                const m = Math.floor(left/60000);
+                const s = Math.floor((left%60000)/1000); 
+                el.innerText = `${m}:${s<10?'0':''}${s}`; 
+            }
 
-            // Buka kunci tombol jika sudah 2 menit
             const wait = o.cancelUnlockTime - now;
             const btnCancel = document.getElementById(`btn-cancel-${o.id}`); 
             const btnReplace = document.getElementById(`btn-replace-${o.id}`); 
@@ -139,48 +538,71 @@ function startPollingAndTimer() {
                     if (btnCancel && btnCancel.innerText !== "Memproses...") btnCancel.disabled = false;
                     if (btnReplace && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false;
                     if (btnResend && !btnResend.innerHTML.includes('loader')) btnResend.disabled = false;
+                } else {
+                    if (btnCancel) btnCancel.disabled = true;
+                    if (btnReplace) btnReplace.disabled = true;
+                    if (btnResend) btnResend.disabled = true;
                 }
             }
         });
     }, 1000);
     
-    if (!pollingInterval) pollingInterval = setInterval(async () => {
+    pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         activeOrders.forEach(async (o, i) => {
             if (o.status === "OTP_RECEIVED") return;
             try {
                 const res = await apiCall(`/orders/${o.id}`);
-                if (res.success && res.data.status === "OTP_RECEIVED") { activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; saveToStorage(); }
-                else if (res.success && res.data.status === "CANCELLED") { activeOrders = activeOrders.filter(ord => String(ord.id) !== String(o.id)); saveToStorage(); fetchBalance(); }
+                if (res.success && res.data.status === "OTP_RECEIVED") { 
+                    activeOrders[i].status = "OTP_RECEIVED"; 
+                    activeOrders[i].otp = res.data.otp_code; 
+                    saveToStorage(); 
+                } else if (res.success && res.data.status === "CANCELLED") { 
+                    activeOrders = activeOrders.filter(ord => String(ord.id) !== String(o.id)); 
+                    saveToStorage(); 
+                    fetchBalance(); 
+                }
             } catch(e) {}
         });
     }, 5000);
 }
 
 // ==========================================
-// 4. AKSI TOMBOL HERO-SMS
+// 8. AKSI TOMBOL PESAN & LAINNYA
 // ==========================================
-btnOrder.onclick = async () => {
-    btnOrder.disabled = true; btnOrder.innerText = "Memproses...";
-    try {
-        const res = await apiCall('/orders/create', 'POST');
-        if (res.success) {
-            const o = res.data.orders[0];
-            activeOrders.unshift({ 
-                id: o.id, productId: 'ka', phone: o.phone_number, 
-                price: availableProducts[0]?.price || 0, otp: null, status: "ACTIVE", 
-                expiresAt: Date.now() + (20 * 60 * 1000), 
-                cancelUnlockTime: Date.now() + 120000, // Lock 2 Menit
-                isAutoCanceling: false 
-            });
-            saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(o.phone_number);
-        } else { showToast(res.error.message); }
-    } catch (e) { showToast("Gagal terhubung."); }
-    btnOrder.disabled = false; btnOrder.innerText = "Pesan Nomor Baru";
-};
+if (btnOrder) {
+    btnOrder.onclick = async () => {
+        btnOrder.disabled = true; 
+        btnOrder.innerText = "Memproses...";
+        try {
+            const res = await apiCall('/orders/create', 'POST');
+            if (res.success) {
+                const o = res.data.orders[0];
+                activeOrders.unshift({ 
+                    id: o.id, productId: 'ka', phone: o.phone_number, 
+                    price: availableProducts[0]?.price || 0, otp: null, status: "ACTIVE", 
+                    expiresAt: Date.now() + (20 * 60 * 1000), 
+                    cancelUnlockTime: Date.now() + 120000, 
+                    isAutoCanceling: false 
+                });
+                saveToStorage(); 
+                startPollingAndTimer(); 
+                fetchBalance(); 
+                copyToClipboard(o.phone_number);
+            } else { 
+                showToast(res.error.message); 
+            }
+        } catch (e) { 
+            showToast("Gagal terhubung."); 
+        }
+        btnOrder.disabled = false; 
+        btnOrder.innerText = "Pesan Nomor Baru";
+    };
+}
 
-window.replaceSpecificOrder = async function(orderId, productId) {
-    const idStr = String(orderId); const btn = document.getElementById(`btn-replace-${idStr}`); 
+window.replaceSpecificOrder = async function(orderId) {
+    const idStr = String(orderId); 
+    const btn = document.getElementById(`btn-replace-${idStr}`); 
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         await apiCall('/orders/cancel', 'POST', { id: idStr });
@@ -188,108 +610,86 @@ window.replaceSpecificOrder = async function(orderId, productId) {
         const n = await apiCall('/orders/create', 'POST', { product_id: 'ka', quantity: 1 });
         if (n.success) {
             const od = n.data.orders[0];
-            activeOrders.unshift({ id: od.id, productId: 'ka', phone: od.phone_number, price: availableProducts[0].price, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
-            saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(od.phone_number); showToast("Nomor diganti!");
-        } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru."); }
-    } catch (e) { showToast("Error."); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
+            activeOrders.unshift({ 
+                id: od.id, productId: 'ka', phone: od.phone_number, 
+                price: availableProducts[0].price, otp: null, status: "ACTIVE", 
+                expiresAt: Date.now() + (20 * 60 * 1000), 
+                cancelUnlockTime: Date.now() + 120000, 
+                isAutoCanceling: false 
+            });
+            saveToStorage(); 
+            startPollingAndTimer(); 
+            fetchBalance(); 
+            copyToClipboard(od.phone_number); 
+            showToast("Nomor diganti!");
+        } else { 
+            saveToStorage(); fetchBalance(); showToast("Gagal pesan baru."); 
+        }
+    } catch (e) { 
+        showToast("Error."); 
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } 
+    }
 };
 
 window.cancelSpecificOrder = async function(id) {
-    const idStr = String(id); const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
+    const idStr = String(id); 
+    const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerText = "Memproses..."; }
     try { 
         await apiCall('/orders/cancel', 'POST', { id: idStr }); 
         activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
-        saveToStorage(); fetchBalance();
-    } catch (e) { if (btnCancel) btnCancel.disabled = false; }
+        saveToStorage(); 
+        fetchBalance();
+    } catch (e) { 
+        if (btnCancel) btnCancel.disabled = false; 
+    }
 };
 
 window.finishSpecificOrder = async function(id) {
-    const idStr = String(id); const btnFinish = document.getElementById(`btn-finish-${idStr}`); 
+    const idStr = String(id); 
+    const btnFinish = document.getElementById(`btn-finish-${idStr}`); 
     if (btnFinish) { btnFinish.disabled = true; btnFinish.innerText = "Menutup..."; }
     try { await apiCall('/orders/finish', 'POST', { id: idStr }); } catch (e) {} 
-    activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage();
+    activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
+    saveToStorage();
 };
 
 window.resendSpecificOrder = async function(id) {
-    const idStr = String(id); const btn = document.getElementById(`btn-resend-${idStr}`); 
+    const idStr = String(id); 
+    const btn = document.getElementById(`btn-resend-${idStr}`); 
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try { 
         const res = await apiCall('/orders/resend', 'POST', { id: idStr }); 
         if (res.success) showToast("Permintaan ulang dikirim."); 
-        setTimeout(() => { if (btn && !btn.innerHTML.includes('fa-check')) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }, 5000);
-    } catch (e) { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
+        setTimeout(() => { 
+            if (btn && !btn.innerHTML.includes('fa-check')) { 
+                btn.disabled = false; 
+                btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; 
+            } 
+        }, 5000);
+    } catch (e) { 
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } 
+    }
 };
 
 // ==========================================
-// 5. SISTEM LOGIN & PRESENCE
+// 9. INISIALISASI UTAMA (ONLOAD)
 // ==========================================
-async function fetchBalance() { try { const res = await apiCall('/balance'); if (res.success) balanceDisplay.innerText = usdFormatter.format(res.data.balance); } catch (e) {} }
-async function loadShopeeIndonesia() {
-    try {
-        productList.innerHTML = '<div class="status-text">Memuat harga...</div>';
-        const productsRes = await apiCall(`/catalog/products`);
-        if (productsRes.success && productsRes.data.length > 0) {
-            availableProducts = productsRes.data; productList.innerHTML = "";
-            selectedProductId = availableProducts[0].id; btnOrder.disabled = false;
-            availableProducts.forEach(product => {
-                const card = document.createElement("div"); card.className = "product-card selected";
-                card.innerHTML = `<div class="product-info"><h4>Server ID: ${product.id}</h4><p>Stok: ${product.available}</p></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
-                productList.appendChild(card);
-            });
-        }
-    } catch (e) { productList.innerHTML = '<div class="status-text">Error muat data.</div>'; }
+async function initMainApp() { 
+    fetchBalance(); 
+    await loadShopeeIndonesia(); 
+    renderOrders(); 
+    startPollingAndTimer(); 
 }
-
-function loginAccount(n) { 
-    activeAccountName = n; 
-    sessionStorage.setItem('hero_savedAccountName', n); 
-    appView.classList.remove('hidden'); accountView.classList.add('hidden'); currentAccountName.innerText = n; 
-    const rawOrders = JSON.parse(localStorage.getItem(`hero_orders_${n}`)) || []; 
-    activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); 
-    saveToStorage(); initMainApp(); 
-}
-
-async function fetchAccounts() { 
-    const res = await fetch(`${BASE_URL}/api/accounts`); 
-    const d = await res.json(); 
-    accountListContainer.innerHTML = ""; 
-    d.accounts.forEach(a => { 
-        const c = document.createElement('div'); c.className="account-card"; 
-        c.innerHTML=`<div class="account-info-wrapper"><div class="account-avatar">${a.charAt(0).toUpperCase()}</div><div class="account-details"><span class="account-name">${a}</span><span id="status-${a.replace(/[^a-zA-Z0-9]/g, '-')}" class="account-status status-offline">Offline</span></div></div><i class="fas fa-chevron-right chevron-icon"></i>`; 
-        c.onclick=()=>loginAccount(a); 
-        accountListContainer.appendChild(c); 
-    }); 
-}
-
-// ==========================================
-// 6. SISTEM CATATANKU (FIREBASE)
-// ==========================================
-window.openNotesFromAnywhere = function() { notesListModal.classList.remove('hidden'); history.pushState(null, null, "#notes"); };
-function closeNotesListModal() { notesListModal.classList.add('hidden'); }
-function initNotesSync() { 
-    const grid = document.getElementById('notes-grid'); if (!grid) return; 
-    db.ref(DB_PATH).orderByChild('timestamp').on('value', snapshot => { 
-        grid.innerHTML = ''; let items = []; snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); }); 
-        if(notesCountDisplay) notesCountDisplay.innerText = `(${items.length})`; 
-        if(items.length === 0) { grid.innerHTML = '<div class="status-text">Belum ada catatan.</div>'; return; } 
-        items.reverse().forEach((d) => { 
-            const card = document.createElement('div'); card.className = 'note-card'; card.onclick = () => openNoteDetailModal(d.key, d); 
-            const previewText = escapeHTML(d.content).replace(/\n/g, ' '); 
-            card.innerHTML = `<div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div><div class="note-preview">${previewText}</div><div class="note-date">${formatDate(d.timestamp)}</div>`; 
-            grid.appendChild(card); 
-        }); 
-    }); 
-}
-
-function formatDate(ts) { if(!ts) return "---"; const d = new Date(ts); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`; }
-function escapeHTML(str) { if(!str) return ""; return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])); }
-
-async function initMainApp() { fetchBalance(); await loadShopeeIndonesia(); renderOrders(); startPollingAndTimer(); }
 
 window.onload = () => { 
+    setAccountViewingStatus(false);
     history.pushState(null, null, window.location.href); 
     initNotesSync(); 
-    if(sessionStorage.getItem('hero_savedAccountName')) loginAccount(sessionStorage.getItem('hero_savedAccountName')); 
-    else fetchAccounts(); 
+    const saved = sessionStorage.getItem('hero_savedAccountName');
+    if(saved) {
+        loginAccount(saved);
+    } else {
+        fetchAccounts();
+    }
 };
