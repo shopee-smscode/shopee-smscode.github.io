@@ -28,7 +28,7 @@ let isPresenceListenerAttached = false;
 let activeAccountName = null;
 let activeOrders = [];
 let availableProducts = []; 
-let selectedProductId = null;
+let selectedProductId = null; // Menyimpan operator terpilih
 let timerInterval = null;
 let pollingInterval = null;
 
@@ -59,11 +59,10 @@ const btnSwitchLobi = document.querySelector('#accountView .btn-switch');
 if (btnOrder) {
     const btnCopyPassword = document.createElement('button');
     btnCopyPassword.innerHTML = '<i class="fas fa-copy"></i> Salin Sandi';
-    // Styling tombol agar mirip dengan tema tapi berbeda warna sedikit
     btnCopyPassword.style.width = "100%";
     btnCopyPassword.style.padding = "12px";
     btnCopyPassword.style.marginTop = "10px";
-    btnCopyPassword.style.backgroundColor = "#4a4a4a"; // Warna abu-abu gelap
+    btnCopyPassword.style.backgroundColor = "#4a4a4a"; 
     btnCopyPassword.style.color = "white";
     btnCopyPassword.style.border = "none";
     btnCopyPassword.style.borderRadius = "8px";
@@ -72,14 +71,11 @@ if (btnOrder) {
     btnCopyPassword.style.cursor = "pointer";
     btnCopyPassword.style.transition = "0.3s";
     
-    // Efek saat diklik
     btnCopyPassword.onmousedown = () => btnCopyPassword.style.opacity = "0.8";
     btnCopyPassword.onmouseup = () => btnCopyPassword.style.opacity = "1";
     
-    // Fungsi Salin
     btnCopyPassword.onclick = () => copyToClipboard("Aku123..");
     
-    // Sisipkan tepat di bawah tombol Pesan Nomor Baru
     btnOrder.parentNode.insertBefore(btnCopyPassword, btnOrder.nextSibling);
 }
 
@@ -103,11 +99,7 @@ window.addEventListener('popstate', (e) => {
     }
 });
 
-function closeExitModal() { 
-    exitModal.classList.add('hidden'); 
-    isExitModalOpen = false; 
-}
-
+function closeExitModal() { exitModal.classList.add('hidden'); isExitModalOpen = false; }
 function confirmExit() { 
     setAccountViewingStatus(false); 
     window.close(); 
@@ -132,13 +124,25 @@ function saveToStorage() {
     renderOrders(); 
 }
 
-function showToast(p) { 
+// UI Moderen untuk Toast
+function showToast(pesan, type = "success") { 
     const t = document.getElementById("toast"); 
-    if(t) { 
-        t.innerText = p; 
-        t.classList.add("show"); 
-        setTimeout(() => t.classList.remove("show"), 2500); 
+    if(!t) return;
+    
+    t.innerHTML = pesan; 
+    
+    if (type === "error") {
+        t.style.backgroundColor = "#ef4444"; 
+        t.style.color = "#ffffff";
+        t.style.boxShadow = "0 4px 12px rgba(239, 68, 68, 0.4)";
+    } else {
+        t.style.backgroundColor = "#1f2937"; 
+        t.style.color = "#ffffff";
+        t.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
     }
+    
+    t.classList.add("show"); 
+    setTimeout(() => t.classList.remove("show"), 3000); 
 }
 
 function copyToClipboard(t) { 
@@ -156,7 +160,7 @@ function copyFallback(t) {
     document.body.appendChild(ta); 
     ta.select(); 
     ta.setSelectionRange(0, 99999);
-    try { document.execCommand('copy'); showToast("Berhasil disalin!"); } catch (err) { showToast("Gagal menyalin."); } 
+    try { document.execCommand('copy'); showToast("Berhasil disalin!"); } catch (err) { showToast("Gagal menyalin.", "error"); } 
     document.body.removeChild(ta);
 }
 
@@ -336,10 +340,12 @@ function initNotesSync() {
     });
 }
 
-function formatDate(ts) { 
-    if(!ts) return "---"; 
-    const d = new Date(ts); 
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`; 
+function formatDate(ts) {
+    if(!ts) return "---";
+    const d = new Date(ts);
+    const date = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`;
+    const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return `${date} - ${time}`;
 }
 
 function escapeHTML(str) { 
@@ -357,15 +363,16 @@ function openAddNoteModal() {
     history.pushState(null, null, "#noteForm"); 
 }
 
-function openNoteDetailModal(key, data) { 
-    selectedNoteKey = key; 
-    currentNoteRawContent = data.content; 
-    document.getElementById('view-tag').innerText = `Dibuat: ${new Date(data.timestamp).toLocaleDateString()}`; 
-    document.getElementById('view-title').value = data.title || "Tanpa Judul"; 
-    document.getElementById('view-content').innerText = data.content; 
-    notesListModal.classList.add('hidden'); 
-    noteDetailModal.classList.remove('hidden'); 
-    history.pushState(null, null, "#noteDetail"); 
+function openNoteDetailModal(key, data) {
+    selectedNoteKey = key;
+    currentNoteRawContent = data.content;
+    document.getElementById('view-tag').innerText = `Dibuat: ${formatDate(data.timestamp)}`;
+    document.getElementById('view-title').value = data.title || "Tanpa Judul";
+    document.getElementById('view-content').innerText = data.content;
+    
+    notesListModal.classList.add('hidden');
+    noteDetailModal.classList.remove('hidden');
+    history.pushState(null, null, "#noteDetail");
 }
 
 function closeNoteDetailModal() { 
@@ -392,26 +399,42 @@ function editFromDetail() {
 
 function handleSaveNote() {
     let t = document.getElementById('note-title').value.trim(); 
-    const c = document.getElementById('note-content').value;
+    const c = document.getElementById('note-content').value.trim();
     
-    if(!c || c.trim() === "") return showToast("Konten tidak boleh kosong!");
+    if(!c || c === "") return showToast("⚠️ Konten tidak boleh kosong!", "error");
     
-    if (!t) {
-        db.ref(DB_PATH).once('value').then(snapshot => {
-            let usedNumbers = new Set();
-            snapshot.forEach(child => { 
-                let titleStr = child.val().title; 
-                if (titleStr && /^\d+$/.test(titleStr.toString().trim())) {
-                    usedNumbers.add(parseInt(titleStr.toString().trim())); 
+    db.ref(DB_PATH).once('value').then(snapshot => {
+        let isDuplicate = false;
+        let usedNumbers = new Set();
+        
+        snapshot.forEach(child => {
+            let existingTitle = child.val().title;
+            let existingContent = child.val().content;
+            
+            if (existingTitle && /^\d+$/.test(existingTitle.toString().trim())) {
+                usedNumbers.add(parseInt(existingTitle.toString().trim()));
+            }
+            
+            if (existingContent && existingContent.trim() === c) {
+                if (!isEditingNote || selectedNoteKey !== child.key) {
+                    isDuplicate = true;
                 }
-            });
-            let nextNum = 1; 
-            while (usedNumbers.has(nextNum)) { nextNum++; } 
-            executeSaveNote(nextNum.toString(), c);
+            }
         });
-    } else { 
-        executeSaveNote(t, c); 
-    }
+        
+        if (isDuplicate) {
+            showToast("⚠️ Gagal: Catatan dengan isi yang sama sudah ada!", "error");
+            return;
+        }
+        
+        if (!t) {
+            let nextNum = 1;
+            while (usedNumbers.has(nextNum)) { nextNum++; }
+            executeSaveNote(nextNum.toString(), c);
+        } else {
+            executeSaveNote(t, c);
+        }
+    });
 }
 
 function executeSaveNote(title, content) {
@@ -438,7 +461,7 @@ function confirmDeleteNote() {
 function copyNoteContent() { copyToClipboard(currentNoteRawContent); }
 
 // ==========================================
-// 6. SISTEM LOAD SERVER (HERO-SMS)
+// 6. SISTEM LOAD SERVER (PILIHAN OPERATOR)
 // ==========================================
 async function fetchBalance() { 
     try { 
@@ -456,20 +479,44 @@ async function fetchBalance() {
 
 async function loadShopeeIndonesia() {
     try {
-        if (productList) productList.innerHTML = '<div class="status-text">Mencari Server...</div>';
+        // Ubah text judul dinamis di UI HTML tanpa perlu mengubah index2.html
+        const titleEl = document.querySelector('.section-title:last-of-type');
+        if (titleEl && titleEl.innerText.includes("Top 3")) titleEl.innerText = "Pilih Operator (Termurah)";
+
+        if (productList) productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
+        
         const productsRes = await apiCall(`/catalog/products`);
+        
         if (productsRes.success && productsRes.data.length > 0) {
-            availableProducts = productsRes.data; 
+            let ops = productsRes.data;
+            
+            // 1. Cari Acak (any) atau buat dummy jika belum ada
+            let anyOp = ops.find(o => o.id === 'any');
+            if (!anyOp) anyOp = { id: 'any', price: ops[0]?.price || 0, available: 'Acak' };
+            
+            // 2. Saring operator sisa dan urutkan dari harga termurah
+            let specificOps = ops.filter(o => o.id !== 'any').sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+            
+            // 3. Gabungkan 1 Acak (default) di puncak + 3 operator termurah
+            availableProducts = [anyOp, ...specificOps.slice(0, 3)]; 
+            
             if (productList) productList.innerHTML = ""; 
             if (availableProducts.length > 0) { 
-                selectedProductId = availableProducts[0].id; 
+                selectedProductId = availableProducts[0].id; // Setel Any (Acak) sebagai default
                 if (btnOrder) btnOrder.disabled = false; 
             }
+            
             availableProducts.forEach(product => {
                 const card = document.createElement("div"); 
                 card.className = "product-card"; 
                 if (selectedProductId === product.id) card.classList.add('selected');
-                card.innerHTML = `<div class="product-info"><h4>Server ID: ${product.id}</h4><p>Stok: ${product.available}</p></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
+                
+                // Format label yang cantik
+                const opName = product.id === 'any' ? '⭐ Acak (Semua Operator)' : `📡 ${product.id.toUpperCase()}`;
+                const stockLabel = product.available > 1000 ? "1000+" : product.available;
+                
+                card.innerHTML = `<div class="product-info"><h4>${opName}</h4><p>Stok: ${stockLabel}</p></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
+                
                 card.onclick = () => { 
                     document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
                     card.classList.add('selected'); 
@@ -478,6 +525,8 @@ async function loadShopeeIndonesia() {
                 };
                 if (productList) productList.appendChild(card);
             });
+        } else {
+            if (productList) productList.innerHTML = '<div class="status-text">Stok sedang kosong.</div>';
         }
     } catch (error) { 
         if (productList) productList.innerHTML = `<div class="status-text" style="color:red;">Error muat data.</div>`; 
@@ -504,7 +553,6 @@ function renderOrders() {
         const isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
         const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(availableProducts[0]?.price || 0);
         
-        // Logika Hitungan Mundur 2 Menit (Background Lock)
         const wait = order.cancelUnlockTime - now; 
         
         let cancelBtnAttr = ""; let cancelBtnText = "Batalkan"; 
@@ -519,9 +567,12 @@ function renderOrders() {
             cancelBtnAttr = "disabled"; 
             actionBtnAttr = "disabled"; 
         }
+        
+        // Tampilkan info operator di pojok kanan label order-id
+        const opTag = order.productId ? (order.productId === 'any' ? 'Acak' : order.productId.toUpperCase()) : '';
 
         card.innerHTML = `
-            <div class="order-header"><div><span class="order-id-label">#${order.id}</span> <span class="order-price">${displayPrice}</span></div><span class="timer" id="timer-${order.id}">--:--</span></div>
+            <div class="order-header"><div><span class="order-id-label">#${order.id} ${opTag ? `(${opTag})` : ''}</span> <span class="order-price">${displayPrice}</span></div><span class="timer" id="timer-${order.id}">--:--</span></div>
             <div class="phone-row"><span class="phone-number">${order.phone}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')">Salin</button></div>
             <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${isSuccess ? '<div class="otp-title">KODE OTP</div><div class="otp-code">'+order.otp+'</div>' : '<div class="modern-loader"><span></span><span></span><span></span></div><div class="waiting-text">MENUNGGU SMS</div>'}</div>
             <div class="action-buttons-grid">
@@ -605,12 +656,18 @@ if (btnOrder) {
         btnOrder.disabled = true; 
         btnOrder.innerText = "Memproses...";
         try {
-            const res = await apiCall('/orders/create', 'POST');
+            // MENGIRIM OPERATOR YANG DIPILIH KE WORKER
+            const res = await apiCall('/orders/create', 'POST', { operator: selectedProductId });
             if (res.success) {
                 const o = res.data.orders[0];
+                
+                // Cari info operator buat menyimpan harganya secara lokal di UI
+                const opInfo = availableProducts.find(p => p.id === selectedProductId);
+                const opPrice = opInfo ? opInfo.price : 0;
+                
                 activeOrders.unshift({ 
-                    id: o.id, productId: 'ka', phone: o.phone_number, 
-                    price: availableProducts[0]?.price || 0, otp: null, status: "ACTIVE", 
+                    id: o.id, productId: selectedProductId, phone: o.phone_number, 
+                    price: opPrice, otp: null, status: "ACTIVE", 
                     expiresAt: Date.now() + (20 * 60 * 1000), 
                     cancelUnlockTime: Date.now() + 120000, 
                     isAutoCanceling: false 
@@ -620,10 +677,10 @@ if (btnOrder) {
                 fetchBalance(); 
                 copyToClipboard(o.phone_number);
             } else { 
-                showToast(res.error.message); 
+                showToast(res.error.message, "error"); 
             }
         } catch (e) { 
-            showToast("Gagal terhubung."); 
+            showToast("Gagal terhubung.", "error"); 
         }
         btnOrder.disabled = false; 
         btnOrder.innerText = "Pesan Nomor Baru";
@@ -632,17 +689,27 @@ if (btnOrder) {
 
 window.replaceSpecificOrder = async function(orderId) {
     const idStr = String(orderId); 
+    
+    // Default Ganti menggunakan operator yang sama dengan pesanan sebelumnya,
+    // Jika tidak ada data sebelumnya, fallback ke pilihan UI saat ini.
+    const oldOrder = activeOrders.find(o => String(o.id) === idStr);
+    const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
+    
     const btn = document.getElementById(`btn-replace-${idStr}`); 
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         await apiCall('/orders/cancel', 'POST', { id: idStr });
         activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
-        const n = await apiCall('/orders/create', 'POST', { product_id: 'ka', quantity: 1 });
+        
+        const n = await apiCall('/orders/create', 'POST', { operator: opToUse });
         if (n.success) {
             const od = n.data.orders[0];
+            const opInfo = availableProducts.find(p => p.id === opToUse);
+            const opPrice = opInfo ? opInfo.price : (oldOrder ? oldOrder.price : 0);
+            
             activeOrders.unshift({ 
-                id: od.id, productId: 'ka', phone: od.phone_number, 
-                price: availableProducts[0].price, otp: null, status: "ACTIVE", 
+                id: od.id, productId: opToUse, phone: od.phone_number, 
+                price: opPrice, otp: null, status: "ACTIVE", 
                 expiresAt: Date.now() + (20 * 60 * 1000), 
                 cancelUnlockTime: Date.now() + 120000, 
                 isAutoCanceling: false 
@@ -653,10 +720,10 @@ window.replaceSpecificOrder = async function(orderId) {
             copyToClipboard(od.phone_number); 
             showToast("Nomor diganti!");
         } else { 
-            saveToStorage(); fetchBalance(); showToast("Gagal pesan baru."); 
+            saveToStorage(); fetchBalance(); showToast("Gagal pesan baru.", "error"); 
         }
     } catch (e) { 
-        showToast("Error."); 
+        showToast("Error.", "error"); 
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } 
     }
 };
