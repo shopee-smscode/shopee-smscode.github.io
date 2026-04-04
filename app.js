@@ -263,12 +263,25 @@ function saveToStorage() {
     renderOrders(); 
 }
 
-function showToast(pesan) {
+// UI Moderen untuk Toast
+function showToast(pesan, type = "success") {
     const toast = document.getElementById("toast");
     if (!toast) return;
-    toast.innerText = pesan;
+    
+    toast.innerHTML = pesan;
+    
+    if (type === "error") {
+        toast.style.backgroundColor = "#ef4444"; // Merah
+        toast.style.color = "#ffffff";
+        toast.style.boxShadow = "0 4px 12px rgba(239, 68, 68, 0.4)";
+    } else {
+        toast.style.backgroundColor = "#1f2937"; // Gelap
+        toast.style.color = "#ffffff";
+        toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+    }
+    
     toast.classList.add("show");
-    setTimeout(() => { toast.classList.remove("show"); }, 2500);
+    setTimeout(() => { toast.classList.remove("show"); }, 3000);
 }
 
 function copyToClipboard(text) {
@@ -290,7 +303,7 @@ function copyFallback(text) {
     document.body.appendChild(ta);
     ta.select(); ta.setSelectionRange(0, 99999);
     try { document.execCommand('copy'); showToast("Berhasil disalin!"); } 
-    catch (err) { showToast("Gagal menyalin."); }
+    catch (err) { showToast("Gagal menyalin.", "error"); }
     document.body.removeChild(ta);
 }
 
@@ -347,7 +360,9 @@ function initNotesSync() {
 function formatDate(ts) {
     if(!ts) return "---";
     const d = new Date(ts);
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`;
+    const date = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`;
+    const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return `${date} - ${time}`;
 }
 
 function escapeHTML(str) {
@@ -368,7 +383,7 @@ function openAddNoteModal() {
 function openNoteDetailModal(key, data) {
     selectedNoteKey = key;
     currentNoteRawContent = data.content;
-    document.getElementById('view-tag').innerText = `Dibuat: ${new Date(data.timestamp).toLocaleDateString()}`;
+    document.getElementById('view-tag').innerText = `Dibuat: ${formatDate(data.timestamp)}`;
     document.getElementById('view-title').value = data.title || "Tanpa Judul";
     document.getElementById('view-content').innerText = data.content;
     
@@ -404,25 +419,44 @@ function editFromDetail() {
 
 function handleSaveNote() {
     let t = document.getElementById('note-title').value.trim();
-    const c = document.getElementById('note-content').value;
-    if(!c || c.trim() === "") return showToast("Konten tidak boleh kosong!");
+    const c = document.getElementById('note-content').value.trim();
     
-    if (!t) {
-        db.ref(DB_PATH).once('value').then(snapshot => {
-            let usedNumbers = new Set();
-            snapshot.forEach(child => {
-                let titleStr = child.val().title;
-                if (titleStr && /^\d+$/.test(titleStr.toString().trim())) {
-                    usedNumbers.add(parseInt(titleStr.toString().trim()));
+    if(!c || c === "") return showToast("⚠️ Konten tidak boleh kosong!", "error");
+    
+    // Cek Duplikasi Data dan Tentukan Nomor Urut
+    db.ref(DB_PATH).once('value').then(snapshot => {
+        let isDuplicate = false;
+        let usedNumbers = new Set();
+        
+        snapshot.forEach(child => {
+            let existingTitle = child.val().title;
+            let existingContent = child.val().content;
+            
+            if (existingTitle && /^\d+$/.test(existingTitle.toString().trim())) {
+                usedNumbers.add(parseInt(existingTitle.toString().trim()));
+            }
+            
+            // Periksa jika konten sama persis dengan yang ada (kecuali yg sedang diedit)
+            if (existingContent && existingContent.trim() === c) {
+                if (!isEditingNote || selectedNoteKey !== child.key) {
+                    isDuplicate = true;
                 }
-            });
+            }
+        });
+        
+        if (isDuplicate) {
+            showToast("⚠️ Gagal: Catatan dengan isi yang sama sudah ada! Silakan cek ulang.", "error");
+            return; // Hentikan proses simpan
+        }
+        
+        if (!t) {
             let nextNum = 1;
             while (usedNumbers.has(nextNum)) { nextNum++; }
             executeSaveNote(nextNum.toString(), c);
-        });
-    } else {
-        executeSaveNote(t, c);
-    }
+        } else {
+            executeSaveNote(t, c);
+        }
+    });
 }
 
 function executeSaveNote(title, content) {
@@ -505,7 +539,6 @@ async function loadShopeeIndonesia() {
 // ==========================================
 
 if (btnOrder) {
-    // ---- TAMBAHAN: MEMBUAT TOMBOL SALIN SANDI OTOMATIS ----
     const btnCopyPassword = document.createElement('button');
     btnCopyPassword.id = 'btnCopyPassword';
     btnCopyPassword.innerHTML = '<i class="fas fa-copy"></i> Salin Sandi';
@@ -534,7 +567,6 @@ if (btnOrder) {
     
     // Sisipkan tepat di bawah tombol btnOrder
     btnOrder.parentNode.insertBefore(btnCopyPassword, btnOrder.nextSibling);
-    // -------------------------------------------------------
 
     btnOrder.onclick = async () => {
         if (!selectedProductId) return;
@@ -563,8 +595,8 @@ if (btnOrder) {
                 saveToStorage(); startPollingAndTimer(); fetchBalance(); 
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 copyToClipboard(orderData.phone_number);
-            } else { showToast(`Gagal: ${res.error.message}`); }
-        } catch (error) { showToast("Kesalahan jaringan."); }
+            } else { showToast(`Gagal: ${res.error.message}`, "error"); }
+        } catch (error) { showToast("Kesalahan jaringan.", "error"); }
         btnOrder.innerText = originalText;
         btnOrder.disabled = false;
     };
@@ -747,7 +779,7 @@ async function syncServerOrders() {
 // ==========================================
 window.replaceSpecificOrder = async function(orderId, productId) {
     const btn = document.getElementById(`btn-replace-${orderId}`);
-    if (!productId || productId === 'null') return showToast("Pilih server manual.");
+    if (!productId || productId === 'null') return showToast("Pilih server manual.", "error");
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         const c = await apiCall('/orders/cancel', 'POST', { id: orderId });
@@ -767,13 +799,13 @@ window.replaceSpecificOrder = async function(orderId, productId) {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 copyToClipboard(od.phone_number);
                 showToast("Nomor diganti!");
-            } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru."); }
+            } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru.", "error"); }
         } else {
-            showToast("Gagal batal lama.");
+            showToast("Gagal batal lama.", "error");
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
         }
     } catch (e) { 
-        showToast("Error Jaringan."); 
+        showToast("Error Jaringan.", "error"); 
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
     }
 };
@@ -793,11 +825,11 @@ window.resendSpecificOrder = async function(orderId) {
                 }
             }, 30000); 
         } else {
-            showToast(res.error ? res.error.message : "Gagal meminta ulang.");
+            showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error");
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; }
         }
     } catch (e) {
-        showToast("Kesalahan jaringan.");
+        showToast("Kesalahan jaringan.", "error");
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; }
     }
 };
@@ -810,9 +842,9 @@ window.cancelSpecificOrder = async function(id, auto = false) {
         if (res.success || (res.error && res.error.code === 'NOT_FOUND')) {
             activeOrders = activeOrders.filter(o => o.id !== id);
             saveToStorage(); fetchBalance();
-            if(auto) showToast("Otomatis batal (waktu sisa 10 menit)");
+            if(auto) showToast("Otomatis batal (waktu sisa 10 menit)", "error");
         } else {
-            showToast("Gagal dibatalkan.");
+            showToast("Gagal dibatalkan.", "error");
             if (btnCancel) btnCancel.disabled = false;
         }
     } catch (e) {
