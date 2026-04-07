@@ -317,7 +317,12 @@ function renderOrders() {
     activeOrders.forEach(order => {
         const card = document.createElement("div"); card.className = "order-card"; card.id = `order-card-${order.id}`; 
         let isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
-        let otpHtml = isSuccess ? `<div class="otp-code">${order.otp}</div>` : `<div class="modern-loader"><span></span><span></span><span></span></div><div class="waiting-text">MENUNGGU SMS</div>`;
+        
+        // IMPLEMENTASI ANIMASI SCANNER RADAR MODEREN
+        let otpHtml = isSuccess ? 
+            `<div class="otp-code">${order.otp}</div>` : 
+            `<div class="otp-scanner"><span></span><span></span><span></span></div><div class="waiting-text">MENUNGGU SMS</div>`;
+            
         const passProductId = order.productId ? `'${order.productId}'` : 'null';
 
         const wait = order.cancelUnlockTime - now;
