@@ -18,30 +18,10 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const DB_PATH = 'notes/public';
 
-let selectedNoteKey = null; 
-let isEditingNote = false; 
-let currentNoteRawContent = ""; 
-let viewingPresenceRef = null; 
-let activeAccountName = null; 
-let activeOrders = []; 
-let availableProducts = []; 
-let selectedProductId = null; 
-let timerInterval = null; 
-let pollingInterval = null;
+let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null;
 
 // DOM Elements
-const currentAccountName = document.getElementById('currentAccountName'); 
-const productList = document.getElementById('productList'); 
-const btnOrder = document.getElementById('btnOrder'); 
-const activeOrdersContainer = document.getElementById('activeOrdersContainer'); 
-const activeCount = document.getElementById('activeCount'); 
-const balanceDisplay = document.getElementById('balanceDisplay'); 
-const exitModal = document.getElementById('exitModal'); 
-const notesListModal = document.getElementById('notesListModal'); 
-const noteFormModal = document.getElementById('noteFormModal'); 
-const noteDetailModal = document.getElementById('noteDetailModal'); 
-const notesCountDisplay = document.getElementById('notesCount'); 
-const btnOpenNotes = document.getElementById('btnOpenNotes');
+const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
@@ -100,10 +80,20 @@ function copyToClipboard(text) { if (navigator.clipboard && window.isSecureConte
 function copyFallback(text) { const ta = document.createElement("textarea"); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999); try { document.execCommand('copy'); showToast("Berhasil disalin!"); } catch (err) { showToast("Gagal menyalin.", "error"); } document.body.removeChild(ta); }
 
 // ==========================================
-// 3. FUNGSI CATATANKU (FIREBASE) LENGKAP
+// 3. FUNGSI CATATANKU (DIJAMIN TERBUKA 100%)
 // ==========================================
-window.openNotesFromAnywhere = function() { notesListModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); };
-if (btnOpenNotes) btnOpenNotes.onclick = openNotesFromAnywhere;
+window.openNotesFromAnywhere = function() { 
+    if(notesListModal) notesListModal.classList.remove('hidden'); 
+    history.pushState(null, null, "#notes"); 
+};
+
+document.addEventListener('click', function(e) {
+    const target = e.target.closest('button');
+    if (target && (target.id === 'btnOpenNotes' || (target.getAttribute('onclick') || '').includes('btnOpenNotes'))) {
+        e.preventDefault(); e.stopPropagation(); window.openNotesFromAnywhere();
+    }
+}, true);
+
 function closeNotesListModal() { notesListModal.classList.add('hidden'); }
 
 function initNotesSync() {
@@ -160,10 +150,12 @@ async function loadShopeeIndonesia() {
     } catch (error) { if (productList) productList.innerHTML = `<div class="status-text" style="color:red;">Error: ${error.message}</div>`; }
 }
 
+// ==========================================
+// 5. PESAN BARU & PEMBUATAN TOMBOL SALIN SANDI
+// ==========================================
 if (btnOrder) {
     const btnCopyPassword = document.createElement('button'); btnCopyPassword.id = 'btnCopyPassword'; btnCopyPassword.innerHTML = '<i class="fas fa-copy"></i> Salin Sandi';
-    btnCopyPassword.style.width = "100%"; btnCopyPassword.style.padding = "12px"; btnCopyPassword.style.marginTop = "10px"; btnCopyPassword.style.backgroundColor = "var(--btn-bg)"; btnCopyPassword.style.color = "var(--text-primary)"; btnCopyPassword.style.border = "1px solid var(--border-color)"; btnCopyPassword.style.borderRadius = "8px"; btnCopyPassword.style.fontWeight = "bold"; btnCopyPassword.style.fontSize = "16px"; btnCopyPassword.style.cursor = "pointer"; btnCopyPassword.style.transition = "0.3s";
-    btnCopyPassword.onmousedown = () => btnCopyPassword.style.opacity = "0.8"; btnCopyPassword.onmouseup = () => btnCopyPassword.style.opacity = "1";
+    btnCopyPassword.style.width = "100%"; btnCopyPassword.style.padding = "12px"; btnCopyPassword.style.marginTop = "10px"; btnCopyPassword.style.backgroundColor = "#2563eb"; btnCopyPassword.style.color = "white"; btnCopyPassword.style.border = "none"; btnCopyPassword.style.borderRadius = "8px"; btnCopyPassword.style.fontWeight = "bold"; btnCopyPassword.style.fontSize = "16px"; btnCopyPassword.style.cursor = "pointer";
     btnCopyPassword.onclick = () => { copyToClipboard("Aku123.."); };
     btnOrder.parentNode.insertBefore(btnCopyPassword, btnOrder.nextSibling);
 
@@ -182,6 +174,9 @@ if (btnOrder) {
     };
 }
 
+// ==========================================
+// 6. RENDER KARTU TANPA TIMER DI TEKS TOMBOL
+// ==========================================
 function renderOrders() {
     if (activeCount) activeCount.innerText = activeOrders.length;
     if (activeOrders.length === 0) { if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Belum ada pesanan aktif.</div>'; return; }
@@ -194,7 +189,7 @@ function renderOrders() {
         
         let otpHtml = isSuccess ? 
             `<div class="otp-title">KODE OTP</div><div class="otp-code">${order.otp}</div>` : 
-            `<div class="otp-scanner"><span></span><span></span><span></span></div><div class="waiting-text">MENUNGGU SMS</div>`;
+            `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU SMS...</div>`;
             
         const passProductId = order.productId ? `'${order.productId}'` : 'null';
         const wait = order.cancelUnlockTime - now;
@@ -210,10 +205,9 @@ function renderOrders() {
             finishBtnAttr = ""; 
         } 
         else if (wait > 0 && !order.isAutoCanceling) { 
-            const sec = Math.ceil(wait / 1000); 
-            cancelBtnAttr = "disabled"; cancelBtnText = `Tunggu ${sec}s`; 
-            replaceBtnAttr = "disabled"; replaceBtnText = `${sec}s`; 
-            resendBtnAttr = "disabled"; resendBtnText = `${sec}s`; 
+            cancelBtnAttr = "disabled"; 
+            replaceBtnAttr = "disabled"; 
+            resendBtnAttr = "disabled"; 
         } 
         else if (order.isAutoCanceling) { 
             cancelBtnAttr = "disabled"; cancelBtnText = "Memproses..."; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; 
@@ -259,14 +253,13 @@ function startPollingAndTimer() {
             
             if (order.status !== "OTP_RECEIVED" && !order.isAutoCanceling) {
                 if (wait <= 0) {
-                    if (btnCancel && btnCancel.innerText !== "Memproses...") btnCancel.disabled = false;
+                    if (btnCancel && btnCancel.innerText !== "Memproses...") { btnCancel.disabled = false; btnCancel.innerText = "Batalkan"; }
                     if (btnReplace && !btnReplace.innerHTML.includes('loader')) { btnReplace.disabled = false; btnReplace.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
                     if (btnResend && !btnResend.innerHTML.includes('loader')) { btnResend.disabled = false; btnResend.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; }
                 } else {
-                    const sec = Math.ceil(wait/1000);
-                    if (btnCancel) { btnCancel.disabled = true; btnCancel.innerText = `Tunggu ${sec}s`; }
-                    if (btnReplace) { btnReplace.disabled = true; btnReplace.innerHTML = `${sec}s`; }
-                    if (btnResend) { btnResend.disabled = true; btnResend.innerHTML = `${sec}s`; }
+                    if (btnCancel) { btnCancel.disabled = true; btnCancel.innerText = "Batalkan"; }
+                    if (btnReplace) { btnReplace.disabled = true; btnReplace.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
+                    if (btnResend) { btnResend.disabled = true; btnResend.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; }
                 }
             }
         });
