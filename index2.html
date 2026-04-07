@@ -12,37 +12,7 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="accountView" class="container">
-        
-        <div class="server-switcher">
-            <select onchange="window.location.href=this.value" class="server-select">
-                <option value="index.html">🔵 Hero-SMS</option>
-                <option value="index2.html" selected>🟠 SMSCode</option>
-            </select>
-        </div>
-
-        <button onclick="document.getElementById('btnOpenNotes').click()" class="btn-switch" style="position: absolute; top: 15px; right: 15px; background-color: #fef08a; color: #b45309; border-color: #fde68a; width: auto; padding: 8px 12px; height: auto; z-index: 5;">
-            <i class="fas fa-sticky-note"></i>
-        </button>
-
-        <div class="header-app login-header" style="margin-top: 25px;">
-            <div class="logo-circle">🛒</div>
-            <h1>Selamat Datang</h1>
-            <p class="subtitle">Masuk menggunakan sesi aman Cloudflare</p>
-        </div>
-        
-        <div class="account-dropdown-wrapper">
-            <button id="btnToggleAccountList" class="btn-dropdown-toggle" onclick="toggleAccountList()">
-                <span style="font-weight: 700;">Pilih Akun Anda</span> 
-                <i class="fas fa-chevron-down" id="accountListIcon"></i>
-            </button>
-            <div id="accountListContainer" class="account-list hidden" style="margin-top: 10px;">
-                <div class="status-text">Memuat daftar akun...</div>
-            </div>
-        </div>
-    </div>
-
-    <div id="appView" class="container hidden">
+    <div id="appView" class="container">
         
         <div class="server-switcher">
             <select onchange="window.location.href=this.value" class="server-select">
@@ -54,14 +24,11 @@
         <div class="app-header-container" style="margin-top: 25px;">
             <div class="header-titles">
                 <h1>Shopee OTP 🇮🇩</h1>
-                <p class="subtitle">👨‍💻 Akun: <strong id="currentAccountName">-</strong></p>
+                <p class="subtitle">👨‍💻 Akun: <strong id="currentAccountName">Memuat...</strong></p>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <button id="btnOpenNotes" class="btn-switch" style="background-color: #fef08a; color: #b45309; border-color: #fde68a;">
                     <i class="fas fa-sticky-note"></i> Catatan
-                </button>
-                <button id="btnSwitchAccount" class="btn-switch">
-                    <i class="fas fa-exchange-alt"></i> Ganti
                 </button>
             </div>
         </div>
