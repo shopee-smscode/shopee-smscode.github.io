@@ -4,9 +4,9 @@
     --danger-color: #ef4444;
 }
 
-/* TEMA HERO-SMS (PUTIH & UNGU) */
+/* TEMA HERO-SMS (UNGU PEKAT) */
 body.theme-hero {
-    --bg-body: linear-gradient(135deg, #f5f3ff 0%, #ffffff 100%);
+    --bg-body: #6d28d9; /* Warna Ungu Dasar */
     --bg-container: #ffffff;
     --bg-card: #ffffff;
     --bg-card-hover: #faf5ff;
@@ -144,20 +144,12 @@ h1 { color: var(--primary-color); font-size: 22px; margin: 0 0 4px 0; font-weigh
 .success-glow::after { content: ""; position: absolute; inset: 2px; background: var(--otp-bg); border-radius: 6px; z-index: -1; }
 @keyframes spin-glow { 100% { transform: rotate(360deg); } }
 
-/* --- ANIMASI MENUNGGU OTP SMSCODE (RADAR RIPPLE) --- */
-.otp-scanner { position: relative; width: 44px; height: 44px; margin: 0 auto 12px; }
-.otp-scanner span { position: absolute; box-sizing: border-box; border: 2px solid var(--primary-color); border-radius: 50%; opacity: 0; animation: ripple 2s cubic-bezier(0.165, 0.84, 0.44, 1) infinite; }
-.otp-scanner span:nth-child(2) { animation-delay: -0.66s; }
-.otp-scanner span:nth-child(3) { animation-delay: -1.33s; }
-@keyframes ripple { 0% { top: 22px; left: 22px; width: 0; height: 0; opacity: 1; } 100% { top: 0px; left: 0px; width: 44px; height: 44px; opacity: 0; border-width: 1px; } }
-
-/* --- ANIMASI SIPUT HERO-SMS 🐌 --- */
-.snail-loader { position: relative; width: 120px; height: 35px; margin: 0 auto 10px; }
-.snail { position: absolute; font-size: 28px; left: 0; top: -8px; z-index: 2; animation: crawl 4s ease-in-out infinite; }
-.track { position: absolute; bottom: 0; left: 0; width: 100%; height: 6px; background: var(--border-color); border-radius: 3px; overflow: hidden; }
-.track::after { content: ''; position: absolute; top: 0; left: 0; height: 100%; width: 30px; background: var(--primary-color); border-radius: 3px; animation: crawl-track 4s ease-in-out infinite; }
-@keyframes crawl { 0% { left: 0; transform: scaleX(1) translateY(0); } 45% { left: 90px; transform: scaleX(1) translateY(0); } 50% { left: 90px; transform: scaleX(-1) translateY(0); } 95% { left: 0; transform: scaleX(-1) translateY(0); } 100% { left: 0; transform: scaleX(1) translateY(0); } }
-@keyframes crawl-track { 0% { left: 0; } 45% { left: 90px; } 50% { left: 90px; } 95% { left: 0; } 100% { left: 0; } }
+/* --- ANIMASI MENUNGGU OTP BARU (BOUNCING DOTS) --- */
+.waiting-animation { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 10px 0 15px; }
+.dot-pulse { width: 12px; height: 12px; background-color: var(--primary-color); border-radius: 50%; animation: dotPulse 1.4s infinite ease-in-out both; }
+.dot-pulse:nth-child(1) { animation-delay: -0.32s; }
+.dot-pulse:nth-child(2) { animation-delay: -0.16s; }
+@keyframes dotPulse { 0%, 80%, 100% { transform: scale(0); opacity: 0.3; } 40% { transform: scale(1); opacity: 1; } }
 
 .waiting-text { font-size: 11px; color: var(--primary-color); margin-top: 4px; font-weight: 700; letter-spacing: 1px; animation: textPulse 1.5s infinite; }
 @keyframes textPulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
