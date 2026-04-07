@@ -59,7 +59,7 @@ function closeExitModal() { exitModal.classList.add('hidden'); isExitModalOpen =
 function confirmExit() { setAccountViewingStatus(false); window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
 
 // ==========================================
-// 2. AUTO LOGIN & PRESENCE
+// 2. AUTO LOGIN, DROPDOWN AKUN & PRESENCE
 // ==========================================
 function setAccountViewingStatus(isViewing) {
     if (!activeAccountName) return;
@@ -83,8 +83,27 @@ async function fetchAccounts() {
     try {
         const res = await fetch(`${BASE_URL}/api/accounts`);
         const data = await res.json();
+        const accountSwitcher = document.getElementById('accountSwitcher');
+        
         if (data.accounts && data.accounts.length > 0) {
-            loginAccount(data.accounts[0]);
+            if (accountSwitcher) {
+                accountSwitcher.innerHTML = '';
+                let hasNomor01 = false;
+                
+                data.accounts.forEach(acc => {
+                    const opt = document.createElement('option');
+                    opt.value = acc;
+                    opt.innerText = `👤 ${acc}`;
+                    if (acc === 'nomor_01') hasNomor01 = true;
+                    accountSwitcher.appendChild(opt);
+                });
+                
+                let defaultAcc = hasNomor01 ? 'nomor_01' : data.accounts[0];
+                accountSwitcher.value = defaultAcc;
+                loginAccount(defaultAcc);
+            } else {
+                loginAccount(data.accounts[0]);
+            }
         } else {
             if(currentAccountName) currentAccountName.innerText = "Tidak ada akun";
             showToast("Tidak ada akun di Server", "error");
@@ -94,6 +113,22 @@ async function fetchAccounts() {
         showToast("Gagal terhubung ke Server", "error");
     }
 }
+
+// Fungsi untuk dipanggil dari HTML saat dropdown akun diubah
+window.switchAccount = function(accountName) {
+    if (activeAccountName === accountName) return;
+    
+    // Hentikan interval pesanan akun lama
+    if (timerInterval) clearInterval(timerInterval);
+    if (pollingInterval) clearInterval(pollingInterval);
+    setAccountViewingStatus(false);
+    
+    // Reset UI
+    if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Memuat pesanan...</div>';
+    if (balanceDisplay) balanceDisplay.innerText = "...";
+    
+    loginAccount(accountName);
+};
 
 function loginAccount(accountName) {
     activeAccountName = accountName;
