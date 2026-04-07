@@ -13,21 +13,14 @@ const firebaseConfig = {
     appId: "1:291744292263:web:ab8d32ba52bc19cbffea82"
 };
 
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-}
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const DB_PATH = 'notes/public';
 
 let selectedNoteKey = null;
 let isEditingNote = false;
 let currentNoteRawContent = "";
-
-// Referensi Firebase Presence (Status Online/Offline)
 let viewingPresenceRef = null;
-let isPresenceListenerAttached = false;
-
-// Variabel Global OTP
 let activeAccountName = null;
 let activeOrders = [];
 let availableProducts = []; 
@@ -35,11 +28,7 @@ let selectedProductId = null;
 let timerInterval = null;
 let pollingInterval = null;
 
-// DOM Elements OTP
-const accountView = document.getElementById('accountView');
-const appView = document.getElementById('appView');
-const accountListContainer = document.getElementById('accountListContainer');
-const btnSwitchAccount = document.getElementById('btnSwitchAccount');
+// DOM Elements
 const currentAccountName = document.getElementById('currentAccountName');
 const productList = document.getElementById('productList');
 const btnOrder = document.getElementById('btnOrder');
@@ -47,12 +36,11 @@ const activeOrdersContainer = document.getElementById('activeOrdersContainer');
 const activeCount = document.getElementById('activeCount');
 const balanceDisplay = document.getElementById('balanceDisplay');
 const exitModal = document.getElementById('exitModal');
-
-// DOM Elements Catatan
 const notesListModal = document.getElementById('notesListModal');
 const noteFormModal = document.getElementById('noteFormModal');
 const noteDetailModal = document.getElementById('noteDetailModal');
 const notesCountDisplay = document.getElementById('notesCount');
+const btnOpenNotes = document.getElementById('btnOpenNotes');
 
 // ==========================================
 // 1. SISTEM BACK BUTTON & MULTI-MODAL
@@ -60,185 +48,57 @@ const notesCountDisplay = document.getElementById('notesCount');
 let isExitModalOpen = false;
 
 window.addEventListener('popstate', (e) => {
-    if (activeAccountName !== null) {
-        if (!noteFormModal.classList.contains('hidden')) {
-            handleCancelNoteForm();
-            history.pushState(null, null, "#sms");
-        } else if (!noteDetailModal.classList.contains('hidden')) {
-            closeNoteDetailModal();
-            history.pushState(null, null, "#sms");
-        } else if (!notesListModal.classList.contains('hidden')) {
-            closeNotesListModal();
-            history.pushState(null, null, "#sms");
-        } else {
-            logoutAccount();
-        }
-    } else {
-        if (!noteFormModal.classList.contains('hidden')) {
-            handleCancelNoteForm();
-            history.pushState(null, null, window.location.href);
-        } else if (!noteDetailModal.classList.contains('hidden')) {
-            closeNoteDetailModal();
-            history.pushState(null, null, window.location.href);
-        } else if (!notesListModal.classList.contains('hidden')) {
-            closeNotesListModal();
-            history.pushState(null, null, window.location.href);
-        } else if (isExitModalOpen) {
-            closeExitModal();
-            history.pushState(null, null, window.location.href); 
-        } else {
-            exitModal.classList.remove('hidden');
-            isExitModalOpen = true;
-            history.pushState(null, null, window.location.href); 
-        }
-    }
+    if (!noteFormModal.classList.contains('hidden')) { handleCancelNoteForm(); history.pushState(null, null, window.location.href); }
+    else if (!noteDetailModal.classList.contains('hidden')) { closeNoteDetailModal(); history.pushState(null, null, window.location.href); }
+    else if (!notesListModal.classList.contains('hidden')) { closeNotesListModal(); history.pushState(null, null, window.location.href); }
+    else if (isExitModalOpen) { closeExitModal(); history.pushState(null, null, window.location.href); }
+    else { exitModal.classList.remove('hidden'); isExitModalOpen = true; history.pushState(null, null, window.location.href); }
 });
 
 function closeExitModal() { exitModal.classList.add('hidden'); isExitModalOpen = false; }
-function confirmExit() {
-    setAccountViewingStatus(false);
-    window.close();
-    if (navigator.app) navigator.app.exitApp();
-    else if (navigator.device) navigator.device.exitApp();
-    else window.history.go(-2);
-}
-
-function logoutAccount() {
-    if (timerInterval) clearInterval(timerInterval);
-    if (pollingInterval) clearInterval(pollingInterval);
-    
-    setAccountViewingStatus(false);
-    
-    sessionStorage.removeItem('savedAccountName');
-    appView.classList.add('hidden');
-    accountView.classList.remove('hidden');
-    activeAccountName = null;
-    
-    accountListContainer.classList.add('hidden');
-    const icon = document.getElementById('accountListIcon');
-    if (icon) icon.className = "fas fa-chevron-down";
-    
-    fetchAccounts();
-    history.pushState(null, null, window.location.href);
-}
-
-if (btnSwitchAccount) btnSwitchAccount.onclick = () => logoutAccount();
+function confirmExit() { setAccountViewingStatus(false); window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
 
 // ==========================================
-// 2. FUNGSI MULTI-AKUN (DENGAN DROPDOWN)
+// 2. AUTO LOGIN & PRESENCE
 // ==========================================
-
-window.toggleAccountList = function() {
-    const isHidden = accountListContainer.classList.contains('hidden');
-    const icon = document.getElementById('accountListIcon');
-    if (isHidden) {
-        accountListContainer.classList.remove('hidden');
-        if (icon) icon.className = "fas fa-chevron-up";
-    } else {
-        accountListContainer.classList.add('hidden');
-        if (icon) icon.className = "fas fa-chevron-down";
-    }
-}
-
 function setAccountViewingStatus(isViewing) {
     if (!activeAccountName) return;
     if (isViewing) {
         const connectedRef = db.ref('.info/connected');
         viewingPresenceRef = db.ref(`presence/${activeAccountName}/is_viewing`);
         connectedRef.on('value', (snap) => {
-            if (snap.val() === true) {
-                viewingPresenceRef.onDisconnect().set(false);
-                viewingPresenceRef.set(true);
-            }
+            if (snap.val() === true) { viewingPresenceRef.onDisconnect().set(false); viewingPresenceRef.set(true); }
         });
     } else {
-        if (viewingPresenceRef) {
-            viewingPresenceRef.set(false);
-            viewingPresenceRef.onDisconnect().cancel();
-        }
+        if (viewingPresenceRef) { viewingPresenceRef.set(false); viewingPresenceRef.onDisconnect().cancel(); }
     }
 }
 
 function updateAccountOrdersStatus() {
     if (!activeAccountName) return;
-    const hasOrders = activeOrders.length > 0;
-    db.ref(`presence/${activeAccountName}/has_orders`).set(hasOrders);
-}
-
-function syncPresenceUI() {
-    if (isPresenceListenerAttached) return;
-    isPresenceListenerAttached = true;
-
-    db.ref('presence').on('value', snapshot => {
-        const data = snapshot.val() || {};
-        document.querySelectorAll('.account-card').forEach(card => {
-            const accNameElement = card.querySelector('.account-name');
-            if (!accNameElement) return;
-            const accName = accNameElement.innerText;
-            const safeId = `status-${accName.replace(/[^a-zA-Z0-9]/g, '-')}`;
-            const statusSpan = document.getElementById(safeId);
-            
-            if (statusSpan) {
-                const accData = data[accName] || {};
-                const isOnline = accData.is_viewing === true || accData.has_orders === true;
-                if (isOnline) {
-                    statusSpan.innerText = "Online";
-                    statusSpan.className = "account-status status-online";
-                } else {
-                    statusSpan.innerText = "Offline";
-                    statusSpan.className = "account-status status-offline";
-                }
-            }
-        });
-    });
+    db.ref(`presence/${activeAccountName}/has_orders`).set(activeOrders.length > 0);
 }
 
 async function fetchAccounts() {
     try {
         const res = await fetch(`${BASE_URL}/api/accounts`);
         const data = await res.json();
-        
-        accountListContainer.innerHTML = "";
-        
         if (data.accounts && data.accounts.length > 0) {
-            data.accounts.forEach(accountName => {
-                const initial = accountName.charAt(0).toUpperCase();
-                const safeId = `status-${accountName.replace(/[^a-zA-Z0-9]/g, '-')}`;
-
-                const card = document.createElement('div');
-                card.className = "account-card";
-                card.innerHTML = `
-                    <div class="account-info-wrapper">
-                        <div class="account-avatar">${initial}</div>
-                        <div class="account-details">
-                            <span class="account-name">${accountName}</span>
-                            <span id="${safeId}" class="account-status status-offline">Offline</span>
-                        </div>
-                    </div>
-                    <i class="fas fa-chevron-right chevron-icon"></i>
-                `;
-                card.onclick = () => loginAccount(accountName);
-                accountListContainer.appendChild(card);
-            });
-            syncPresenceUI();
+            loginAccount(data.accounts[0]);
         } else {
-            accountListContainer.innerHTML = '<div class="status-text">Tidak ada akun ditemukan.</div>';
+            if(currentAccountName) currentAccountName.innerText = "Tidak ada akun";
+            showToast("Tidak ada akun di Server", "error");
         }
     } catch (error) {
-        accountListContainer.innerHTML = '<div class="status-text" style="color:red">Gagal terhubung ke Server.</div>';
+        if(currentAccountName) currentAccountName.innerText = "Error Koneksi";
+        showToast("Gagal terhubung ke Server", "error");
     }
 }
 
 function loginAccount(accountName) {
     activeAccountName = accountName;
     if (currentAccountName) currentAccountName.innerText = accountName;
-    sessionStorage.setItem('savedAccountName', accountName);
-    
     setAccountViewingStatus(true);
-
-    history.pushState(null, null, "#sms"); 
-    accountView.classList.add('hidden');
-    appView.classList.remove('hidden');
 
     const now = Date.now();
     const rawOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || [];
@@ -248,243 +108,105 @@ function loginAccount(accountName) {
 }
 
 async function apiCall(endpoint, method = "GET", body = null) {
-    const options = { 
-        method: method, 
-        headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } 
-    };
+    const options = { method: method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } };
     if (body) options.body = JSON.stringify(body);
     const response = await fetch(`${BASE_URL}${endpoint}`, options);
     return await response.json();
 }
 
-function saveToStorage() {
-    localStorage.setItem(`orders_${activeAccountName}`, JSON.stringify(activeOrders));
-    updateAccountOrdersStatus(); 
-    renderOrders(); 
-}
+function saveToStorage() { localStorage.setItem(`orders_${activeAccountName}`, JSON.stringify(activeOrders)); updateAccountOrdersStatus(); renderOrders(); }
 
-// UI Moderen untuk Toast
 function showToast(pesan, type = "success") {
     const toast = document.getElementById("toast");
     if (!toast) return;
-    
     toast.innerHTML = pesan;
-    
-    if (type === "error") {
-        toast.style.backgroundColor = "#ef4444"; // Merah
-        toast.style.color = "#ffffff";
-        toast.style.boxShadow = "0 4px 12px rgba(239, 68, 68, 0.4)";
-    } else {
-        toast.style.backgroundColor = "#1f2937"; // Gelap
-        toast.style.color = "#ffffff";
-        toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-    }
-    
-    toast.classList.add("show");
-    setTimeout(() => { toast.classList.remove("show"); }, 3000);
+    if (type === "error") { toast.style.backgroundColor = "#ef4444"; toast.style.color = "#ffffff"; toast.style.boxShadow = "0 4px 12px rgba(239, 68, 68, 0.4)"; } 
+    else { toast.style.backgroundColor = "#1f2937"; toast.style.color = "#ffffff"; toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"; }
+    toast.classList.add("show"); setTimeout(() => { toast.classList.remove("show"); }, 3000);
 }
 
-function copyToClipboard(text) {
-    if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text).then(() => {
-            showToast("Berhasil disalin!"); 
-        }).catch(err => {
-            copyFallback(text);
-        });
-    } else {
-        copyFallback(text);
-    }
-}
-
-function copyFallback(text) {
-    const ta = document.createElement("textarea");
-    ta.value = text; ta.setAttribute('readonly', ''); 
-    ta.style.position = "absolute"; ta.style.left = "-9999px";
-    document.body.appendChild(ta);
-    ta.select(); ta.setSelectionRange(0, 99999);
-    try { document.execCommand('copy'); showToast("Berhasil disalin!"); } 
-    catch (err) { showToast("Gagal menyalin.", "error"); }
-    document.body.removeChild(ta);
-}
+function copyToClipboard(text) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(() => { showToast("Berhasil disalin!"); }).catch(err => { copyFallback(text); }); } else { copyFallback(text); } }
+function copyFallback(text) { const ta = document.createElement("textarea"); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999); try { document.execCommand('copy'); showToast("Berhasil disalin!"); } catch (err) { showToast("Gagal menyalin.", "error"); } document.body.removeChild(ta); }
 
 // ==========================================
 // 3. FUNGSI CATATANKU (FIREBASE)
 // ==========================================
-window.openNotesFromAnywhere = function() {
-    notesListModal.classList.remove('hidden');
-    history.pushState(null, null, "#notes");
-};
-
-const btnOpenNotes = document.getElementById('btnOpenNotes');
+window.openNotesFromAnywhere = function() { notesListModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); };
 if (btnOpenNotes) btnOpenNotes.onclick = openNotesFromAnywhere;
-
-const btnSwitchLobi = document.querySelector('#accountView .btn-switch');
-if (btnSwitchLobi) {
-    btnSwitchLobi.onclick = openNotesFromAnywhere;
-}
-
-function closeNotesListModal() {
-    notesListModal.classList.add('hidden');
-}
+function closeNotesListModal() { notesListModal.classList.add('hidden'); }
 
 function initNotesSync() {
-    const grid = document.getElementById('notes-grid');
-    if (!grid) return;
+    const grid = document.getElementById('notes-grid'); if (!grid) return;
     db.ref(DB_PATH).orderByChild('timestamp').on('value', snapshot => {
-        grid.innerHTML = '';
-        let items = [];
-        snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); });
-        
+        grid.innerHTML = ''; let items = []; snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); });
         if(notesCountDisplay) notesCountDisplay.innerText = `(${items.length})`;
-        
-        if(items.length === 0) {
-            grid.innerHTML = '<div class="status-text">Belum ada catatan.</div>';
-            return;
-        }
-
+        if(items.length === 0) { grid.innerHTML = '<div class="status-text">Belum ada catatan.</div>'; return; }
         items.reverse().forEach((d) => {
-            const card = document.createElement('div');
-            card.className = 'note-card';
-            card.onclick = () => openNoteDetailModal(d.key, d);
+            const card = document.createElement('div'); card.className = 'note-card'; card.onclick = () => openNoteDetailModal(d.key, d);
             const previewText = escapeHTML(d.content).replace(/\n/g, ' ');
-            card.innerHTML = `
-                <div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div>
-                <div class="note-preview">${previewText}</div>
-                <div class="note-date">${formatDate(d.timestamp)}</div>
-            `;
+            card.innerHTML = `<div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div><div class="note-preview">${previewText}</div><div class="note-date">${formatDate(d.timestamp)}</div>`;
             grid.appendChild(card);
         });
     });
 }
 
 function formatDate(ts) {
-    if(!ts) return "---";
-    const d = new Date(ts);
+    if(!ts) return "---"; const d = new Date(ts);
     const date = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`;
     const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     return `${date} - ${time}`;
 }
 
-function escapeHTML(str) {
-    if(!str) return "";
-    return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
-}
+function escapeHTML(str) { if(!str) return ""; return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])); }
 
 function openAddNoteModal() {
-    isEditingNote = false;
-    document.getElementById('form-modal-title').innerText = "Catatan Baru";
-    document.getElementById('note-title').value = "";
-    document.getElementById('note-content').value = "";
-    notesListModal.classList.add('hidden');
-    noteFormModal.classList.remove('hidden');
-    history.pushState(null, null, "#noteForm");
+    isEditingNote = false; document.getElementById('form-modal-title').innerText = "Catatan Baru";
+    document.getElementById('note-title').value = ""; document.getElementById('note-content').value = "";
+    notesListModal.classList.add('hidden'); noteFormModal.classList.remove('hidden'); history.pushState(null, null, window.location.href);
 }
 
 function openNoteDetailModal(key, data) {
-    selectedNoteKey = key;
-    currentNoteRawContent = data.content;
+    selectedNoteKey = key; currentNoteRawContent = data.content;
     document.getElementById('view-tag').innerText = `Dibuat: ${formatDate(data.timestamp)}`;
-    document.getElementById('view-title').value = data.title || "Tanpa Judul";
-    document.getElementById('view-content').innerText = data.content;
-    
-    notesListModal.classList.add('hidden');
-    noteDetailModal.classList.remove('hidden');
-    history.pushState(null, null, "#noteDetail");
+    document.getElementById('view-title').value = data.title || "Tanpa Judul"; document.getElementById('view-content').innerText = data.content;
+    notesListModal.classList.add('hidden'); noteDetailModal.classList.remove('hidden'); history.pushState(null, null, window.location.href);
 }
 
-function closeNoteDetailModal() {
-    noteDetailModal.classList.add('hidden');
-    notesListModal.classList.remove('hidden');
-}
-
-function handleCancelNoteForm() {
-    noteFormModal.classList.add('hidden');
-    if (isEditingNote) {
-        noteDetailModal.classList.remove('hidden');
-    } else {
-        notesListModal.classList.remove('hidden');
-    }
-}
+function closeNoteDetailModal() { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); }
+function handleCancelNoteForm() { noteFormModal.classList.add('hidden'); if (isEditingNote) { noteDetailModal.classList.remove('hidden'); } else { notesListModal.classList.remove('hidden'); } }
 
 function editFromDetail() {
-    const t = document.getElementById('view-title').value;
-    const c = currentNoteRawContent;
-    noteDetailModal.classList.add('hidden');
-    isEditingNote = true;
+    const t = document.getElementById('view-title').value; const c = currentNoteRawContent;
+    noteDetailModal.classList.add('hidden'); isEditingNote = true;
     document.getElementById('form-modal-title').innerText = "Edit Catatan";
-    document.getElementById('note-title').value = (t === "Tanpa Judul") ? "" : t; 
-    document.getElementById('note-content').value = c;
+    document.getElementById('note-title').value = (t === "Tanpa Judul") ? "" : t; document.getElementById('note-content').value = c;
     noteFormModal.classList.remove('hidden');
 }
 
 function handleSaveNote() {
-    let t = document.getElementById('note-title').value.trim();
-    const c = document.getElementById('note-content').value.trim();
-    
+    let t = document.getElementById('note-title').value.trim(); const c = document.getElementById('note-content').value.trim();
     if(!c || c === "") return showToast("⚠️ Konten tidak boleh kosong!", "error");
-    
-    // Cek Duplikasi Data dan Tentukan Nomor Urut
     db.ref(DB_PATH).once('value').then(snapshot => {
-        let isDuplicate = false;
-        let usedNumbers = new Set();
-        
+        let isDuplicate = false; let usedNumbers = new Set();
         snapshot.forEach(child => {
-            let existingTitle = child.val().title;
-            let existingContent = child.val().content;
-            
-            if (existingTitle && /^\d+$/.test(existingTitle.toString().trim())) {
-                usedNumbers.add(parseInt(existingTitle.toString().trim()));
-            }
-            
-            // Periksa jika konten sama persis dengan yang ada (kecuali yg sedang diedit)
-            if (existingContent && existingContent.trim() === c) {
-                if (!isEditingNote || selectedNoteKey !== child.key) {
-                    isDuplicate = true;
-                }
-            }
+            let existingTitle = child.val().title; let existingContent = child.val().content;
+            if (existingTitle && /^\d+$/.test(existingTitle.toString().trim())) { usedNumbers.add(parseInt(existingTitle.toString().trim())); }
+            if (existingContent && existingContent.trim() === c) { if (!isEditingNote || selectedNoteKey !== child.key) { isDuplicate = true; } }
         });
-        
-        if (isDuplicate) {
-            showToast("⚠️ Gagal: Catatan dengan isi yang sama sudah ada! Silakan cek ulang.", "error");
-            return; // Hentikan proses simpan
-        }
-        
-        if (!t) {
-            let nextNum = 1;
-            while (usedNumbers.has(nextNum)) { nextNum++; }
-            executeSaveNote(nextNum.toString(), c);
-        } else {
-            executeSaveNote(t, c);
-        }
+        if (isDuplicate) return showToast("⚠️ Gagal: Catatan dengan isi yang sama sudah ada!", "error");
+        if (!t) { let nextNum = 1; while (usedNumbers.has(nextNum)) { nextNum++; } executeSaveNote(nextNum.toString(), c); } 
+        else { executeSaveNote(t, c); }
     });
 }
 
 function executeSaveNote(title, content) {
     const data = { title: title, content: content, timestamp: Date.now() };
-    const promise = (isEditingNote && selectedNoteKey) 
-        ? db.ref(`${DB_PATH}/${selectedNoteKey}`).update(data)
-        : db.ref(DB_PATH).push(data);
-    promise.then(() => {
-        noteFormModal.classList.add('hidden');
-        notesListModal.classList.remove('hidden');
-        isEditingNote = false;
-        showToast("Catatan tersimpan!");
-    });
+    const promise = (isEditingNote && selectedNoteKey) ? db.ref(`${DB_PATH}/${selectedNoteKey}`).update(data) : db.ref(DB_PATH).push(data);
+    promise.then(() => { noteFormModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); isEditingNote = false; showToast("Catatan tersimpan!"); });
 }
 
-function confirmDeleteNote() {
-    if(confirm("Hapus catatan ini?")) {
-        db.ref(`${DB_PATH}/${selectedNoteKey}`).remove().then(() => {
-            noteDetailModal.classList.add('hidden');
-            notesListModal.classList.remove('hidden');
-            showToast("Catatan dihapus.");
-        });
-    }
-}
-
-function copyNoteContent() {
-    copyToClipboard(currentNoteRawContent);
-}
+function confirmDeleteNote() { if(confirm("Hapus catatan ini?")) { db.ref(`${DB_PATH}/${selectedNoteKey}`).remove().then(() => { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); showToast("Catatan dihapus."); }); } }
+function copyNoteContent() { copyToClipboard(currentNoteRawContent); }
 
 // ==========================================
 // 4. LOAD SERVER & AUTO SELECT HARGA TERMURAH
@@ -492,10 +214,7 @@ function copyNoteContent() {
 async function fetchBalance() {
     try {
         const res = await apiCall('/balance');
-        if (res.success) {
-            const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
-            if (balanceDisplay) balanceDisplay.innerText = formatter.format(res.data.balance);
-        }
+        if (res.success) { const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); if (balanceDisplay) balanceDisplay.innerText = formatter.format(res.data.balance); }
     } catch (error) { if (balanceDisplay) balanceDisplay.innerText = "Error"; }
 }
 
@@ -511,23 +230,12 @@ async function loadShopeeIndonesia() {
         if (productsRes.success && productsRes.data.length > 0) {
             availableProducts = productsRes.data.sort((a, b) => parseFloat(a.price) - parseFloat(b.price)).slice(0, 3);
             if (productList) productList.innerHTML = ""; 
-            
-            if (availableProducts.length > 0) {
-                selectedProductId = availableProducts[0].id;
-                if (btnOrder) btnOrder.disabled = false;
-            }
-
+            if (availableProducts.length > 0) { selectedProductId = availableProducts[0].id; if (btnOrder) btnOrder.disabled = false; }
             availableProducts.forEach(product => {
-                const card = document.createElement("div");
-                card.className = "product-card";
+                const card = document.createElement("div"); card.className = "product-card";
                 if (selectedProductId === product.id) { card.classList.add('selected'); }
                 card.innerHTML = `<div class="product-info"><h4>Server ID: ${product.id}</h4><p>Stok: ${product.available}</p></div><div class="product-price">Rp ${product.price}</div>`;
-                card.onclick = () => {
-                    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
-                    card.classList.add('selected');
-                    selectedProductId = product.id;
-                    if (btnOrder) btnOrder.disabled = false;
-                };
+                card.onclick = () => { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); selectedProductId = product.id; if (btnOrder) btnOrder.disabled = false; };
                 if (productList) productList.appendChild(card);
             });
         }
@@ -537,68 +245,28 @@ async function loadShopeeIndonesia() {
 // ==========================================
 // 5. PESAN BARU & PEMBUATAN TOMBOL SALIN SANDI
 // ==========================================
-
 if (btnOrder) {
     const btnCopyPassword = document.createElement('button');
-    btnCopyPassword.id = 'btnCopyPassword';
-    btnCopyPassword.innerHTML = '<i class="fas fa-copy"></i> Salin Sandi';
-    
-    // Desain Tombol (Warna Abu-abu Gelap agar berbeda)
-    btnCopyPassword.style.width = "100%";
-    btnCopyPassword.style.padding = "12px";
-    btnCopyPassword.style.marginTop = "10px";
-    btnCopyPassword.style.backgroundColor = "#4a4a4a"; 
-    btnCopyPassword.style.color = "white";
-    btnCopyPassword.style.border = "none";
-    btnCopyPassword.style.borderRadius = "8px";
-    btnCopyPassword.style.fontWeight = "bold";
-    btnCopyPassword.style.fontSize = "16px";
-    btnCopyPassword.style.cursor = "pointer";
-    btnCopyPassword.style.transition = "0.3s";
-    
-    // Efek Saat Diklik
-    btnCopyPassword.onmousedown = () => btnCopyPassword.style.opacity = "0.8";
-    btnCopyPassword.onmouseup = () => btnCopyPassword.style.opacity = "1";
-    
-    // Aksi Klik (Menyalin Sandi)
-    btnCopyPassword.onclick = () => {
-        copyToClipboard("Aku123..");
-    };
-    
-    // Sisipkan tepat di bawah tombol btnOrder
+    btnCopyPassword.id = 'btnCopyPassword'; btnCopyPassword.innerHTML = '<i class="fas fa-copy"></i> Salin Sandi';
+    btnCopyPassword.style.width = "100%"; btnCopyPassword.style.padding = "12px"; btnCopyPassword.style.marginTop = "10px"; btnCopyPassword.style.backgroundColor = "#4a4a4a"; btnCopyPassword.style.color = "white"; btnCopyPassword.style.border = "none"; btnCopyPassword.style.borderRadius = "8px"; btnCopyPassword.style.fontWeight = "bold"; btnCopyPassword.style.fontSize = "16px"; btnCopyPassword.style.cursor = "pointer"; btnCopyPassword.style.transition = "0.3s";
+    btnCopyPassword.onmousedown = () => btnCopyPassword.style.opacity = "0.8"; btnCopyPassword.onmouseup = () => btnCopyPassword.style.opacity = "1";
+    btnCopyPassword.onclick = () => { copyToClipboard("Aku123.."); };
     btnOrder.parentNode.insertBefore(btnCopyPassword, btnOrder.nextSibling);
 
     btnOrder.onclick = async () => {
         if (!selectedProductId) return;
-        btnOrder.disabled = true;
-        const originalText = btnOrder.innerText;
-        btnOrder.innerText = "Memproses...";
+        btnOrder.disabled = true; const originalText = btnOrder.innerText; btnOrder.innerText = "Memproses...";
         try {
             const res = await apiCall('/orders/create', 'POST', { product_id: parseInt(selectedProductId), quantity: 1 });
             if (res.success) {
-                const orderData = res.data.orders[0];
-                const productInfo = availableProducts.find(p => String(p.id) === String(selectedProductId));
+                const orderData = res.data.orders[0]; const productInfo = availableProducts.find(p => String(p.id) === String(selectedProductId));
                 const expiresAtMs = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000);
                 const createdAtMs = orderData.created_at ? new Date(orderData.created_at).getTime() : Date.now();
-                
-                activeOrders.unshift({
-                    id: orderData.id,
-                    productId: parseInt(selectedProductId),
-                    phone: orderData.phone_number,
-                    price: orderData.price || orderData.cost || orderData.amount || (productInfo ? productInfo.price : 0),
-                    otp: null, 
-                    status: "ACTIVE",
-                    expiresAt: expiresAtMs,
-                    cancelUnlockTime: createdAtMs + (120 * 1000),
-                    isAutoCanceling: false
-                });
-                saveToStorage(); startPollingAndTimer(); fetchBalance(); 
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                copyToClipboard(orderData.phone_number);
+                activeOrders.unshift({ id: orderData.id, productId: parseInt(selectedProductId), phone: orderData.phone_number, price: orderData.price || orderData.cost || orderData.amount || (productInfo ? productInfo.price : 0), otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: createdAtMs + (120 * 1000), isAutoCanceling: false });
+                saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(orderData.phone_number);
             } else { showToast(`Gagal: ${res.error.message}`, "error"); }
         } catch (error) { showToast("Kesalahan jaringan.", "error"); }
-        btnOrder.innerText = originalText;
-        btnOrder.disabled = false;
+        btnOrder.innerText = originalText; btnOrder.disabled = false;
     };
 }
 
@@ -607,58 +275,28 @@ if (btnOrder) {
 // ==========================================
 function renderOrders() {
     if (activeCount) activeCount.innerText = activeOrders.length;
-    if (activeOrders.length === 0) { 
-        if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Belum ada pesanan aktif.</div>'; 
-        return; 
-    }
+    if (activeOrders.length === 0) { if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Belum ada pesanan aktif.</div>'; return; }
     if (activeOrdersContainer) activeOrdersContainer.innerHTML = "";
     const now = Date.now();
 
     activeOrders.forEach(order => {
-        const card = document.createElement("div");
-        card.className = "order-card";
-        card.id = `order-card-${order.id}`; 
-        
+        const card = document.createElement("div"); card.className = "order-card"; card.id = `order-card-${order.id}`; 
         let isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
         let otpHtml = isSuccess ? `<div class="otp-code">${order.otp}</div>` : `<div class="modern-loader"><span></span><span></span><span></span></div><div class="waiting-text">MENUNGGU SMS</div>`;
         const passProductId = order.productId ? `'${order.productId}'` : 'null';
 
         const wait = order.cancelUnlockTime - now;
-        let cancelBtnAttr = "";
-        let cancelBtnText = "Batalkan";
-        let actionBtnAttr = "";
-        let replaceBtnText = '<i class="fas fa-sync-alt"></i> Ganti';
-        let resendBtnText = '<i class="fas fa-envelope"></i> Ulang';
-        let finishBtnAttr = "disabled";
-
-        if (isSuccess) {
-            cancelBtnAttr = "disabled";
-            cancelBtnText = "Sukses";
-            actionBtnAttr = "disabled";
-            replaceBtnText = '<i class="fas fa-check"></i>';
-            resendBtnText = '<i class="fas fa-check"></i>';
-            finishBtnAttr = ""; 
-        } else if (wait > 0 && !order.isAutoCanceling) {
-            const sec = Math.ceil(wait / 1000);
-            cancelBtnAttr = "disabled";
-            cancelBtnText = `Tunggu ${sec}s`;
-            actionBtnAttr = "disabled";
-            replaceBtnText = `${sec}s`;
-            resendBtnText = `${sec}s`;
-        } else if (order.isAutoCanceling) {
-            cancelBtnAttr = "disabled";
-            cancelBtnText = "Memproses...";
-            actionBtnAttr = "disabled";
-        }
+        let cancelBtnAttr = ""; let cancelBtnText = "Batalkan"; let actionBtnAttr = ""; let replaceBtnText = '<i class="fas fa-sync-alt"></i> Ganti'; let resendBtnText = '<i class="fas fa-envelope"></i> Ulang'; let finishBtnAttr = "disabled";
+        if (isSuccess) { cancelBtnAttr = "disabled"; cancelBtnText = "Sukses"; actionBtnAttr = "disabled"; replaceBtnText = '<i class="fas fa-check"></i>'; resendBtnText = '<i class="fas fa-check"></i>'; finishBtnAttr = ""; } 
+        else if (wait > 0 && !order.isAutoCanceling) { const sec = Math.ceil(wait / 1000); cancelBtnAttr = "disabled"; cancelBtnText = `Tunggu ${sec}s`; actionBtnAttr = "disabled"; replaceBtnText = `${sec}s`; resendBtnText = `${sec}s`; } 
+        else if (order.isAutoCanceling) { cancelBtnAttr = "disabled"; cancelBtnText = "Memproses..."; actionBtnAttr = "disabled"; }
 
         const displayPrice = (order.price && order.price != 0) ? `Rp ${order.price}` : 'Rp -';
 
         card.innerHTML = `
             <div class="order-header"><div><span class="order-id-label">#${order.id}</span> <span class="order-price">${displayPrice}</span></div><span class="timer" id="timer-${order.id}">--:--</span></div>
             <div class="phone-row"><span class="phone-number">${order.phone}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')">Salin</button></div>
-            
             <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${isSuccess ? '<div class="otp-title">KODE OTP</div>' : ''}${otpHtml}</div>
-            
             <div class="action-buttons-grid">
                 <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id}, ${passProductId})" ${actionBtnAttr}>${replaceBtnText}</button>
                 <button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder(${order.id})" ${actionBtnAttr}>${resendBtnText}</button>
@@ -680,23 +318,13 @@ function startPollingAndTimer() {
     timerInterval = setInterval(() => {
         const now = Date.now();
         activeOrders.forEach((order, index) => {
-            const timeLeft = order.expiresAt - now;
-            const timerElement = document.getElementById(`timer-${order.id}`);
+            const timeLeft = order.expiresAt - now; const timerElement = document.getElementById(`timer-${order.id}`);
             if (timeLeft <= 0) { activeOrders.splice(index, 1); saveToStorage(); fetchBalance(); return; }
-            if (timerElement) {
-                const m = Math.floor((timeLeft / 1000 / 60) % 60);
-                const s = Math.floor((timeLeft / 1000) % 60);
-                timerElement.innerText = `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
-            }
+            if (timerElement) { const m = Math.floor((timeLeft / 1000 / 60) % 60); const s = Math.floor((timeLeft / 1000) % 60); timerElement.innerText = `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`; }
 
-            if (timeLeft <= 600000 && order.status !== "OTP_RECEIVED" && !order.isAutoCanceling) {
-                order.isAutoCanceling = true; cancelSpecificOrder(order.id, true); 
-            }
+            if (timeLeft <= 600000 && order.status !== "OTP_RECEIVED" && !order.isAutoCanceling) { order.isAutoCanceling = true; cancelSpecificOrder(order.id, true); }
 
-            const btnCancel = document.getElementById(`btn-cancel-${order.id}`);
-            const btnReplace = document.getElementById(`btn-replace-${order.id}`);
-            const btnResend = document.getElementById(`btn-resend-${order.id}`);
-            const btnFinish = document.getElementById(`btn-finish-${order.id}`);
+            const btnCancel = document.getElementById(`btn-cancel-${order.id}`); const btnReplace = document.getElementById(`btn-replace-${order.id}`); const btnResend = document.getElementById(`btn-resend-${order.id}`); const btnFinish = document.getElementById(`btn-finish-${order.id}`);
             
             if (order.status === "OTP_RECEIVED") {
                 if (btnCancel) { btnCancel.disabled = true; btnCancel.innerText = "Sukses"; }
@@ -713,9 +341,7 @@ function startPollingAndTimer() {
                 } else if (!order.isAutoCanceling) {
                     if (btnCancel) { btnCancel.disabled = false; btnCancel.innerText = "Batalkan"; }
                     if (btnReplace) { btnReplace.disabled = false; btnReplace.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
-                    if (btnResend && !btnResend.innerHTML.includes('loader')) { 
-                        btnResend.disabled = false; btnResend.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; 
-                    }
+                    if (btnResend && !btnResend.innerHTML.includes('loader')) { btnResend.disabled = false; btnResend.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; }
                 }
             }
         });
@@ -725,19 +351,12 @@ function startPollingAndTimer() {
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) { clearInterval(pollingInterval); return; }
         for (let i = 0; i < activeOrders.length; i++) {
-            let order = activeOrders[i];
-            if (order.status === "OTP_RECEIVED") continue;
+            let order = activeOrders[i]; if (order.status === "OTP_RECEIVED") continue;
             try {
                 const res = await apiCall(`/orders/${order.id}`);
                 if (res.success) {
-                    if (res.data.status === "OTP_RECEIVED") {
-                        activeOrders[i].status = "OTP_RECEIVED";
-                        activeOrders[i].otp = res.data.otp_code;
-                        saveToStorage();
-                    } else if (res.data.status !== "ACTIVE" && res.data.status !== "PENDING") {
-                        activeOrders = activeOrders.filter(o => o.id !== order.id);
-                        saveToStorage(); fetchBalance();
-                    }
+                    if (res.data.status === "OTP_RECEIVED") { activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; saveToStorage(); } 
+                    else if (res.data.status !== "ACTIVE" && res.data.status !== "PENDING") { activeOrders = activeOrders.filter(o => o.id !== order.id); saveToStorage(); fetchBalance(); }
                 }
             } catch (e) {}
         }
@@ -756,17 +375,10 @@ async function syncServerOrders() {
             serverOrders.forEach(order => {
                 if (!activeOrders.find(o => o.id === order.id)) {
                     let syncedPrice = order.price || order.cost || order.amount || 0;
-                    if (syncedPrice == 0 && order.product_id && availableProducts.length > 0) {
-                        const matchProduct = availableProducts.find(p => String(p.id) === String(order.product_id));
-                        if (matchProduct) syncedPrice = matchProduct.price;
-                    }
+                    if (syncedPrice == 0 && order.product_id && availableProducts.length > 0) { const matchProduct = availableProducts.find(p => String(p.id) === String(order.product_id)); if (matchProduct) syncedPrice = matchProduct.price; }
                     const exp = order.expires_at ? new Date(order.expires_at).getTime() : Date.now() + (20*60*1000);
                     const cTime = order.created_at ? new Date(order.created_at).getTime() : (exp - (20*60*1000));
-                    activeOrders.unshift({
-                        id: order.id, productId: order.product_id || order.service_id, phone: order.phone_number || order.phone, 
-                        price: syncedPrice, otp: order.otp_code, status: order.status, 
-                        expiresAt: exp, cancelUnlockTime: cTime + (120*1000), isAutoCanceling: false
-                    });
+                    activeOrders.unshift({ id: order.id, productId: order.product_id || order.service_id, phone: order.phone_number || order.phone, price: syncedPrice, otp: order.otp_code, status: order.status, expiresAt: exp, cancelUnlockTime: cTime + (120*1000), isAutoCanceling: false });
                 }
             });
             saveToStorage(); startPollingAndTimer(); fetchBalance();
@@ -787,27 +399,12 @@ window.replaceSpecificOrder = async function(orderId, productId) {
             activeOrders = activeOrders.filter(o => o.id !== orderId);
             const n = await apiCall('/orders/create', 'POST', { product_id: parseInt(productId), quantity: 1 });
             if (n.success) {
-                const od = n.data.orders[0];
-                const pInfo = availableProducts.find(p => String(p.id) === String(productId));
-                const finalPrice = od.price || od.cost || (pInfo ? pInfo.price : 0);
-                activeOrders.unshift({
-                    id: od.id, productId: parseInt(productId), phone: od.phone_number, price: finalPrice,
-                    otp: null, status: "ACTIVE", expiresAt: new Date(od.expires_at).getTime(),
-                    cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false
-                });
-                saveToStorage(); startPollingAndTimer(); fetchBalance();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                copyToClipboard(od.phone_number);
-                showToast("Nomor diganti!");
+                const od = n.data.orders[0]; const pInfo = availableProducts.find(p => String(p.id) === String(productId)); const finalPrice = od.price || od.cost || (pInfo ? pInfo.price : 0);
+                activeOrders.unshift({ id: od.id, productId: parseInt(productId), phone: od.phone_number, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: new Date(od.expires_at).getTime(), cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false });
+                saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(od.phone_number); showToast("Nomor diganti!");
             } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru.", "error"); }
-        } else {
-            showToast("Gagal batal lama.", "error");
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
-        }
-    } catch (e) { 
-        showToast("Error Jaringan.", "error"); 
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
-    }
+        } else { showToast("Gagal batal lama.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
+    } catch (e) { showToast("Error Jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
 };
 
 window.resendSpecificOrder = async function(orderId) {
@@ -815,66 +412,29 @@ window.resendSpecificOrder = async function(orderId) {
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         const res = await apiCall('/orders/resend', 'POST', { id: orderId });
-        if (res.success) {
-            showToast("Meminta ulang SMS...");
-            setTimeout(() => {
-                const currentBtn = document.getElementById(`btn-resend-${orderId}`);
-                if(currentBtn && !currentBtn.innerHTML.includes('fa-check')) {
-                    currentBtn.disabled = false;
-                    currentBtn.innerHTML = '<i class="fas fa-envelope"></i> Ulang';
-                }
-            }, 30000); 
-        } else {
-            showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error");
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; }
-        }
-    } catch (e) {
-        showToast("Kesalahan jaringan.", "error");
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; }
-    }
+        if (res.success) { showToast("Meminta ulang SMS..."); setTimeout(() => { const currentBtn = document.getElementById(`btn-resend-${orderId}`); if(currentBtn && !currentBtn.innerHTML.includes('fa-check')) { currentBtn.disabled = false; currentBtn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }, 30000); } 
+        else { showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
+    } catch (e) { showToast("Kesalahan jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
 };
 
 window.cancelSpecificOrder = async function(id, auto = false) {
     const btnCancel = document.getElementById(`btn-cancel-${id}`);
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerText = "Memproses..."; }
-    try {
-        const res = await apiCall('/orders/cancel', 'POST', { id: id });
-        if (res.success || (res.error && res.error.code === 'NOT_FOUND')) {
-            activeOrders = activeOrders.filter(o => o.id !== id);
-            saveToStorage(); fetchBalance();
-            if(auto) showToast("Otomatis batal (waktu sisa 10 menit)", "error");
-        } else {
-            showToast("Gagal dibatalkan.", "error");
-            if (btnCancel) btnCancel.disabled = false;
-        }
-    } catch (e) {
-        if (btnCancel) btnCancel.disabled = false;
-    }
+    try { const res = await apiCall('/orders/cancel', 'POST', { id: id }); if (res.success || (res.error && res.error.code === 'NOT_FOUND')) { activeOrders = activeOrders.filter(o => o.id !== id); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis batal (waktu sisa 10 menit)", "error"); } else { showToast("Gagal dibatalkan.", "error"); if (btnCancel) btnCancel.disabled = false; } } catch (e) { if (btnCancel) btnCancel.disabled = false; }
 };
 
 window.finishSpecificOrder = async function(id) {
-    const btnFinish = document.getElementById(`btn-finish-${id}`);
-    if (btnFinish) { btnFinish.disabled = true; btnFinish.innerText = "Menutup..."; }
-    try { await apiCall('/orders/finish', 'POST', { id: id }); } catch (e) {}
-    activeOrders = activeOrders.filter(o => o.id !== id);
-    saveToStorage();
+    const btnFinish = document.getElementById(`btn-finish-${id}`); if (btnFinish) { btnFinish.disabled = true; btnFinish.innerText = "Menutup..."; }
+    try { await apiCall('/orders/finish', 'POST', { id: id }); } catch (e) {} activeOrders = activeOrders.filter(o => o.id !== id); saveToStorage();
 };
 
 async function initMainApp() {
     if (balanceDisplay) balanceDisplay.innerText = "...";
-    await loadShopeeIndonesia();
-    renderOrders();
-    if (activeOrders.length > 0) startPollingAndTimer();
-    syncServerOrders();
+    await loadShopeeIndonesia(); renderOrders();
+    if (activeOrders.length > 0) startPollingAndTimer(); syncServerOrders();
 }
 
 window.onload = () => {
-    setAccountViewingStatus(false);
-    history.pushState(null, null, window.location.href);
-    
-    // PEMANGGILAN SYNC CATATAN DI AWAL SAAT HALAMAN DIBUKA
-    initNotesSync();
-
-    const saved = sessionStorage.getItem('savedAccountName');
-    if (saved) loginAccount(saved); else fetchAccounts();
+    setAccountViewingStatus(false); history.pushState(null, null, window.location.href);
+    initNotesSync(); fetchAccounts(); 
 };
