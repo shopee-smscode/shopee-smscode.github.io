@@ -13,27 +13,27 @@
 <body class="theme-smscode">
     <div id="appView" class="container">
         
-        <div class="top-switchers">
-            <select onchange="window.location.href=this.value" class="server-select">
+        <div class="top-switchers" style="position: absolute; top: 15px; left: 15px; right: 60px; z-index: 10; display: flex; gap: 8px; height: 32px;">
+            <select onchange="window.location.href=this.value" class="server-select server-select-sm" style="color: #ea580c; border-color: #fdba74;">
                 <option value="index.html">🔵 Hero-SMS</option>
                 <option value="index2.html" selected>🟠 SMSCode</option>
             </select>
             
-            <select id="accountSwitcher" onchange="switchAccount(this.value)" class="server-select">
+            <select id="accountSwitcher" onchange="switchAccount(this.value)" class="server-select server-select-sm" style="background-color: #1e293b; color: #f8fafc; border-color: #475569;">
                 <option value="nomor_01" selected>👤 nomor_01</option>
             </select>
         </div>
 
-        <div class="app-header-container" style="margin-top: 55px;">
+        <button onclick="document.getElementById('btnOpenNotes').click()" class="btn-switch" style="position: absolute; top: 15px; right: 15px; background-color: #431407; color: #fdba74; border-color: #9a3412; width: 32px; padding: 0; justify-content: center; height: 32px; z-index: 5; border-radius: 8px;">
+            <i class="fas fa-sticky-note"></i>
+        </button>
+
+        <div class="app-header-container" style="margin-top: 45px;">
             <div class="header-titles">
                 <h1>Shopee OTP 🇮🇩</h1>
                 <p class="subtitle">👨‍💻 Akun: <strong id="currentAccountName">Memuat...</strong></p>
             </div>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <button id="btnOpenNotes" class="btn-switch">
-                    <i class="fas fa-sticky-note"></i> Catatan
-                </button>
-            </div>
+            <div style="display: flex; gap: 8px; align-items: center;"></div>
         </div>
         
         <div class="balance-container">
@@ -103,7 +103,7 @@
                 <span id="view-tag" style="font-size: 11px; font-weight: bold; color: var(--text-secondary);"></span>
                 <button onclick="closeNoteDetailModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px;"><i class="fas fa-times"></i></button>
             </div>
-            <input type="text" id="view-title" readonly style="width:100%; border:none; padding:0; font-size:20px; font-weight:800; margin-bottom:15px; background:transparent; outline: none;">
+            <input type="text" id="view-title" readonly style="width:100%; border:none; padding:0; font-size:20px; font-weight:800; margin-bottom:15px; background:transparent; outline: none; color: var(--text-primary);">
             <div id="view-content"></div>
             <div style="display: flex; gap: 8px; align-items: stretch;">
                 <button class="btn-primary" style="flex: 0 0 auto; width: 48px; padding: 0; border-radius: 10px; display: flex; align-items: center; justify-content: center;" onclick="editFromDetail()">
