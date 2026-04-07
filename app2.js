@@ -18,14 +18,33 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const DB_PATH = 'notes/public';
 
-let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null;
+let selectedNoteKey = null; 
+let isEditingNote = false; 
+let currentNoteRawContent = ""; 
+let viewingPresenceRef = null; 
+let activeAccountName = null; 
+let activeOrders = []; 
+let availableProducts = []; 
+let selectedProductId = null; 
+let timerInterval = null; 
+let pollingInterval = null;
 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
 // DOM Elements
-const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount'); const btnOpenNotes = document.getElementById('btnOpenNotes');
+const currentAccountName = document.getElementById('currentAccountName'); 
+const productList = document.getElementById('productList'); 
+const btnOrder = document.getElementById('btnOrder'); 
+const activeOrdersContainer = document.getElementById('activeOrdersContainer'); 
+const activeCount = document.getElementById('activeCount'); 
+const balanceDisplay = document.getElementById('balanceDisplay'); 
+const exitModal = document.getElementById('exitModal'); 
+const notesListModal = document.getElementById('notesListModal'); 
+const noteFormModal = document.getElementById('noteFormModal'); 
+const noteDetailModal = document.getElementById('noteDetailModal'); 
+const notesCountDisplay = document.getElementById('notesCount'); 
+const btnOpenNotes = document.getElementById('btnOpenNotes');
 
-// 1. PEMBUATAN TOMBOL SALIN SANDI OTOMATIS
 if (btnOrder) {
     const btnCopyPassword = document.createElement('button');
     btnCopyPassword.innerHTML = '<i class="fas fa-copy"></i> Salin Sandi';
@@ -89,10 +108,28 @@ function loginAccount(accountName) {
     initMainApp();
 }
 
+// ==========================================
+// 3. FUNGSI CATATANKU (FIREBASE) LENGKAP
+// ==========================================
 window.openNotesFromAnywhere = function() { notesListModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); };
 if (btnOpenNotes) btnOpenNotes.onclick = openNotesFromAnywhere;
 function closeNotesListModal() { notesListModal.classList.add('hidden'); }
-function initNotesSync() { /* ... kode catatan ... */ }
+
+function initNotesSync() {
+    const grid = document.getElementById('notes-grid'); if (!grid) return;
+    db.ref(DB_PATH).orderByChild('timestamp').on('value', snapshot => {
+        grid.innerHTML = ''; let items = []; snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); });
+        if(notesCountDisplay) notesCountDisplay.innerText = `(${items.length})`;
+        if(items.length === 0) { grid.innerHTML = '<div class="status-text">Belum ada catatan.</div>'; return; }
+        items.reverse().forEach((d) => {
+            const card = document.createElement('div'); card.className = 'note-card'; card.onclick = () => openNoteDetailModal(d.key, d);
+            const previewText = escapeHTML(d.content).replace(/\n/g, ' ');
+            card.innerHTML = `<div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div><div class="note-preview">${previewText}</div><div class="note-date">${formatDate(d.timestamp)}</div>`;
+            grid.appendChild(card);
+        });
+    });
+}
+
 function formatDate(ts) { if(!ts) return "---"; const d = new Date(ts); const date = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`; const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; return `${date} - ${time}`; }
 function escapeHTML(str) { if(!str) return ""; return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])); }
 function openAddNoteModal() { isEditingNote = false; document.getElementById('form-modal-title').innerText = "Catatan Baru"; document.getElementById('note-title').value = ""; document.getElementById('note-content').value = ""; notesListModal.classList.add('hidden'); noteFormModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); }
@@ -144,7 +181,6 @@ function renderOrders() {
         const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(availableProducts[0]?.price || 0);
         const wait = order.cancelUnlockTime - now; 
         
-        // ANIMASI SIPUT 🐌 UNTUK HERO-SMS
         let otpHtml = isSuccess ? 
             `<div class="otp-title">KODE OTP</div><div class="otp-code">${order.otp}</div>` : 
             `<div class="snail-loader"><div class="snail">🐌</div><div class="track"></div></div><div class="waiting-text">MENUNGGU SMS...</div>`;
@@ -157,7 +193,6 @@ function renderOrders() {
         if (isSuccess) { 
             cancelBtnAttr = "disabled"; cancelBtnText = "Sukses"; 
             replaceBtnAttr = "disabled"; replaceBtnText = '<i class="fas fa-check"></i>'; 
-            // Tombol ulang tetap diaktifkan untuk minta kode lain
             finishBtnAttr = ""; 
         } else if (wait > 0 && !order.isAutoCanceling) { 
             const sec = Math.ceil(wait / 1000); 
@@ -201,7 +236,6 @@ function startPollingAndTimer() {
             if (left <= 0) { activeOrders.splice(i, 1); saveToStorage(); fetchBalance(); return; }
             if (el) { const m = Math.floor(left/60000); const s = Math.floor((left%60000)/1000); el.innerText = `${m}:${s<10?'0':''}${s}`; }
 
-            // OTOMATIS CANCEL SETELAH 10 MENIT
             if (left <= 600000 && o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) {
                 o.isAutoCanceling = true; cancelSpecificOrder(o.id, true);
             }
@@ -232,7 +266,6 @@ function startPollingAndTimer() {
             try {
                 const res = await apiCall(`/orders/${o.id}`);
                 if (res.success && res.data.status === "OTP_RECEIVED") { 
-                    // SUARA NOTIFIKASI
                     notifSound.play().catch(e => console.log("Sound error:", e));
                     activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; saveToStorage(); 
                 } else if (res.success && res.data.status === "CANCELLED") { 
@@ -284,21 +317,18 @@ window.finishSpecificOrder = async function(id) {
     try { await apiCall('/orders/finish', 'POST', { id: idStr }); } catch (e) {} activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage();
 };
 
-window.resendSpecificOrder = async function(id) {
-    const idStr = String(id); const btn = document.getElementById(`btn-resend-${idStr}`); 
+window.resendSpecificOrder = async function(orderId) {
+    const idStr = String(orderId); const btn = document.getElementById(`btn-resend-${idStr}`); 
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
-    try { 
-        const res = await apiCall('/orders/resend', 'POST', { id: idStr }); 
+    try {
+        const res = await apiCall('/orders/resend', 'POST', { id: idStr });
         if (res.success) { 
-            showToast("Meminta kode baru untuk nomor ini...");
-            // UBAH KEMBALI KE STATUS MENUNGGU
+            showToast("Meminta kode baru untuk nomor ini..."); 
             let idx = activeOrders.findIndex(o => String(o.id) === idStr);
             if (idx !== -1) { activeOrders[idx].status = "ACTIVE"; activeOrders[idx].otp = null; saveToStorage(); }
-        } else {
-            showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error");
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; }
-        }
-    } catch (e) { showToast("Error jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
+        } 
+        else { showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
+    } catch (e) { showToast("Kesalahan jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
 };
 
 async function initMainApp() { fetchBalance(); await loadShopeeIndonesia(); renderOrders(); startPollingAndTimer(); }
