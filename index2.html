@@ -14,23 +14,28 @@
 <body>
     <div id="appView" class="container">
         
-        <div class="server-switcher">
-            <select onchange="window.location.href=this.value" class="server-select">
+        <div class="top-switchers" style="position: absolute; top: 15px; left: 15px; right: 65px; z-index: 10; display: flex; gap: 10px;">
+            <select onchange="window.location.href=this.value" class="server-select" style="font-size: 14px; padding: 10px 12px; border-radius: 10px; flex: 1; font-weight: 800; box-shadow: 0 2px 6px rgba(0,0,0,0.05); color: #ea580c; border-color: #fdba74;">
                 <option value="index.html">🔵 Hero-SMS</option>
                 <option value="index2.html" selected>🟠 SMSCode</option>
             </select>
+            
+            <select id="accountSwitcher" onchange="switchAccount(this.value)" class="server-select" style="font-size: 14px; padding: 10px 12px; border-radius: 10px; flex: 1; font-weight: 700; background-color: #f9fafb; color: #374151; border-color: #d1d5db; box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
+                <option value="nomor_01" selected>👤 nomor_01</option>
+            </select>
         </div>
 
-        <div class="app-header-container" style="margin-top: 25px;">
+        <button onclick="document.getElementById('btnOpenNotes').click()" class="btn-switch" style="position: absolute; top: 15px; right: 15px; background-color: #fef08a; color: #b45309; border-color: #fde68a; width: auto; padding: 10px 12px; height: auto; z-index: 5; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
+            <i class="fas fa-sticky-note"></i>
+        </button>
+
+        <div class="app-header-container" style="margin-top: 45px;">
             <div class="header-titles">
                 <h1>Shopee OTP 🇮🇩</h1>
                 <p class="subtitle">👨‍💻 Akun: <strong id="currentAccountName">Memuat...</strong></p>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-                <button id="btnOpenNotes" class="btn-switch" style="background-color: #fef08a; color: #b45309; border-color: #fde68a;">
-                    <i class="fas fa-sticky-note"></i> Catatan
-                </button>
-            </div>
+                </div>
         </div>
         
         <div class="balance-container">
