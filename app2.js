@@ -362,6 +362,11 @@ function renderOrders() {
         const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(availableProducts[0]?.price || 0);
         const wait = order.cancelUnlockTime - now; 
         
+        // IMPLEMENTASI ANIMASI SCANNER RADAR MODEREN
+        let otpHtml = isSuccess ? 
+            `<div class="otp-title">KODE OTP</div><div class="otp-code">${order.otp}</div>` : 
+            `<div class="otp-scanner"><span></span><span></span><span></span></div><div class="waiting-text">MENUNGGU SMS</div>`;
+            
         let cancelBtnAttr = ""; let cancelBtnText = "Batalkan"; let actionBtnAttr = ""; let replaceBtnText = '<i class="fas fa-sync-alt"></i> Ganti'; let resendBtnText = '<i class="fas fa-envelope"></i> Ulang'; let finishBtnAttr = "disabled";
         if (isSuccess) { cancelBtnAttr = "disabled"; cancelBtnText = "Sukses"; actionBtnAttr = "disabled"; replaceBtnText = '<i class="fas fa-check"></i>'; resendBtnText = '<i class="fas fa-check"></i>'; finishBtnAttr = ""; } 
         else if (wait > 0) { cancelBtnAttr = "disabled"; actionBtnAttr = "disabled"; }
@@ -371,7 +376,7 @@ function renderOrders() {
         card.innerHTML = `
             <div class="order-header"><div><span class="order-id-label">#${order.id} ${opTag ? `(${opTag})` : ''}</span> <span class="order-price">${displayPrice}</span></div><span class="timer" id="timer-${order.id}">--:--</span></div>
             <div class="phone-row"><span class="phone-number">${order.phone}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')">Salin</button></div>
-            <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${isSuccess ? '<div class="otp-title">KODE OTP</div><div class="otp-code">'+order.otp+'</div>' : '<div class="modern-loader"><span></span><span></span><span></span></div><div class="waiting-text">MENUNGGU SMS</div>'}</div>
+            <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div>
             <div class="action-buttons-grid">
                 <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${actionBtnAttr}>${replaceBtnText}</button>
                 <button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${actionBtnAttr}>${resendBtnText}</button>
@@ -381,7 +386,6 @@ function renderOrders() {
         if (activeOrdersContainer) activeOrdersContainer.appendChild(card);
     });
 }
-
 // ==========================================
 // 8. TIMER & POLLING
 // ==========================================
