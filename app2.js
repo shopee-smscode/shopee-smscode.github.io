@@ -301,9 +301,24 @@ window.cancelSpecificOrder = async function(id, auto = false) {
 };
 
 window.finishSpecificOrder = async function(id) {
-    const idStr = String(id); const btnFinish = document.getElementById(`btn-finish-${idStr}`); 
-    if (btnFinish) { btnFinish.disabled = true; btnFinish.innerText = "Menutup..."; }
-    try { await apiCall('/orders/finish', 'POST', { id: idStr }); } catch (e) {} activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage();
+    const idStr = String(id); 
+    const btnFinish = document.getElementById(`btn-finish-${idStr}`); 
+    
+    if (btnFinish) { 
+        btnFinish.disabled = true; 
+        btnFinish.innerText = "Menutup..."; 
+    }
+    
+    // --- FITUR BARU: Otomatis salin sandi saat tombol Selesai ditekan ---
+    copyToClipboard("Aku123..");
+    // -------------------------------------------------------------------
+
+    try { 
+        await apiCall('/orders/finish', 'POST', { id: idStr }); 
+    } catch (e) {} 
+    
+    activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
+    saveToStorage();
 };
 
 window.resendSpecificOrder = async function(orderId) {
