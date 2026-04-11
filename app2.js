@@ -1,8 +1,6 @@
 const BASE_URL = "https://hero-sms-proxy.masreno6pro.workers.dev"; 
 
-// ==========================================
 // 0. KONFIGURASI FIREBASE & SOUND
-// ==========================================
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 const firebaseConfig = {
     apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0",
@@ -28,7 +26,7 @@ const currentAccountName = document.getElementById('currentAccountName'); const 
 if (btnOrder) {
     const btnCopyPassword = document.createElement('button');
     btnCopyPassword.innerHTML = '<i class="fas fa-copy"></i> Salin Sandi';
-    btnCopyPassword.style.width = "100%"; btnCopyPassword.style.padding = "12px"; btnCopyPassword.style.marginTop = "10px"; btnCopyPassword.style.backgroundColor = "#2563eb"; btnCopyPassword.style.color = "white"; btnCopyPassword.style.border = "none"; btnCopyPassword.style.borderRadius = "8px"; btnCopyPassword.style.fontWeight = "bold"; btnCopyPassword.style.fontSize = "16px"; btnCopyPassword.style.cursor = "pointer";
+    btnCopyPassword.className = "btn-primary"; btnCopyPassword.style.backgroundColor = "var(--info-color)";
     btnCopyPassword.onclick = () => copyToClipboard("Aku123..");
     btnOrder.parentNode.insertBefore(btnCopyPassword, btnOrder.nextSibling);
 }
@@ -56,7 +54,7 @@ function saveToStorage() { localStorage.setItem(`hero_orders_${activeAccountName
 function showToast(pesan, type = "success") { 
     const t = document.getElementById("toast"); if(!t) return; t.innerHTML = pesan; 
     if (type === "error") { t.style.backgroundColor = "var(--danger-color)"; t.style.color = "#ffffff"; } 
-    else { t.style.backgroundColor = "var(--bg-card)"; t.style.color = "var(--text-primary)"; }
+    else { t.style.backgroundColor = "var(--success-color)"; t.style.color = "#ffffff"; }
     t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 3000); 
 }
 
@@ -76,8 +74,8 @@ function updateAccountOrdersStatus() { if (!activeAccountName) return; db.ref(`p
 async function fetchAccounts() {
     try {
         const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json();
-        if (data.accounts && data.accounts.length > 0) { loginAccount(data.accounts[0]); } else { if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; showToast("Tidak ada akun di Server", "error"); }
-    } catch (error) { if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; showToast("Gagal terhubung ke Server", "error"); }
+        if (data.accounts && data.accounts.length > 0) { loginAccount(data.accounts[0]); } else { if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; showToast("Tidak ada akun", "error"); }
+    } catch (error) { if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; showToast("Gagal terhubung", "error"); }
 }
 
 function loginAccount(accountName) {
@@ -87,21 +85,8 @@ function loginAccount(accountName) {
     initMainApp();
 }
 
-// ==========================================
-// 3. FUNGSI CATATANKU (DIJAMIN TERBUKA 100%)
-// ==========================================
-window.openNotesFromAnywhere = function() { 
-    if(notesListModal) notesListModal.classList.remove('hidden'); 
-    history.pushState(null, null, "#notes"); 
-};
-
-document.addEventListener('click', function(e) {
-    const target = e.target.closest('button');
-    if (target && (target.id === 'btnOpenNotes' || (target.getAttribute('onclick') || '').includes('btnOpenNotes'))) {
-        e.preventDefault(); e.stopPropagation(); window.openNotesFromAnywhere();
-    }
-}, true);
-
+window.openNotesFromAnywhere = function() { if(notesListModal) notesListModal.classList.remove('hidden'); history.pushState(null, null, "#notes"); };
+document.addEventListener('click', function(e) { const target = e.target.closest('button'); if (target && (target.id === 'btnOpenNotes' || (target.getAttribute('onclick') || '').includes('btnOpenNotes'))) { e.preventDefault(); e.stopPropagation(); window.openNotesFromAnywhere(); } }, true);
 function closeNotesListModal() { notesListModal.classList.add('hidden'); }
 
 function initNotesSync() {
@@ -126,7 +111,7 @@ function openNoteDetailModal(key, data) { selectedNoteKey = key; currentNoteRawC
 function closeNoteDetailModal() { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); }
 function handleCancelNoteForm() { noteFormModal.classList.add('hidden'); if (isEditingNote) { noteDetailModal.classList.remove('hidden'); } else { notesListModal.classList.remove('hidden'); } }
 function editFromDetail() { const t = document.getElementById('view-title').value; const c = currentNoteRawContent; noteDetailModal.classList.add('hidden'); isEditingNote = true; document.getElementById('form-modal-title').innerText = "Edit Catatan"; document.getElementById('note-title').value = (t === "Tanpa Judul") ? "" : t; document.getElementById('note-content').value = c; noteFormModal.classList.remove('hidden'); }
-function handleSaveNote() { let t = document.getElementById('note-title').value.trim(); const c = document.getElementById('note-content').value.trim(); if(!c || c === "") return showToast("⚠️ Konten tidak boleh kosong!", "error"); db.ref(DB_PATH).once('value').then(snapshot => { let isDuplicate = false; let usedNumbers = new Set(); snapshot.forEach(child => { let exTitle = child.val().title; let exContent = child.val().content; if (exTitle && /^\d+$/.test(exTitle.toString().trim())) { usedNumbers.add(parseInt(exTitle.toString().trim())); } if (exContent && exContent.trim() === c) { if (!isEditingNote || selectedNoteKey !== child.key) { isDuplicate = true; } } }); if (isDuplicate) return showToast("⚠️ Gagal: Catatan dengan isi yang sama sudah ada!", "error"); if (!t) { let nextNum = 1; while (usedNumbers.has(nextNum)) { nextNum++; } executeSaveNote(nextNum.toString(), c); } else { executeSaveNote(t, c); } }); }
+function handleSaveNote() { let t = document.getElementById('note-title').value.trim(); const c = document.getElementById('note-content').value.trim(); if(!c || c === "") return showToast("⚠️ Konten tidak boleh kosong!", "error"); db.ref(DB_PATH).once('value').then(snapshot => { let isDuplicate = false; let usedNumbers = new Set(); snapshot.forEach(child => { let exTitle = child.val().title; let exContent = child.val().content; if (exTitle && /^\d+$/.test(exTitle.toString().trim())) { usedNumbers.add(parseInt(exTitle.toString().trim())); } if (exContent && exContent.trim() === c) { if (!isEditingNote || selectedNoteKey !== child.key) { isDuplicate = true; } } }); if (isDuplicate) return showToast("⚠️ Gagal: Catatan sama sudah ada!", "error"); if (!t) { let nextNum = 1; while (usedNumbers.has(nextNum)) { nextNum++; } executeSaveNote(nextNum.toString(), c); } else { executeSaveNote(t, c); } }); }
 function executeSaveNote(title, content) { const data = { title: title, content: content, timestamp: Date.now() }; const promise = (isEditingNote && selectedNoteKey) ? db.ref(`${DB_PATH}/${selectedNoteKey}`).update(data) : db.ref(DB_PATH).push(data); promise.then(() => { noteFormModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); isEditingNote = false; showToast("Catatan tersimpan!"); }); }
 function confirmDeleteNote() { if(confirm("Hapus catatan ini?")) { db.ref(`${DB_PATH}/${selectedNoteKey}`).remove().then(() => { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); showToast("Catatan dihapus."); }); } }
 function copyNoteContent() { copyToClipboard(currentNoteRawContent); }
@@ -155,7 +140,7 @@ async function loadShopeeIndonesia() {
                 if (productList) productList.appendChild(card);
             });
         } else { if (productList) productList.innerHTML = '<div class="status-text">Stok sedang kosong.</div>'; }
-    } catch (error) { if (productList) productList.innerHTML = `<div class="status-text" style="color:red;">Error muat data.</div>`; }
+    } catch (error) { if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error muat data.</div>`; }
 }
 
 function renderOrders() {
@@ -172,23 +157,17 @@ function renderOrders() {
         
         let otpHtml = isSuccess ? 
             `<div class="otp-title">KODE OTP</div><div class="otp-code">${order.otp}</div>` : 
-            `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU SMS...</div>`;
+            `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
             
-        let cancelBtnAttr = ""; let cancelBtnText = "Batalkan"; 
-        let replaceBtnAttr = ""; let replaceBtnText = '<i class="fas fa-sync-alt"></i> Ganti'; 
-        let resendBtnAttr = ""; let resendBtnText = '<i class="fas fa-envelope"></i> Ulang'; 
-        let finishBtnAttr = "disabled";
+        // --- LOGIKA AKTIVASI TOMBOL AMAN ---
+        let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
 
         if (isSuccess) { 
-            cancelBtnAttr = "disabled"; cancelBtnText = "Sukses"; 
-            replaceBtnAttr = "disabled"; replaceBtnText = '<i class="fas fa-check"></i>'; 
             finishBtnAttr = ""; 
-        } else if (wait > 0 && !order.isAutoCanceling) { 
-            cancelBtnAttr = "disabled"; 
-            replaceBtnAttr = "disabled"; 
-            resendBtnAttr = "disabled"; 
-        } else if (order.isAutoCanceling) {
-            cancelBtnAttr = "disabled"; cancelBtnText = "Memproses..."; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled";
+        } else if (wait <= 0 && !order.isAutoCanceling) { 
+            cancelBtnAttr = ""; replaceBtnAttr = ""; resendBtnAttr = ""; 
+        } else if (order.isAutoCanceling) { 
+            cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; 
         }
         
         const opTag = order.productId ? (order.productId === 'any' ? 'Acak' : order.productId.toUpperCase()) : '';
@@ -201,13 +180,16 @@ function renderOrders() {
                 </div>
                 <span class="timer" id="timer-${order.id}">--:--</span>
             </div>
-            <div class="phone-row"><span class="phone-number">${order.phone}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')">Salin</button></div>
+            <div class="phone-row">
+                <span class="phone-number">${order.phone}</span>
+                <button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button>
+            </div>
             <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div>
             <div class="action-buttons-grid">
-                <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${replaceBtnAttr}>${replaceBtnText}</button>
-                <button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}>${resendBtnText}</button>
-                <button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}>${cancelBtnText}</button>
-                <button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}>Selesai</button>
+                <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button>
+                <button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button>
+                <button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button>
+                <button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button>
             </div>`;
         if (activeOrdersContainer) activeOrdersContainer.appendChild(card);
     });
@@ -224,7 +206,6 @@ function startPollingAndTimer() {
             if (left <= 0) { activeOrders.splice(i, 1); saveToStorage(); fetchBalance(); return; }
             if (el) { const m = Math.floor(left/60000); const s = Math.floor((left%60000)/1000); el.innerText = `${m}:${s<10?'0':''}${s}`; }
 
-            // OTOMATIS CANCEL SETELAH 10 MENIT
             if (left <= 600000 && o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) {
                 o.isAutoCanceling = true; cancelSpecificOrder(o.id, true);
             }
@@ -234,13 +215,13 @@ function startPollingAndTimer() {
 
             if (o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) {
                 if (wait <= 0) {
-                    if (btnCancel && btnCancel.innerText !== "Memproses...") { btnCancel.disabled = false; btnCancel.innerText = "Batalkan"; }
-                    if (btnReplace && !btnReplace.innerHTML.includes('loader')) { btnReplace.disabled = false; btnReplace.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
-                    if (btnResend && !btnResend.innerHTML.includes('loader')) { btnResend.disabled = false; btnResend.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; }
+                    if (btnCancel && btnCancel.disabled) btnCancel.disabled = false;
+                    if (btnReplace && btnReplace.disabled && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false;
+                    if (btnResend && btnResend.disabled && !btnResend.innerHTML.includes('loader')) btnResend.disabled = false;
                 } else {
-                    if (btnCancel) { btnCancel.disabled = true; btnCancel.innerText = "Batalkan"; }
-                    if (btnReplace) { btnReplace.disabled = true; btnReplace.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
-                    if (btnResend) { btnResend.disabled = true; btnResend.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; }
+                    if (btnCancel && !btnCancel.disabled) btnCancel.disabled = true;
+                    if (btnReplace && !btnReplace.disabled) btnReplace.disabled = true;
+                    if (btnResend && !btnResend.disabled) btnResend.disabled = true;
                 }
             }
         });
@@ -254,7 +235,6 @@ function startPollingAndTimer() {
             try {
                 const res = await apiCall(`/orders/${o.id}`);
                 if (res.success && res.data.status === "OTP_RECEIVED") { 
-                    // SUARA NOTIFIKASI OTP MASUK
                     notifSound.play().catch(e => console.log("Sound error:", e));
                     activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; saveToStorage(); 
                 } else if (res.success && res.data.status === "CANCELLED") { 
@@ -267,16 +247,16 @@ function startPollingAndTimer() {
 
 if (btnOrder) {
     btnOrder.onclick = async () => {
-        btnOrder.disabled = true; btnOrder.innerText = "Memproses...";
+        btnOrder.disabled = true; const originalText = btnOrder.innerText; btnOrder.innerText = "Memproses...";
         try {
             const res = await apiCall('/orders/create', 'POST', { operator: selectedProductId });
             if (res.success) {
                 const o = res.data.orders[0]; const opInfo = availableProducts.find(p => p.id === selectedProductId); const opPrice = opInfo ? opInfo.price : 0;
                 activeOrders.unshift({ id: o.id, productId: selectedProductId, phone: o.phone_number, price: opPrice, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
-                saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(o.phone_number);
+                saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(o.phone_number); window.scrollTo({ top: 0, behavior: 'smooth' });
             } else { showToast(res.error.message, "error"); }
         } catch (e) { showToast("Gagal terhubung.", "error"); }
-        btnOrder.disabled = false; btnOrder.innerText = "Pesan Nomor Baru";
+        btnOrder.disabled = false; btnOrder.innerText = originalText;
     };
 }
 
@@ -289,36 +269,23 @@ window.replaceSpecificOrder = async function(orderId) {
         if (n.success) {
             const od = n.data.orders[0]; const opInfo = availableProducts.find(p => p.id === opToUse); const opPrice = opInfo ? opInfo.price : (oldOrder ? oldOrder.price : 0);
             activeOrders.unshift({ id: od.id, productId: opToUse, phone: od.phone_number, price: opPrice, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
-            saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(od.phone_number); showToast("Nomor diganti!");
+            saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(od.phone_number); showToast("Nomor diganti!"); window.scrollTo({ top: 0, behavior: 'smooth' });
         } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru.", "error"); }
     } catch (e) { showToast("Error.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
 };
 
 window.cancelSpecificOrder = async function(id, auto = false) {
     const idStr = String(id); const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
-    if (btnCancel) { btnCancel.disabled = true; btnCancel.innerText = "Memproses..."; }
-    try { await apiCall('/orders/cancel', 'POST', { id: idStr }); activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis dibatalkan (Waktu Sisa 10 Menit)", "error"); } catch (e) { if (btnCancel) btnCancel.disabled = false; }
+    if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
+    try { await apiCall('/orders/cancel', 'POST', { id: idStr }); activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis dibatalkan (Waktu Sisa 10 Menit)", "error"); } catch (e) { if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
 };
 
 window.finishSpecificOrder = async function(id) {
-    const idStr = String(id); 
-    const btnFinish = document.getElementById(`btn-finish-${idStr}`); 
-    
-    if (btnFinish) { 
-        btnFinish.disabled = true; 
-        btnFinish.innerText = "Menutup..."; 
-    }
-    
-    // --- FITUR BARU: Otomatis salin sandi saat tombol Selesai ditekan ---
+    const idStr = String(id); const btnFinish = document.getElementById(`btn-finish-${idStr}`); 
+    if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
     copyToClipboard("Aku123..");
-    // -------------------------------------------------------------------
-
-    try { 
-        await apiCall('/orders/finish', 'POST', { id: idStr }); 
-    } catch (e) {} 
-    
-    activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
-    saveToStorage();
+    try { await apiCall('/orders/finish', 'POST', { id: idStr }); } catch (e) {} 
+    activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage();
 };
 
 window.resendSpecificOrder = async function(orderId) {
