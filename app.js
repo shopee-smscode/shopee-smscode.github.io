@@ -2,23 +2,12 @@ const BASE_URL = "https://shopee-otp-proxy.masreno6pro.workers.dev";
 
 // 0. KONFIGURASI FIREBASE & SOUND
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-const firebaseConfig = {
-    apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0",
-    authDomain: "catatanku-app-ce60b.firebaseapp.com",
-    databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "catatanku-app-ce60b",
-    storageBucket: "catatanku-app-ce60b.firebasestorage.app",
-    messagingSenderId: "291744292263",
-    appId: "1:291744292263:web:ab8d32ba52bc19cbffea82"
-};
-
+const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-const DB_PATH = 'notes/public';
+const db = firebase.database(); const DB_PATH = 'notes/public';
 
 let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null;
 
-// DOM Elements
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
 
 let isExitModalOpen = false;
@@ -33,14 +22,7 @@ window.addEventListener('popstate', (e) => {
 function closeExitModal() { exitModal.classList.add('hidden'); isExitModalOpen = false; }
 function confirmExit() { setAccountViewingStatus(false); window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
 
-function setAccountViewingStatus(isViewing) {
-    if (!activeAccountName) return;
-    if (isViewing) {
-        const connectedRef = db.ref('.info/connected'); viewingPresenceRef = db.ref(`presence/${activeAccountName}/is_viewing`);
-        connectedRef.on('value', (snap) => { if (snap.val() === true) { viewingPresenceRef.onDisconnect().set(false); viewingPresenceRef.set(true); } });
-    } else { if (viewingPresenceRef) { viewingPresenceRef.set(false); viewingPresenceRef.onDisconnect().cancel(); } }
-}
-
+function setAccountViewingStatus(isViewing) { if (!activeAccountName) return; if (isViewing) { const connectedRef = db.ref('.info/connected'); viewingPresenceRef = db.ref(`presence/${activeAccountName}/is_viewing`); connectedRef.on('value', (snap) => { if (snap.val() === true) { viewingPresenceRef.onDisconnect().set(false); viewingPresenceRef.set(true); } }); } else { if (viewingPresenceRef) { viewingPresenceRef.set(false); viewingPresenceRef.onDisconnect().cancel(); } } }
 function updateAccountOrdersStatus() { if (!activeAccountName) return; db.ref(`presence/${activeAccountName}/has_orders`).set(activeOrders.length > 0); }
 
 async function fetchAccounts() {
@@ -65,12 +47,7 @@ window.switchAccount = function(accountName) {
     if (balanceDisplay) balanceDisplay.innerText = "..."; loginAccount(accountName);
 };
 
-function loginAccount(accountName) {
-    activeAccountName = accountName; if (currentAccountName) currentAccountName.innerText = accountName; setAccountViewingStatus(true);
-    const now = Date.now(); const rawOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || [];
-    activeOrders = rawOrders.filter(o => o.expiresAt > now); if (rawOrders.length !== activeOrders.length) saveToStorage(); initMainApp();
-}
-
+function loginAccount(accountName) { activeAccountName = accountName; if (currentAccountName) currentAccountName.innerText = accountName; setAccountViewingStatus(true); const now = Date.now(); const rawOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || []; activeOrders = rawOrders.filter(o => o.expiresAt > now); if (rawOrders.length !== activeOrders.length) saveToStorage(); initMainApp(); }
 async function apiCall(endpoint, method = "GET", body = null) { const options = { method: method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; if (body) options.body = JSON.stringify(body); const response = await fetch(`${BASE_URL}${endpoint}`, options); return await response.json(); }
 function saveToStorage() { localStorage.setItem(`orders_${activeAccountName}`, JSON.stringify(activeOrders)); updateAccountOrdersStatus(); renderOrders(); }
 function showToast(pesan, type = "success") { const toast = document.getElementById("toast"); if (!toast) return; toast.innerHTML = pesan; if (type === "error") { toast.style.backgroundColor = "var(--danger-color)"; toast.style.color = "#ffffff"; } else { toast.style.backgroundColor = "var(--success-color)"; toast.style.color = "#ffffff"; } toast.classList.add("show"); setTimeout(() => { toast.classList.remove("show"); }, 3000); }
@@ -81,21 +58,7 @@ function copyFallback(text) { const ta = document.createElement("textarea"); ta.
 window.openNotesFromAnywhere = function() { if(notesListModal) notesListModal.classList.remove('hidden'); history.pushState(null, null, "#notes"); };
 document.addEventListener('click', function(e) { const target = e.target.closest('button'); if (target && (target.id === 'btnOpenNotes' || (target.getAttribute('onclick') || '').includes('btnOpenNotes'))) { e.preventDefault(); e.stopPropagation(); window.openNotesFromAnywhere(); } }, true);
 function closeNotesListModal() { notesListModal.classList.add('hidden'); }
-function initNotesSync() {
-    const grid = document.getElementById('notes-grid'); if (!grid) return;
-    db.ref(DB_PATH).orderByChild('timestamp').on('value', snapshot => {
-        grid.innerHTML = ''; let items = []; snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); });
-        if(notesCountDisplay) notesCountDisplay.innerText = `(${items.length})`;
-        if(items.length === 0) { grid.innerHTML = '<div class="status-text">Belum ada catatan.</div>'; return; }
-        items.reverse().forEach((d) => {
-            const card = document.createElement('div'); card.className = 'note-card'; card.onclick = () => openNoteDetailModal(d.key, d);
-            const previewText = escapeHTML(d.content).replace(/\n/g, ' ');
-            card.innerHTML = `<div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div><div class="note-preview">${previewText}</div><div class="note-date">${formatDate(d.timestamp)}</div>`;
-            grid.appendChild(card);
-        });
-    });
-}
-
+function initNotesSync() { const grid = document.getElementById('notes-grid'); if (!grid) return; db.ref(DB_PATH).orderByChild('timestamp').on('value', snapshot => { grid.innerHTML = ''; let items = []; snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); }); if(notesCountDisplay) notesCountDisplay.innerText = `(${items.length})`; if(items.length === 0) { grid.innerHTML = '<div class="status-text">Belum ada catatan.</div>'; return; } items.reverse().forEach((d) => { const card = document.createElement('div'); card.className = 'note-card'; card.onclick = () => openNoteDetailModal(d.key, d); const previewText = escapeHTML(d.content).replace(/\n/g, ' '); card.innerHTML = `<div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div><div class="note-preview">${previewText}</div><div class="note-date">${formatDate(d.timestamp)}</div>`; grid.appendChild(card); }); }); }
 function formatDate(ts) { if(!ts) return "---"; const d = new Date(ts); const date = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`; const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; return `${date} - ${time}`; }
 function escapeHTML(str) { if(!str) return ""; return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])); }
 function openAddNoteModal() { isEditingNote = false; document.getElementById('form-modal-title').innerText = "Catatan Baru"; document.getElementById('note-title').value = ""; document.getElementById('note-content').value = ""; notesListModal.classList.add('hidden'); noteFormModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); }
@@ -103,16 +66,13 @@ function openNoteDetailModal(key, data) { selectedNoteKey = key; currentNoteRawC
 function closeNoteDetailModal() { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); }
 function handleCancelNoteForm() { noteFormModal.classList.add('hidden'); if (isEditingNote) { noteDetailModal.classList.remove('hidden'); } else { notesListModal.classList.remove('hidden'); } }
 function editFromDetail() { const t = document.getElementById('view-title').value; const c = currentNoteRawContent; noteDetailModal.classList.add('hidden'); isEditingNote = true; document.getElementById('form-modal-title').innerText = "Edit Catatan"; document.getElementById('note-title').value = (t === "Tanpa Judul") ? "" : t; document.getElementById('note-content').value = c; noteFormModal.classList.remove('hidden'); }
-function handleSaveNote() { let t = document.getElementById('note-title').value.trim(); const c = document.getElementById('note-content').value.trim(); if(!c || c === "") return showToast("⚠️ Konten tidak boleh kosong!", "error"); db.ref(DB_PATH).once('value').then(snapshot => { let isDuplicate = false; let usedNumbers = new Set(); snapshot.forEach(child => { let existingTitle = child.val().title; let existingContent = child.val().content; if (existingTitle && /^\d+$/.test(existingTitle.toString().trim())) { usedNumbers.add(parseInt(existingTitle.toString().trim())); } if (existingContent && existingContent.trim() === c) { if (!isEditingNote || selectedNoteKey !== child.key) { isDuplicate = true; } } }); if (isDuplicate) return showToast("⚠️ Gagal: Catatan dengan isi yang sama sudah ada!", "error"); if (!t) { let nextNum = 1; while (usedNumbers.has(nextNum)) { nextNum++; } executeSaveNote(nextNum.toString(), c); } else { executeSaveNote(t, c); } }); }
+function handleSaveNote() { let t = document.getElementById('note-title').value.trim(); const c = document.getElementById('note-content').value.trim(); if(!c || c === "") return showToast("⚠️ Konten tidak boleh kosong!", "error"); db.ref(DB_PATH).once('value').then(snapshot => { let isDuplicate = false; let usedNumbers = new Set(); snapshot.forEach(child => { let existingTitle = child.val().title; let existingContent = child.val().content; if (existingTitle && /^\d+$/.test(existingTitle.toString().trim())) { usedNumbers.add(parseInt(existingTitle.toString().trim())); } if (existingContent && existingContent.trim() === c) { if (!isEditingNote || selectedNoteKey !== child.key) { isDuplicate = true; } } }); if (isDuplicate) return showToast("⚠️ Gagal: Catatan sama sudah ada!", "error"); if (!t) { let nextNum = 1; while (usedNumbers.has(nextNum)) { nextNum++; } executeSaveNote(nextNum.toString(), c); } else { executeSaveNote(t, c); } }); }
 function executeSaveNote(title, content) { const data = { title: title, content: content, timestamp: Date.now() }; const promise = (isEditingNote && selectedNoteKey) ? db.ref(`${DB_PATH}/${selectedNoteKey}`).update(data) : db.ref(DB_PATH).push(data); promise.then(() => { noteFormModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); isEditingNote = false; showToast("Catatan tersimpan!"); }); }
 function confirmDeleteNote() { if(confirm("Hapus catatan ini?")) { db.ref(`${DB_PATH}/${selectedNoteKey}`).remove().then(() => { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); showToast("Catatan dihapus."); }); } }
 function copyNoteContent() { copyToClipboard(currentNoteRawContent); }
 
 // 4. LOAD SERVER & AUTO SELECT HARGA TERMURAH
-async function fetchBalance() {
-    try { const res = await apiCall('/balance'); if (res.success) { const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); if (balanceDisplay) balanceDisplay.innerText = formatter.format(res.data.balance); } } catch (error) { if (balanceDisplay) balanceDisplay.innerText = "Error"; }
-}
-
+async function fetchBalance() { try { const res = await apiCall('/balance'); if (res.success) { const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); if (balanceDisplay) balanceDisplay.innerText = formatter.format(res.data.balance); } } catch (error) { if (balanceDisplay) balanceDisplay.innerText = "Error"; } }
 async function loadShopeeIndonesia() {
     try {
         if (productList) productList.innerHTML = '<div class="status-text">Mencari Server...</div>';
@@ -177,11 +137,12 @@ function renderOrders() {
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
 
         if (isSuccess) { 
-            // Jika OTP masuk, HANYA Selesai yang aktif
+            // Jika OTP masuk, Selesai dan Ulang aktif
             finishBtnAttr = ""; 
+            resendBtnAttr = "";
         } else if (wait <= 0 && !order.isAutoCanceling) { 
-            // Jika lewat 2 menit dan belum OTP, Tiga tombol kiri aktif
-            cancelBtnAttr = ""; replaceBtnAttr = ""; resendBtnAttr = ""; 
+            // Jika lewat 2 menit dan belum OTP, Batal dan Ganti aktif
+            cancelBtnAttr = ""; replaceBtnAttr = ""; 
         } else if (order.isAutoCanceling) { 
             cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; 
         }
@@ -231,7 +192,9 @@ function startPollingAndTimer() {
                 if (wait <= 0) {
                     if (btnCancel && btnCancel.disabled) btnCancel.disabled = false;
                     if (btnReplace && btnReplace.disabled && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false;
-                    if (btnResend && btnResend.disabled && !btnResend.innerHTML.includes('loader')) btnResend.disabled = false;
+                    
+                    // KUNCI TOMBOL ULANG TETAP MATI
+                    if (btnResend && !btnResend.disabled) btnResend.disabled = true;
                 } else {
                     if (btnCancel && !btnCancel.disabled) btnCancel.disabled = true;
                     if (btnReplace && !btnReplace.disabled) btnReplace.disabled = true;
@@ -300,7 +263,7 @@ window.resendSpecificOrder = async function(orderId) {
     try {
         const res = await apiCall('/orders/resend', 'POST', { id: idStr });
         if (res.success) { 
-            showToast("Meminta kode baru untuk nomor ini..."); 
+            showToast("Meminta kode baru..."); 
             let idx = activeOrders.findIndex(o => String(o.id) === idStr);
             if (idx !== -1) { activeOrders[idx].status = "ACTIVE"; activeOrders[idx].otp = null; saveToStorage(); }
         } 
@@ -315,6 +278,7 @@ window.cancelSpecificOrder = async function(id, auto = false) {
 
 window.finishSpecificOrder = async function(id) {
     const btnFinish = document.getElementById(`btn-finish-${id}`); if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
+    copyToClipboard("Aku123..");
     try { await apiCall('/orders/finish', 'POST', { id: id }); } catch (e) {} activeOrders = activeOrders.filter(o => o.id !== id); saveToStorage();
 };
 
