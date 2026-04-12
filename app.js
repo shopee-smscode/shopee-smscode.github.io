@@ -10,21 +10,58 @@ let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
 
-// --- FUNGSI FORMATTING ---
+// --- FUNGSI FORMATTING & UI TAMBAHAN ---
 function formatPhoneNumber(phone) {
     if (!phone) return "";
-    return String(phone).replace(/(.{4})/g, '$1 ').trim();
+    let p = String(phone);
+    if (p.startsWith("62")) { p = "0" + p.substring(2); } // Ubah 62 jadi 0
+    return p.replace(/(.{4})/g, '$1 ').trim(); // Spasi setiap 4 digit
 }
 
 function formatOTP(otp) {
     if (!otp) return "";
     const otpStr = String(otp);
-    if (otpStr.length >= 6) {
-        return otpStr.slice(0, 3) + "&nbsp;&nbsp;" + otpStr.slice(3);
-    }
+    if (otpStr.length >= 6) { return otpStr.slice(0, 3) + "&nbsp;&nbsp;" + otpStr.slice(3); }
     return otpStr;
 }
-// -------------------------
+
+function getProviderName(phone) {
+    let p = String(phone);
+    if (p.startsWith("62")) p = "0" + p.substring(2);
+    const prefix = p.substring(0, 4);
+    if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel";
+    if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat";
+    if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL/Axis";
+    if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Tri";
+    if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren";
+    return "Acak"; 
+}
+
+function relocateBalanceUI() {
+    const headerContainer = document.querySelector('.app-header-container');
+    const balanceContainer = document.querySelector('.balance-container');
+    if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) {
+        balanceContainer.style.display = 'none'; // Sembunyikan blok saldo lama
+        
+        const newBalanceDiv = document.createElement('div');
+        newBalanceDiv.style.textAlign = 'right';
+        newBalanceDiv.innerHTML = `
+            <span style="font-size: 11px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span>
+            <span id="newBalanceDisplay" style="font-size: 18px; font-weight: 900; color: var(--primary-color);">...</span>
+        `;
+        
+        headerContainer.style.display = 'flex';
+        headerContainer.style.justifyContent = 'space-between';
+        headerContainer.style.alignItems = 'center';
+        
+        const oldBalance = document.getElementById('balanceDisplay');
+        if(oldBalance) oldBalance.removeAttribute('id');
+        newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay';
+        
+        headerContainer.appendChild(newBalanceDiv);
+    }
+}
+// ----------------------------------------
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
@@ -60,7 +97,8 @@ window.switchAccount = function(accountName) {
     if (timerInterval) clearInterval(timerInterval); if (pollingInterval) clearInterval(pollingInterval);
     setAccountViewingStatus(false);
     if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Memuat pesanan...</div>';
-    if (balanceDisplay) balanceDisplay.innerText = "..."; loginAccount(accountName);
+    const bDisplay = document.getElementById('balanceDisplay');
+    if (bDisplay) bDisplay.innerText = "..."; loginAccount(accountName);
 };
 
 function loginAccount(accountName) { activeAccountName = accountName; if (currentAccountName) currentAccountName.innerText = accountName; setAccountViewingStatus(true); const now = Date.now(); const rawOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || []; activeOrders = rawOrders.filter(o => o.expiresAt > now); if (rawOrders.length !== activeOrders.length) saveToStorage(); initMainApp(); }
@@ -70,7 +108,6 @@ function showToast(pesan, type = "success") { const toast = document.getElementB
 function copyToClipboard(text) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(() => { showToast("Berhasil disalin!"); }).catch(err => { copyFallback(text); }); } else { copyFallback(text); } }
 function copyFallback(text) { const ta = document.createElement("textarea"); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999); try { document.execCommand('copy'); showToast("Berhasil disalin!"); } catch (err) { showToast("Gagal menyalin.", "error"); } document.body.removeChild(ta); }
 
-// 3. FUNGSI CATATANKU 
 window.openNotesFromAnywhere = function() { if(notesListModal) notesListModal.classList.remove('hidden'); history.pushState(null, null, "#notes"); };
 document.addEventListener('click', function(e) { const target = e.target.closest('button'); if (target && (target.id === 'btnOpenNotes' || (target.getAttribute('onclick') || '').includes('btnOpenNotes'))) { e.preventDefault(); e.stopPropagation(); window.openNotesFromAnywhere(); } }, true);
 function closeNotesListModal() { notesListModal.classList.add('hidden'); }
@@ -87,8 +124,7 @@ function executeSaveNote(title, content) { const data = { title: title, content:
 function confirmDeleteNote() { if(confirm("Hapus catatan ini?")) { db.ref(`${DB_PATH}/${selectedNoteKey}`).remove().then(() => { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); showToast("Catatan dihapus."); }); } }
 function copyNoteContent() { copyToClipboard(currentNoteRawContent); }
 
-// 4. LOAD SERVER & AUTO SELECT HARGA TERMURAH
-async function fetchBalance() { try { const res = await apiCall('/balance'); if (res.success) { const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); if (balanceDisplay) balanceDisplay.innerText = formatter.format(res.data.balance); } } catch (error) { if (balanceDisplay) balanceDisplay.innerText = "Error"; } }
+async function fetchBalance() { try { const res = await apiCall('/balance'); if (res.success) { const bDisplay = document.getElementById('balanceDisplay'); const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); if (bDisplay) bDisplay.innerText = formatter.format(res.data.balance); } } catch (error) { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "Error"; } }
 async function loadShopeeIndonesia() {
     try {
         if (productList) productList.innerHTML = '<div class="status-text">Mencari Server...</div>';
@@ -109,7 +145,6 @@ async function loadShopeeIndonesia() {
     } catch (error) { if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error: ${error.message}</div>`; }
 }
 
-// 5. PESAN BARU & TOMBOL SALIN SANDI
 if (btnOrder) {
     const btnCopyPassword = document.createElement('button'); btnCopyPassword.id = 'btnCopyPassword'; btnCopyPassword.innerHTML = '<i class="fas fa-copy"></i> Salin Sandi';
     btnCopyPassword.className = "btn-primary"; btnCopyPassword.style.backgroundColor = "var(--info-color)";
@@ -122,8 +157,9 @@ if (btnOrder) {
             const res = await apiCall('/orders/create', 'POST', { product_id: parseInt(selectedProductId), quantity: 1 });
             if (res.success) {
                 const orderData = res.data.orders[0]; const productInfo = availableProducts.find(p => String(p.id) === String(selectedProductId));
+                const finalPrice = orderData.price || orderData.cost || orderData.amount || (productInfo ? productInfo.price : 0);
                 const expiresAtMs = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000); const createdAtMs = orderData.created_at ? new Date(orderData.created_at).getTime() : Date.now();
-                activeOrders.unshift({ id: orderData.id, productId: parseInt(selectedProductId), phone: orderData.phone_number, price: orderData.price || orderData.cost || orderData.amount || (productInfo ? productInfo.price : 0), otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: createdAtMs + (120 * 1000), isAutoCanceling: false });
+                activeOrders.unshift({ id: orderData.id, productId: parseInt(selectedProductId), phone: orderData.phone_number, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: createdAtMs + (120 * 1000), isAutoCanceling: false });
                 saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(orderData.phone_number);
             } else { showToast(`Gagal: ${res.error.message}`, "error"); }
         } catch (error) { showToast("Kesalahan jaringan.", "error"); }
@@ -131,7 +167,6 @@ if (btnOrder) {
     };
 }
 
-// 6. RENDER KARTU DENGAN SMART SAFETY BUTTON
 function renderOrders() {
     if (activeCount) activeCount.innerText = activeOrders.length;
     if (activeOrders.length === 0) { if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Belum ada pesanan aktif.</div>'; return; }
@@ -143,22 +178,21 @@ function renderOrders() {
         let isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
         const wait = order.cancelUnlockTime - now;
         
-        // FORMAT OTP ditambahkan disini
         let otpHtml = isSuccess ? 
             `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : 
             `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
             
         const passProductId = order.productId ? `'${order.productId}'` : 'null';
         
-        // --- LOGIKA AKTIVASI TOMBOL AMAN ---
+        // Deteksi provider
+        const providerName = getProviderName(order.phone);
+        
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
 
         if (isSuccess) { 
-            // Jika OTP masuk, Selesai aktif, Ulang sementara DIMATIKAN
             finishBtnAttr = ""; 
             resendBtnAttr = "disabled"; 
         } else if (wait <= 0 && !order.isAutoCanceling) { 
-            // Jika lewat 2 menit dan belum OTP, Batal dan Ganti aktif
             cancelBtnAttr = ""; replaceBtnAttr = ""; 
         } else if (order.isAutoCanceling) { 
             cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; 
@@ -169,7 +203,7 @@ function renderOrders() {
         card.innerHTML = `
             <div class="order-header">
                 <div class="order-info-left">
-                    <span class="order-id-label">#${order.id}</span> 
+                    <span class="order-id-label">#${order.id} (${providerName})</span> 
                     <span class="order-price">${displayPrice}</span>
                 </div>
                 <span class="timer" id="timer-${order.id}">--:--</span>
@@ -209,8 +243,6 @@ function startPollingAndTimer() {
                 if (wait <= 0) {
                     if (btnCancel && btnCancel.disabled) btnCancel.disabled = false;
                     if (btnReplace && btnReplace.disabled && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false;
-                    
-                    // KUNCI TOMBOL ULANG TETAP MATI
                     if (btnResend && !btnResend.disabled) btnResend.disabled = true;
                 } else {
                     if (btnCancel && !btnCancel.disabled) btnCancel.disabled = true;
@@ -230,7 +262,7 @@ function startPollingAndTimer() {
                 if (res.success) {
                     if (res.data.status === "OTP_RECEIVED") { 
                         notifSound.play().catch(e => console.log("Sound error:", e));
-                        activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; saveToStorage(); 
+                        activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; saveToStorage(); fetchBalance();
                     } else if (res.data.status !== "ACTIVE" && res.data.status !== "PENDING") { activeOrders = activeOrders.filter(o => o.id !== order.id); saveToStorage(); fetchBalance(); }
                 }
             } catch (e) {}
@@ -266,7 +298,7 @@ window.replaceSpecificOrder = async function(orderId, productId) {
             activeOrders = activeOrders.filter(o => o.id !== orderId);
             const n = await apiCall('/orders/create', 'POST', { product_id: parseInt(productId), quantity: 1 });
             if (n.success) {
-                const od = n.data.orders[0]; const pInfo = availableProducts.find(p => String(p.id) === String(productId)); const finalPrice = od.price || od.cost || (pInfo ? pInfo.price : 0);
+                const od = n.data.orders[0]; const pInfo = availableProducts.find(p => String(p.id) === String(productId)); const finalPrice = od.price || od.cost || od.amount || (pInfo ? pInfo.price : 0);
                 activeOrders.unshift({ id: od.id, productId: parseInt(productId), phone: od.phone_number, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: new Date(od.expires_at).getTime(), cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false });
                 saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(od.phone_number); showToast("Nomor diganti!");
             } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru.", "error"); }
@@ -299,5 +331,5 @@ window.finishSpecificOrder = async function(id) {
     try { await apiCall('/orders/finish', 'POST', { id: id }); } catch (e) {} activeOrders = activeOrders.filter(o => o.id !== id); saveToStorage();
 };
 
-async function initMainApp() { if (balanceDisplay) balanceDisplay.innerText = "..."; await loadShopeeIndonesia(); renderOrders(); if (activeOrders.length > 0) startPollingAndTimer(); syncServerOrders(); }
-window.onload = () => { setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initNotesSync(); fetchAccounts(); };
+async function initMainApp() { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "..."; await loadShopeeIndonesia(); renderOrders(); if (activeOrders.length > 0) startPollingAndTimer(); syncServerOrders(); }
+window.onload = () => { relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initNotesSync(); fetchAccounts(); };
