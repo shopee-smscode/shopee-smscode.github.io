@@ -8,94 +8,60 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="theme-smscode">
+<body>
     <div id="appView" class="container">
         
-        <div class="top-switchers" style="position: absolute; top: 15px; left: 15px; right: 60px; z-index: 10; display: flex; gap: 8px; height: 32px;">
-            <select onchange="window.location.href=this.value" class="server-select server-select-sm" style="color: #ea580c; border-color: #fdba74;">
+        <div class="top-switchers" style="position: absolute; top: 15px; left: 15px; right: 65px; z-index: 10; display: flex; gap: 10px;">
+            <select onchange="window.location.href=this.value" class="server-select" style="font-size: 14px; padding: 10px 12px; border-radius: 10px; flex: 1; font-weight: 800; box-shadow: 0 2px 6px rgba(0,0,0,0.05); color: #ea580c; border-color: #fdba74;">
                 <option value="index.html">🔵 Hero-SMS</option>
                 <option value="index2.html" selected>🟠 SMSCode</option>
             </select>
             
-            <select id="accountSwitcher" onchange="switchAccount(this.value)" class="server-select server-select-sm" style="background-color: #1e293b; color: #f8fafc; border-color: #475569;">
+            <select id="accountSwitcher" onchange="switchAccount(this.value)" class="server-select" style="font-size: 14px; padding: 10px 12px; border-radius: 10px; flex: 1; font-weight: 700; background-color: #f9fafb; color: #374151; border-color: #d1d5db; box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
                 <option value="nomor_01" selected>👤 nomor_01</option>
             </select>
         </div>
 
-        <button onclick="document.getElementById('btnOpenNotes').click()" class="btn-switch" style="position: absolute; top: 15px; right: 15px; background-color: var(--bg-card); color: var(--primary-color); border-color: var(--border-color); width: 32px; padding: 0; justify-content: center; height: 32px; z-index: 5; border-radius: 8px;">
+        <button id="btnOpenNotes" class="btn-switch" style="position: absolute; top: 15px; right: 15px; background-color: #fef08a; color: #b45309; border-color: #fde68a; width: auto; padding: 10px 12px; height: auto; z-index: 5; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
             <i class="fas fa-sticky-note"></i>
         </button>
-        <button id="btnOpenNotes" class="hidden"></button>
 
-        <div class="app-header-container">
+        <div class="app-header-container" style="margin-top: 45px;">
             <div class="header-titles">
                 <h1>Shopee OTP 🇮🇩</h1>
                 <p class="subtitle">👨‍💻 Akun: <strong id="currentAccountName">Memuat...</strong></p>
             </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+            </div>
         </div>
         
-        <div class="section" style="margin-bottom: 5px;">
+        <div class="balance-container">
+            <div class="balance-badge">
+                <span class="balance-label">Sisa Saldo</span>
+                <span id="balanceDisplay" class="balance-value">Memuat...</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h3 class="section-title">Pesanan Aktif (<span id="activeCount">0</span>)</h3>
+            </div>
             <div id="activeOrdersContainer">
                 <div class="status-text">Belum ada pesanan aktif.</div>
             </div>
         </div>
 
-        <div class="balance-container">
-            <div class="balance-badge">
-                <span class="balance-label">Saldo</span>
-                <span id="balanceDisplay" class="balance-value">...</span>
-            </div>
-        </div>
-
         <div class="section">
+            <div class="section-header">
+                <h3 class="section-title">Top 3 Harga Termurah</h3>
+            </div>
             <div id="productList" class="product-list">
                 <div class="status-text">Memuat data Server...</div>
             </div>
             <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
-        </div>
-    </div>
-
-    <div id="notesListModal" class="modal hidden">
-        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column; max-width: 400px; width: 90%; position: relative;">
-            <div style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 15px;">
-                <div style="text-align: left;"><h3 class="modal-title" style="margin:0; white-space: nowrap;">Catatanku <span id="notesCount" style="font-size:14px; font-weight:600; color:var(--text-secondary);">(0)</span></h3></div>
-                <div style="text-align: center;"><button onclick="openAddNoteModal()" class="btn-success" style="width: auto; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: bold; white-space: nowrap; flex-shrink: 0;"><i class="fas fa-plus"></i> Baru</button></div>
-                <div style="text-align: right;"><button onclick="closeNotesListModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px;"><i class="fas fa-times"></i></button></div> 
-            </div>
-            <div id="notes-grid" class="notes-list" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left;"><div class="status-text">Memuat catatan...</div></div>
-        </div>
-    </div>
-
-    <div id="noteFormModal" class="modal hidden">
-        <div class="modal-content" style="max-width: 400px; width: 90%;">
-            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h3 id="form-modal-title" class="modal-title" style="margin:0;">Catatan Baru</h3>
-                <button onclick="handleCancelNoteForm()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px;"><i class="fas fa-times"></i></button>
-            </div>
-            <input type="text" id="note-title" class="form-input" placeholder="Judul (Kosong = Auto Number)" style="margin-bottom:10px; font-weight:700;">
-            <textarea id="note-content" class="form-input" placeholder="Tulis catatan Anda di sini..." style="min-height: 200px; resize: vertical; margin-bottom: 15px; font-size: 13px;"></textarea>
-            <div style="display: flex; gap: 8px;">
-                <button class="btn-switch" style="flex:1; padding: 12px; width: 100%; border-radius: 10px;" onclick="handleCancelNoteForm()">Batal</button>
-                <button class="btn-success" style="flex:2; padding: 12px; width: 100%; border-radius: 10px; font-size: 15px;" onclick="handleSaveNote()"><i class="fas fa-check"></i> Simpan</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="noteDetailModal" class="modal hidden">
-        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column; max-width: 400px; width: 90%;">
-            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <span id="view-tag" style="font-size: 11px; font-weight: bold; color: var(--text-secondary);"></span>
-                <button onclick="closeNoteDetailModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px;"><i class="fas fa-times"></i></button>
-            </div>
-            <input type="text" id="view-title" readonly style="width:100%; border:none; padding:0; font-size:20px; font-weight:800; margin-bottom:15px; background:transparent; color: var(--text-primary); outline: none;">
-            <div id="view-content"></div>
-            <div style="display: flex; gap: 8px; align-items: stretch;">
-                <button class="btn-primary" style="flex: 0 0 auto; width: 48px; padding: 0; border-radius: 10px; display: flex; align-items: center; justify-content: center;" onclick="editFromDetail()"><i class="fas fa-edit" style="font-size: 16px;"></i></button>
-                <button class="btn-success" style="flex: 1; border-radius: 10px; font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="copyNoteContent()"><i class="fas fa-copy"></i> Salin</button>
-                <button class="btn-danger" style="flex: 0 0 auto; width: 48px; padding: 0; border-radius: 10px; display: flex; align-items: center; justify-content: center;" onclick="confirmDeleteNote()"><i class="fas fa-trash" style="font-size: 16px;"></i></button>
-            </div>
         </div>
     </div>
 
@@ -109,7 +75,8 @@
             </div>
         </div>
     </div>
-    <div id="toast" class="toast">Notifikasi!</div>
+
+    <div id="toast" class="toast">Berhasil disalin!</div>
 
     <script src="app.js"></script>
 </body>
