@@ -11,6 +11,22 @@ const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currenc
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
 
+// --- FUNGSI FORMATTING ---
+function formatPhoneNumber(phone) {
+    if (!phone) return "";
+    return String(phone).replace(/(.{4})/g, '$1 ').trim();
+}
+
+function formatOTP(otp) {
+    if (!otp) return "";
+    const otpStr = String(otp);
+    if (otpStr.length >= 6) {
+        return otpStr.slice(0, 3) + "&nbsp;&nbsp;" + otpStr.slice(3);
+    }
+    return otpStr;
+}
+// -------------------------
+
 if (btnOrder) {
     const btnCopyPassword = document.createElement('button'); btnCopyPassword.innerHTML = '<i class="fas fa-copy"></i> Salin Sandi'; btnCopyPassword.className = "btn-primary"; btnCopyPassword.style.backgroundColor = "var(--info-color)";
     btnCopyPassword.onclick = () => copyToClipboard("Aku123.."); btnOrder.parentNode.insertBefore(btnCopyPassword, btnOrder.nextSibling);
@@ -98,16 +114,17 @@ function renderOrders() {
         const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(availableProducts[0]?.price || 0);
         const wait = order.cancelUnlockTime - now; 
         
+        // FORMAT OTP ditambahkan disini
         let otpHtml = isSuccess ? 
-            `<div class="otp-title">KODE OTP</div><div class="otp-code">${order.otp}</div>` : 
+            `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : 
             `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
             
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
 
         if (isSuccess) { 
-            // OTP Masuk: Tombol Selesai & Ulang AKTIF
+            // OTP Masuk: Tombol Selesai aktif, Tombol Ulang DIMATIKAN sementara
             finishBtnAttr = ""; 
-            resendBtnAttr = "";
+            resendBtnAttr = "disabled";
         } else if (wait <= 0 && !order.isAutoCanceling) { 
             // Menunggu OTP (Lewat 2 Menit): Batal & Ganti AKTIF
             cancelBtnAttr = ""; replaceBtnAttr = ""; 
@@ -126,7 +143,7 @@ function renderOrders() {
                 <span class="timer" id="timer-${order.id}">--:--</span>
             </div>
             <div class="phone-row">
-                <span class="phone-number">${order.phone}</span>
+                <span class="phone-number">${formatPhoneNumber(order.phone)}</span>
                 <button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button>
             </div>
             <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div>

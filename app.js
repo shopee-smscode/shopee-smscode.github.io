@@ -10,6 +10,22 @@ let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
 
+// --- FUNGSI FORMATTING ---
+function formatPhoneNumber(phone) {
+    if (!phone) return "";
+    return String(phone).replace(/(.{4})/g, '$1 ').trim();
+}
+
+function formatOTP(otp) {
+    if (!otp) return "";
+    const otpStr = String(otp);
+    if (otpStr.length >= 6) {
+        return otpStr.slice(0, 3) + "&nbsp;&nbsp;" + otpStr.slice(3);
+    }
+    return otpStr;
+}
+// -------------------------
+
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
     if (!noteFormModal.classList.contains('hidden')) { handleCancelNoteForm(); history.pushState(null, null, window.location.href); }
@@ -127,8 +143,9 @@ function renderOrders() {
         let isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
         const wait = order.cancelUnlockTime - now;
         
+        // FORMAT OTP ditambahkan disini
         let otpHtml = isSuccess ? 
-            `<div class="otp-title">KODE OTP</div><div class="otp-code">${order.otp}</div>` : 
+            `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : 
             `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
             
         const passProductId = order.productId ? `'${order.productId}'` : 'null';
@@ -137,9 +154,9 @@ function renderOrders() {
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
 
         if (isSuccess) { 
-            // Jika OTP masuk, Selesai dan Ulang aktif
+            // Jika OTP masuk, Selesai aktif, Ulang sementara DIMATIKAN
             finishBtnAttr = ""; 
-            resendBtnAttr = "";
+            resendBtnAttr = "disabled"; 
         } else if (wait <= 0 && !order.isAutoCanceling) { 
             // Jika lewat 2 menit dan belum OTP, Batal dan Ganti aktif
             cancelBtnAttr = ""; replaceBtnAttr = ""; 
@@ -158,7 +175,7 @@ function renderOrders() {
                 <span class="timer" id="timer-${order.id}">--:--</span>
             </div>
             <div class="phone-row">
-                <span class="phone-number">${order.phone}</span>
+                <span class="phone-number">${formatPhoneNumber(order.phone)}</span>
                 <button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button>
             </div>
             <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div>
