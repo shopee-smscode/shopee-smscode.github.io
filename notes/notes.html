@@ -11,39 +11,45 @@
     
     <style>
         /* TEMA CERAH UNTUK CATATAN */
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background-color: #f3f4f6; color: #1f2937; margin: 0; padding: 15px; }
-        .container { max-width: 480px; margin: 0 auto; background: #ffffff; padding: 20px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); min-height: 90vh; display: flex; flex-direction: column; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background-color: #f3f4f6; color: #1f2937; margin: 0; padding: 10px; }
+        
+        /* TAMPILAN LEBIH PENDEK UNTUK MOBILE */
+        .container { max-width: 480px; margin: 0 auto; background: #ffffff; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); min-height: 75vh; display: flex; flex-direction: column; }
         .hidden { display: none !important; }
         
         /* Header */
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #f3f4f6; padding-bottom: 15px; }
-        .header h1 { margin: 0; font-size: 20px; color: #ea580c; font-weight: 800; }
-        .btn-back { background: #e5e7eb; color: #374151; border: none; padding: 8px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px; }
+        .header h1 { margin: 0; font-size: 18px; color: #ea580c; font-weight: 800; }
+        .btn-back { background: #e5e7eb; color: #374151; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; }
         
-        /* List Catatan */
-        .notes-list { display: flex; flex-direction: column; gap: 10px; flex: 1; overflow-y: auto; }
-        .note-card { background: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e5e7eb; border-left: 5px solid #f59e0b; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .note-card:hover { border-color: #d1d5db; background: #fffbeb; }
-        .note-title { font-weight: bold; font-size: 15px; margin-bottom: 5px; color: #111827; }
-        .note-preview { font-size: 13px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 8px; }
-        .note-date { font-size: 11px; color: #9ca3af; font-weight: bold; text-align: right; }
+        /* List Catatan (Warna Hijau Permanen) */
+        .notes-list { display: flex; flex-direction: column; gap: 8px; flex: 1; overflow-y: auto; }
+        .note-card { background: #dcfce7; padding: 12px; border-radius: 8px; border: 1px solid #bbf7d0; border-left: 5px solid #22c55e; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .note-card:hover { border-color: #86efac; background: #dcfce7; /* Warna statis saat disorot */ }
+        .note-title { font-weight: bold; font-size: 14px; margin-bottom: 4px; color: #14532d; }
+        .note-preview { font-size: 12px; color: #166534; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; }
+        .note-date { font-size: 11px; color: #15803d; font-weight: bold; text-align: right; }
         
         /* Form & Detail Input */
-        .form-input { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; box-sizing: border-box; background: #f9fafb; color: #1f2937; margin-bottom: 15px; }
+        .form-input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; box-sizing: border-box; background: #f9fafb; color: #1f2937; margin-bottom: 12px; }
         .form-input:focus { outline: none; border-color: #f59e0b; background: #ffffff; }
-        #view-content { flex: 1; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; min-height: 300px; color: #374151; margin-bottom: 15px; line-height: 1.5; }
+        #view-content { flex: 1; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; min-height: 200px; color: #374151; margin-bottom: 12px; line-height: 1.5; }
         
-        /* Tombol yang lebih rapi */
-        .btn-success { background: #10b981; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .btn-switch { background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; padding: 12px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .action-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; width: 100%; }
-        .action-btn { padding: 12px; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; color: white; transition: opacity 0.2s; }
-        .action-btn i { font-size: 18px; }
+        /* Tombol Form (Batal, Tempel, Simpan) */
+        .btn-success { background: #10b981; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-switch { background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-paste { background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        
+        /* Action Grid (Edit, Salin, Hapus) */
+        .action-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; width: 100%; }
+        .action-btn { padding: 10px 5px; border: none; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: white; transition: opacity 0.2s; }
+        .action-btn i { font-size: 16px; }
         .action-btn:active { opacity: 0.8; transform: scale(0.98); }
         .btn-edit { background: #3b82f6; }
         .btn-copy { background: #10b981; }
         .btn-delete { background: #ef4444; }
         
+        /* Toast Notifikasi */
         .toast { visibility: hidden; min-width: 200px; background-color: #1f2937; color: #fff; text-align: center; border-radius: 30px; padding: 10px 16px; position: fixed; z-index: 9999; left: 50%; transform: translateX(-50%); bottom: 20px; font-size: 13px; font-weight: bold; opacity: 0; transition: 0.3s; }
         .toast.show { visibility: visible; opacity: 1; bottom: 35px; }
     </style>
@@ -54,7 +60,7 @@
         <div class="header">
             <button class="btn-back" onclick="history.back()"><i class="fas fa-arrow-left"></i> Kembali</button>
             <h1>Catatanku <span id="notesCount" style="font-size:14px; color:#6b7280;">(0)</span></h1>
-            <button class="btn-success" style="padding: 8px 15px;" onclick="openAddForm()"><i class="fas fa-plus"></i> Baru</button>
+            <button class="btn-success" style="padding: 8px 12px; font-size: 13px;" onclick="openAddForm()"><i class="fas fa-plus"></i> Baru</button>
         </div>
         <div id="notes-grid" class="notes-list">
             <div style="text-align:center; color:#9ca3af; padding: 20px;">Memuat catatan...</div>
@@ -65,20 +71,22 @@
         <div class="header">
             <h1 id="form-title" style="color: #1f2937;">Catatan Baru</h1>
         </div>
-        <input type="text" id="note-title" class="form-input" placeholder="Judul (Kosong = Auto Number)" style="font-weight:bold; font-size: 16px;">
+        <input type="text" id="note-title" class="form-input" placeholder="Judul (Kosong = Auto Number)" style="font-weight:bold; font-size: 15px;">
         <textarea id="note-content" class="form-input" placeholder="Tulis catatan Anda di sini..." style="flex:1; resize: none;"></textarea>
-        <div style="display: flex; gap: 10px;">
-            <button class="btn-switch" style="flex:1;" onclick="cancelForm()">Batal</button>
-            <button class="btn-success" style="flex:2;" onclick="saveNote()"><i class="fas fa-check"></i> Simpan</button>
+        
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-switch" style="flex:1; padding: 10px; font-size: 13px;" onclick="cancelForm()">Batal</button>
+            <button class="btn-paste" style="flex:1; padding: 10px; font-size: 13px;" onclick="pasteFromClipboard()"><i class="fas fa-paste"></i> Tempel</button>
+            <button class="btn-success" style="flex:1.2; padding: 10px; font-size: 13px;" onclick="saveNote()"><i class="fas fa-check"></i> Simpan</button>
         </div>
     </div>
 
     <div id="viewDetail" class="container hidden">
         <div class="header" style="margin-bottom: 10px; border-bottom: none;">
             <button class="btn-back" onclick="closeDetail()"><i class="fas fa-arrow-left"></i></button>
-            <span id="view-tag" style="font-size: 12px; color: #9ca3af; font-weight: bold;"></span>
+            <span id="view-tag" style="font-size: 11px; color: #9ca3af; font-weight: bold;"></span>
         </div>
-        <input type="text" id="view-title" readonly style="width:100%; border:none; padding:0; font-size:22px; font-weight:800; margin-bottom:10px; background:transparent; outline: none; color: #111827;">
+        <input type="text" id="view-title" readonly style="width:100%; border:none; padding:0; font-size:20px; font-weight:800; margin-bottom:10px; background:transparent; outline: none; color: #111827;">
         <div id="view-content"></div>
         
         <div class="action-grid">
@@ -88,7 +96,7 @@
         </div>
     </div>
 
-    <div id="toast" class="toast">Berhasil disalin!</div>
+    <div id="toast" class="toast">Notifikasi</div>
     <script src="notes.js"></script>
 </body>
 </html>

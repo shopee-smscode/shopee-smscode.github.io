@@ -125,22 +125,47 @@ function confirmDelete() {
 }
 
 // ==========================================
-// UTILS
+// UTILS & FITUR TAMBAHAN
 // ==========================================
 function formatDate(ts) {
     if(!ts) return "---"; const d = new Date(ts);
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)} - ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
-function escapeHTML(str) { return str ? str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])) : ""; }
+
+function escapeHTML(str) { 
+    return str ? str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])) : ""; 
+}
+
 function showToast(pesan, type="success") {
     const t = document.getElementById("toast"); t.innerHTML = pesan;
     t.style.backgroundColor = type === "error" ? "#ef4444" : "#1f2937";
     t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 3000);
 }
+
 function copyNoteContent() {
     const text = currentNoteRawContent;
-    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(() => showToast("Berhasil disalin!")); } 
-    else { const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast("Berhasil disalin!"); }
+    if (navigator.clipboard && window.isSecureContext) { 
+        navigator.clipboard.writeText(text).then(() => showToast("Berhasil disalin!")); 
+    } else { 
+        const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast("Berhasil disalin!"); 
+    }
+}
+
+async function pasteFromClipboard() {
+    try {
+        const text = await navigator.clipboard.readText();
+        const contentInput = document.getElementById('note-content');
+        
+        if (contentInput.value) {
+            contentInput.value += '\n' + text;
+        } else {
+            contentInput.value = text;
+        }
+        showToast("Teks berhasil ditempel!");
+    } catch (err) {
+        showToast("Gagal menempel! Izinkan akses clipboard.", "error");
+        console.error("Gagal membaca clipboard: ", err);
+    }
 }
 
 // Mulai
