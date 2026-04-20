@@ -23,7 +23,11 @@ function formatPhoneNumber(phone) {
 }
 
 function formatOTP(otp) {
-    if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + "&nbsp;&nbsp;" + otpStr.slice(3); } return otpStr;
+    if (!otp) return ""; 
+    const otpStr = String(otp); 
+    // PERBAIKAN: Mengubah spasi menjadi " - "
+    if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } 
+    return otpStr;
 }
 
 function getProviderName(phone) {
@@ -44,7 +48,9 @@ function getOperatorLogo(id) {
     if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg';
     if (i.includes('three') || i.includes('tri')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg';
     if (i.includes('smartfren')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp';
-    return 'https://cdn-icons-png.flaticon.com/512/3045/3045500.png'; 
+    
+    // PERBAIKAN: Icon Acak menggunakan link kustom
+    return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; 
 }
 
 function relocateBalanceUI() {
@@ -111,19 +117,12 @@ async function processOrderFreshNumber(operatorId, maxRetries = 5) {
         const o = res.data.orders[0];
         const phoneStr = String(o.phone_number);
         
-        // CEK APAKAH PERNAH DIPAKAI
         if (usedNumbersDB.has(phoneStr)) {
-            // NOMOR BEKAS: Sembunyikan & masukkan ke antrean batal
             showToast(`⚠️ Nomor ${phoneStr} pernah dipakai. Mencari otomatis yang baru...`, "warning");
-            
-            // Masukkan ke background untuk dibatalkan 3 menit (180.000 ms) dari sekarang
             hiddenBadOrders.push({ id: o.id, cancelAt: Date.now() + (3 * 60 * 1000), isCanceling: false });
             localStorage.setItem(`hero_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders));
-            
-            // Rekursif: Panggil fungsi ini lagi secara otomatis untuk mencari nomor lain
             return await processOrderFreshNumber(operatorId, maxRetries - 1);
         } else {
-            // NOMOR BARU/FRESH: Simpan ke Firebase agar diingat selamanya
             db.ref('used_numbers/hero_sms').push({ phone: phoneStr, timestamp: Date.now() });
             usedNumbersDB.add(phoneStr);
             return o;
@@ -139,7 +138,7 @@ async function processOrderFreshNumber(operatorId, maxRetries = 5) {
 function loadHistory() { orderHistory = JSON.parse(localStorage.getItem(`hero_history_${activeAccountName}`)) || []; renderHistory(); }
 function saveToHistory(order, status) {
     const historyItem = { id: order.id, phone: order.phone, op: order.productId, price: order.price, otp: order.otp || "-", status: status, date: Date.now() };
-    orderHistory.unshift(historyItem); if (orderHistory.length > 50) orderHistory.pop(); // Max 50 riwayat
+    orderHistory.unshift(historyItem); if (orderHistory.length > 50) orderHistory.pop(); 
     localStorage.setItem(`hero_history_${activeAccountName}`, JSON.stringify(orderHistory)); renderHistory();
 }
 function renderHistory() {
@@ -180,7 +179,6 @@ function loginAccount(accountName) {
     activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); 
     if (rawOrders.length !== activeOrders.length) saveToStorage(); 
     
-    // Muat memori background antrean pembatalan
     hiddenBadOrders = JSON.parse(localStorage.getItem(`hero_hidden_bad_orders_${accountName}`)) || [];
     
     loadHistory(); 
@@ -256,7 +254,8 @@ async function loadShopeeIndonesia() {
                 let stockLabel = (product.available === 'Acak' || product.available === 'Cek Server') ? product.available : (product.available > 1000 ? "1000+" : product.available);
                 
                 let logoImg = getOperatorLogo(product.id);
-                let fallbackImg = 'https://cdn-icons-png.flaticon.com/512/3045/3045500.png';
+                // PERBAIKAN: Menggunakan link custom untuk fallback anti-rusak
+                let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
                 
                 card.innerHTML = `
                     <div class="op-logo-container">
@@ -321,7 +320,16 @@ function renderOrders() {
         }
 
         let headerLogoUrl = getOperatorLogo(opTag);
-        let fallbackImg = 'https://cdn-icons-png.flaticon.com/512/3045/3045500.png';
+        let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
+
+        // PERBAIKAN: Logika Warna Timer Dinamis saat dirender pertama kali
+        const left = order.expiresAt - now;
+        let timerColor = "#ffffff"; // Putih saat baru berjalan (< 2 menit)
+        if (left <= 12 * 60000) {
+            timerColor = "var(--danger-color)"; // Merah jika berjalan > 8 menit
+        } else if (left <= 18 * 60000) {
+            timerColor = "var(--warning-color)"; // Kuning jika berjalan > 2 menit
+        }
 
         card.innerHTML = `
             <div class="order-header">
@@ -334,7 +342,7 @@ function renderOrders() {
                         <div class="order-price" style="display:block;">${displayPrice}</div>
                     </div>
                 </div>
-                <span class="timer" id="timer-${order.id}">--:--</span>
+                <span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">--:--</span>
             </div>
             <div class="phone-row">
                 <span class="phone-number">${formatPhoneNumber(order.phone)}</span>
@@ -356,26 +364,36 @@ function startPollingAndTimer() {
     timerInterval = setInterval(() => {
         const now = Date.now();
         
-        // 1. Eksekusi Pembatalan Hantu (Ghost Cancellation) untuk nomor yang terindikasi bekas
         for (let j = hiddenBadOrders.length - 1; j >= 0; j--) {
             let bo = hiddenBadOrders[j];
             if (now >= bo.cancelAt && !bo.isCanceling) {
                 bo.isCanceling = true;
-                // Eksekusi API Batal secara hening (Background)
                 apiCall('/orders/cancel', 'POST', { id: bo.id }).then(res => {
                     hiddenBadOrders.splice(j, 1);
                     localStorage.setItem(`hero_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders));
                 }).catch(e => {
-                    bo.isCanceling = false; // Gagal batal, ulangi nanti
+                    bo.isCanceling = false; 
                 });
             }
         }
 
-        // 2. Render Timer Pesanan Aktif Normal
         activeOrders.forEach((o, i) => {
             const left = o.expiresAt - now; const el = document.getElementById(`timer-${o.id}`);
             if (left <= 0) { activeOrders.splice(i, 1); saveToStorage(); fetchBalance(); return; }
-            if (el) { const m = Math.floor(left/60000); const s = Math.floor((left%60000)/1000); el.innerText = `${m}:${s<10?'0':''}${s}`; }
+            
+            if (el) { 
+                const m = Math.floor(left/60000); const s = Math.floor((left%60000)/1000); 
+                el.innerText = `${m}:${s<10?'0':''}${s}`; 
+                
+                // PERBAIKAN: Logika Warna Timer Dinamis saat berjalan (Real-Time)
+                if (left <= 12 * 60000) {
+                    el.style.color = "var(--danger-color)"; // Merah jika berjalan > 8 menit
+                } else if (left <= 18 * 60000) {
+                    el.style.color = "var(--warning-color)"; // Kuning jika berjalan > 2 menit
+                } else {
+                    el.style.color = "#ffffff"; // Putih saat baru berjalan (< 2 menit)
+                }
+            }
 
             if (left <= 600000 && o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) {
                 o.isAutoCanceling = true; cancelSpecificOrder(o.id, true);
@@ -420,7 +438,6 @@ if (btnOrder) {
         
         btnOrder.disabled = true; const originalText = btnOrder.innerText; btnOrder.innerText = "Memproses...";
         try {
-            // MENGGUNAKAN FUNGSI CERDAS YANG AKAN MENCARI NOMOR BARU MAX 5x COBA
             const o = await processOrderFreshNumber(selectedProductId, 5); 
             
             if (o) {
@@ -439,11 +456,10 @@ window.replaceSpecificOrder = async function(orderId) {
     
     const idStr = String(orderId); const oldOrder = activeOrders.find(o => String(o.id) === idStr); const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
     const btn = document.getElementById(`btn-replace-${idStr}`); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
-    if (oldOrder) saveToHistory(oldOrder, "GANTI"); // Merekam riwayat ganti
+    if (oldOrder) saveToHistory(oldOrder, "GANTI"); 
     try {
         await apiCall('/orders/cancel', 'POST', { id: idStr }); activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
         
-        // MENGGUNAKAN FUNGSI CERDAS YANG AKAN MENCARI NOMOR BARU MAX 5x COBA
         const od = await processOrderFreshNumber(opToUse, 5); 
         
         if (od) {
@@ -458,14 +474,14 @@ window.replaceSpecificOrder = async function(orderId) {
 window.cancelSpecificOrder = async function(id, auto = false) {
     const idStr = String(id); const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
-    const oldOrder = activeOrders.find(o => String(o.id) === idStr); if (oldOrder) saveToHistory(oldOrder, "BATAL"); // Merekam riwayat batal
+    const oldOrder = activeOrders.find(o => String(o.id) === idStr); if (oldOrder) saveToHistory(oldOrder, "BATAL"); 
     try { await apiCall('/orders/cancel', 'POST', { id: idStr }); activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis dibatalkan (Waktu Sisa 10 Menit)", "error"); } catch (e) { if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
 };
 
 window.finishSpecificOrder = async function(id) {
     const idStr = String(id); const btnFinish = document.getElementById(`btn-finish-${idStr}`); 
     if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
-    const oldOrder = activeOrders.find(o => String(o.id) === idStr); if (oldOrder) saveToHistory(oldOrder, "SUKSES"); // Merekam riwayat sukses
+    const oldOrder = activeOrders.find(o => String(o.id) === idStr); if (oldOrder) saveToHistory(oldOrder, "SUKSES"); 
     copyToClipboard("Aku123..");
     try { await apiCall('/orders/finish', 'POST', { id: idStr }); } catch (e) {} 
     activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage();
@@ -487,12 +503,11 @@ window.resendSpecificOrder = async function(orderId) {
 
 async function initMainApp() { fetchBalance(); await loadShopeeIndonesia(); renderOrders(); startPollingAndTimer(); }
 
-// Menjalankan inisialisasi tambahan saat web dibuka (Firebase Sync)
 window.onload = () => { 
     relocateBalanceUI(); 
     setAccountViewingStatus(false); 
     history.pushState(null, null, window.location.href); 
     initNotesSync(); 
-    initUsedNumbersSync(); // Memulai sinkronisasi Blacklist Anti-Bekas
+    initUsedNumbersSync(); 
     fetchAccounts(); 
 };
