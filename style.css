@@ -34,27 +34,6 @@ body.theme-hero {
     --modal-overlay: rgba(0,0,0,0.9);
 }
 
-/* TEMA SMSCODE (Luxury Dark & Vibrant Orange) */
-body.theme-smscode {
-    --bg-body: #020617; 
-    --bg-container: #0f172a;
-    --bg-card: #1e293b;
-    --bg-card-hover: #334155;
-    --text-primary: #ffffff;
-    --text-secondary: #94a3b8;
-    --border-color: #334155;
-    --border-hover: #fb923c;
-    --primary-color: #f97316; 
-    --primary-color-hover: #fdba74;
-    --otp-bg: #000000;
-    --otp-border: #ea580c;
-    --otp-text: #f97316;
-    --btn-bg: #1e293b;
-    --btn-text: #f8fafc;
-    --shadow-color: rgba(0, 0, 0, 0.6);
-    --modal-overlay: rgba(0,0,0,0.8);
-}
-
 /* --- RESET & BASE --- */
 * { box-sizing: border-box; }
 
@@ -144,7 +123,7 @@ h1 { font-size: clamp(22px, 6vw, 28px); font-weight: 900; color: var(--primary-c
 .product-price { font-size: 14px; font-weight: 800; color: var(--primary-color); padding: 6px 10px; background: var(--bg-body); border-radius: 8px; }
 
 /* =======================================================
-   KEMBALI KE UI CATATAN & MODAL ASLI (ORIGINAL DESIGN)
+   UI CATATAN & MODAL ASLI (ORIGINAL DESIGN)
    ======================================================= */
 
 .notes-list { display: flex; flex-direction: column; gap: 8px; }
