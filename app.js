@@ -120,34 +120,61 @@ async function loadShopeeIndonesia() {
     try {
         if (productList) productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
         const productsRes = await apiCall(`/catalog/products`);
+        
         if (productsRes.success && productsRes.data.length > 0) {
             let ops = productsRes.data; 
             let anyOp = ops.find(o => o.id === 'any'); 
             if (!anyOp) anyOp = { id: 'any', price: ops[0]?.price || 0, available: 'Acak' };
             
-            // 1. Urutkan semua spesifik operator dari yang termurah ke termahal
-            let specificOps = ops.filter(o => o.id !== 'any').sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+            let specificOps = ops.filter(o => o.id !== 'any' && o.id !== '');
             
-            // 2. Tampilkan SEMUA operator yang tersedia (Tanpa di-slice/dibatasi)
+            // PATCH LOGIC: Jika Server API Hero-SMS HANYA mengirimkan "any" dan menyembunyikan list operator, 
+            // kita akan buat list operator Indonesia secara paksa agar pengguna tetap bisa memilih dan UI bisa discroll.
+            if (specificOps.length === 0) {
+                const defaultPrice = anyOp.price;
+                specificOps = [
+                    { id: 'telkomsel', price: defaultPrice, available: 'Cek Server' },
+                    { id: 'indosat', price: defaultPrice, available: 'Cek Server' },
+                    { id: 'xl', price: defaultPrice, available: 'Cek Server' },
+                    { id: 'axis', price: defaultPrice, available: 'Cek Server' },
+                    { id: 'three', price: defaultPrice, available: 'Cek Server' },
+                    { id: 'smartfren', price: defaultPrice, available: 'Cek Server' }
+                ];
+            } else {
+                // Jika server mengirimkan list spesifik, urutkan dari harga termurah
+                specificOps.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+            }
+            
+            // Gabungkan 'any' di paling atas, diikuti spesifik operator
             availableProducts = [anyOp, ...specificOps]; 
             
-            if (productList) productList.innerHTML = ""; 
+            if (productList) {
+                productList.innerHTML = '<div style="font-size: 11px; font-weight: 800; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; position: sticky; top: 0; background: var(--bg-container); z-index: 2; padding-bottom: 5px;">Pilih Operator (Scroll ⬇️):</div>'; 
+            }
             
-            // --- MEMORY: Ambil pilihan sebelumnya dari LocalStorage, default 'any' ---
-            let savedOp = localStorage.getItem(`hero_op_pref_${activeAccountName}`) || 'any';
+            // LOGIKA MEMORI: Membaca pilihan terakhir pengguna dari LocalStorage
+            let savedOp = localStorage.getItem('hero_selected_operator');
+            if (savedOp && availableProducts.find(p => p.id === savedOp)) {
+                selectedProductId = savedOp;
+            } else {
+                selectedProductId = 'any'; 
+            }
             
-            // Validasi apakah operator yang disimpan masih ada di daftar API (menghindari error jika provider dihapus)
-            let isOpAvailable = availableProducts.find(p => p.id === savedOp);
-            selectedProductId = isOpAvailable ? savedOp : 'any';
-
-            if (availableProducts.length > 0) { if (btnOrder) btnOrder.disabled = false; }
+            if (btnOrder) btnOrder.disabled = false;
             
             availableProducts.forEach(product => {
-                const card = document.createElement("div"); card.className = "product-card"; 
+                const card = document.createElement("div"); 
+                card.className = "product-card"; 
                 if (selectedProductId === product.id) card.classList.add('selected');
                 
-                const opName = product.id === 'any' ? '⭐ Acak (Termurah)' : `📡 ${product.id.toUpperCase()}`;
-                const stockLabel = product.available === 'Acak' ? 'Acak' : (product.available > 1000 ? "1000+" : product.available);
+                let opName = "";
+                if (product.id === 'any') {
+                    opName = '⭐ Acak (Termurah)';
+                } else {
+                    opName = `📡 ${product.id.toUpperCase()}`;
+                }
+                
+                const stockLabel = (product.available === 'Acak' || product.available === 'Cek Server') ? product.available : (product.available > 1000 ? "1000+" : product.available);
                 
                 card.innerHTML = `<div class="product-info"><h4>${opName}</h4><p>Stok: ${stockLabel}</p></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
                 
@@ -156,8 +183,8 @@ async function loadShopeeIndonesia() {
                     card.classList.add('selected'); 
                     selectedProductId = product.id; 
                     
-                    // --- SIMPAN PILIHAN KE LOCALSTORAGE ---
-                    localStorage.setItem(`hero_op_pref_${activeAccountName}`, product.id);
+                    // Menyimpan pilihan ke memori (LocalStorage) agar teringat meski web ditutup
+                    localStorage.setItem('hero_selected_operator', product.id); 
                     
                     if (btnOrder) btnOrder.disabled = false; 
                 };
@@ -165,14 +192,20 @@ async function loadShopeeIndonesia() {
                 if (productList) productList.appendChild(card);
             });
 
-            // Auto-scroll perlahan ke operator yang terpilih agar terlihat oleh pengguna
+            // LOGIKA AUTO-SCROLL: Otomatis menggulir kotak operator ke pilihan yang tersimpan
             setTimeout(() => {
-                const selectedEl = productList.querySelector('.product-card.selected');
-                if (selectedEl) selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }, 100);
+                const selectedEl = document.querySelector('.product-card.selected');
+                if(selectedEl && productList) {
+                    selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }, 300);
 
-        } else { if (productList) productList.innerHTML = '<div class="status-text">Stok sedang kosong.</div>'; }
-    } catch (error) { if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error muat data.</div>`; }
+        } else { 
+            if (productList) productList.innerHTML = '<div class="status-text">Stok sedang kosong.</div>'; 
+        }
+    } catch (error) { 
+        if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error muat data.</div>`; 
+    }
 }
 
 function renderOrders() {
@@ -194,7 +227,9 @@ function renderOrders() {
         }
 
         // Pakai harga aktual jika ada (API default), hindari override pakai data acak
-        const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(availableProducts[0]?.price || 0);
+        const matchedProduct = availableProducts.find(p => p.id === order.productId);
+        const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || availableProducts[0]?.price || 0);
+        
         const wait = order.cancelUnlockTime - now; 
         
         let otpHtml = isSuccess ? 
@@ -302,24 +337,14 @@ if (btnOrder) {
 }
 
 window.replaceSpecificOrder = async function(orderId) {
-    const idStr = String(orderId); 
-    // Ganti Logika: Gunakan operator yang sedang dipilih di daftar, bukan operator pada pesanan lama
-    // Ini memungkinkan pengguna mengganti nomor dengan operator berbeda (misal: gagal Indosat, ganti ke Telkomsel)
-    const opToUse = selectedProductId || 'any'; 
-    
+    const idStr = String(orderId); const oldOrder = activeOrders.find(o => String(o.id) === idStr); const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
     const btn = document.getElementById(`btn-replace-${idStr}`); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         await apiCall('/orders/cancel', 'POST', { id: idStr }); activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
         const n = await apiCall('/orders/create', 'POST', { operator: opToUse });
         if (n.success) {
             const od = n.data.orders[0]; const opInfo = availableProducts.find(p => p.id === opToUse); 
-            
-            // Perbaikan penarikan harga
-            let oldOrderPrice = 0;
-            const oldOrderObj = JSON.parse(localStorage.getItem(`hero_orders_${activeAccountName}`)).find(o => String(o.id) === idStr);
-            if(oldOrderObj) oldOrderPrice = oldOrderObj.price;
-            const opPrice = od.price || od.cost || od.amount || (opInfo ? opInfo.price : oldOrderPrice);
-            
+            const opPrice = od.price || od.cost || od.amount || (opInfo ? opInfo.price : (oldOrder ? oldOrder.price : 0));
             activeOrders.unshift({ id: od.id, productId: opToUse, phone: od.phone_number, price: opPrice, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
             saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(od.phone_number); showToast("Nomor diganti!"); window.scrollTo({ top: 0, behavior: 'smooth' });
         } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru.", "error"); }
