@@ -31,7 +31,7 @@ body.theme-hero {
     --btn-bg: #121212;
     --btn-text: #ffffff;
     --shadow-color: rgba(150, 212, 0, 0.4); 
-    --modal-overlay: rgba(0,0,0,0.9);
+    --modal-overlay: rgba(0,0,0,0.8); /* Transparansi untuk efek blur */
 }
 
 /* --- RESET & BASE --- */
@@ -72,9 +72,9 @@ body {
 h1 { font-size: clamp(22px, 6vw, 28px); font-weight: 900; color: var(--primary-color); margin: 0 0 4px 0; letter-spacing: -0.5px; }
 .subtitle { font-size: 14px; color: var(--text-secondary); margin: 0; }
 
-.top-switchers { display: flex; gap: 10px; margin-bottom: 15px; position: absolute; top: 15px; left: 15px; right: 65px; z-index: 10; height: 32px; }
-.server-select { height: 45px; font-size: 15px; font-weight: 800; border-radius: 12px; padding: 0 15px; flex: 1; background-color: var(--bg-card); color: var(--text-primary); border: 2px solid var(--border-color); appearance: none; cursor: pointer; }
-.server-select-sm { padding: 6px 10px !important; font-size: 13px !important; border-radius: 8px !important; height: 32px !important; }
+.top-switchers { display: flex; gap: 10px; margin-bottom: 15px; position: absolute; top: 15px; left: 15px; right: 100px; z-index: 10; height: 32px; }
+.server-select { height: 45px; font-size: 15px; font-weight: 800; border-radius: 12px; padding: 0 15px; width: auto; background-color: var(--bg-card); color: var(--text-primary); border: 2px solid var(--border-color); appearance: none; cursor: pointer; }
+.server-select-sm { padding: 4px 10px !important; font-size: 13px !important; border-radius: 8px !important; height: 32px !important; max-width: 140px; }
 
 /* --- ORDER CARD --- */
 #activeOrdersContainer { margin-bottom: 15px; }
@@ -139,7 +139,8 @@ h1 { font-size: clamp(22px, 6vw, 28px); font-weight: 900; color: var(--primary-c
 .form-input { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; box-sizing: border-box; font-family: inherit; transition: border-color 0.2s; background: var(--bg-card); color: var(--text-primary); }
 .form-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px var(--shadow-color); }
 
-.modal { position: fixed; inset: 0; background: var(--modal-overlay); z-index: 99999; display: flex; justify-content: center; align-items: center; opacity: 1; transition: opacity 0.2s; backdrop-filter: blur(2px); }
+/* --- MODAL EFFECT DENGAN BLUR --- */
+.modal { position: fixed; inset: 0; background: var(--modal-overlay); z-index: 99999; display: flex; justify-content: center; align-items: center; opacity: 1; transition: opacity 0.2s; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 .modal-content { background: var(--bg-container); padding: 20px; border-radius: 16px; text-align: center; width: 85%; max-width: 320px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); border: 1px solid var(--border-color); }
 .modal-title { margin: 0 0 10px 0; color: var(--primary-color); font-size: 18px; font-weight: 800; }
 .modal-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; }
