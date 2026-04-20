@@ -38,7 +38,7 @@ function getOperatorLogo(id) {
     if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png';
     if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg';
     if (i.includes('three') || i.includes('tri')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg';
-    if (i.includes('smartfren')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp';
+    if (i.includes('smartfren')) return 'https://images.seeklogo.com/logo-png/20/1/smartfren-logo-png_seeklogo-202951.png';
     
     // Icon Acak / Server Utama / Fallback
     return 'https://cdn-icons-png.flaticon.com/512/3045/3045500.png'; 
