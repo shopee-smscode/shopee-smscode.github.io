@@ -121,18 +121,30 @@ async function loadShopeeIndonesia() {
         if (productList) productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
         const productsRes = await apiCall(`/catalog/products`);
         if (productsRes.success && productsRes.data.length > 0) {
-            let ops = productsRes.data; let anyOp = ops.find(o => o.id === 'any'); if (!anyOp) anyOp = { id: 'any', price: ops[0]?.price || 0, available: 'Acak' };
+            let ops = productsRes.data; 
+            let anyOp = ops.find(o => o.id === 'any'); 
+            if (!anyOp) anyOp = { id: 'any', price: ops[0]?.price || 0, available: 'Acak' };
+            
+            // 1. Urutkan semua spesifik operator dari yang termurah ke termahal
             let specificOps = ops.filter(o => o.id !== 'any').sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-            availableProducts = [anyOp, ...specificOps.slice(0, 3)]; 
+            
+            // 2. Tampilkan SEMUA operator yang tersedia (Tanpa di-slice/dibatasi)
+            availableProducts = [anyOp, ...specificOps]; 
+            
             if (productList) productList.innerHTML = ""; 
             if (availableProducts.length > 0) { selectedProductId = availableProducts[0].id; if (btnOrder) btnOrder.disabled = false; }
+            
             availableProducts.forEach(product => {
                 const card = document.createElement("div"); card.className = "product-card"; 
                 if (selectedProductId === product.id) card.classList.add('selected');
-                const opName = product.id === 'any' ? '⭐ Acak (Semua Operator)' : `📡 ${product.id.toUpperCase()}`;
-                const stockLabel = product.available > 1000 ? "1000+" : product.available;
+                
+                // Beri penanda khusus agar lebih jelas
+                const opName = product.id === 'any' ? '⭐ Acak (Termurah & Tercepat)' : `📡 ${product.id.toUpperCase()}`;
+                const stockLabel = product.available === 'Acak' ? 'Acak' : (product.available > 1000 ? "1000+" : product.available);
+                
                 card.innerHTML = `<div class="product-info"><h4>${opName}</h4><p>Stok: ${stockLabel}</p></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
                 card.onclick = () => { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); selectedProductId = product.id; if (btnOrder) btnOrder.disabled = false; };
+                
                 if (productList) productList.appendChild(card);
             });
         } else { if (productList) productList.innerHTML = '<div class="status-text">Stok sedang kosong.</div>'; }
