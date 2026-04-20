@@ -11,7 +11,7 @@ const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currenc
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
 
-// --- FUNGSI FORMATTING & UI TAMBAHAN ---
+// --- FUNGSI FORMATTING & LOGO OPERATOR ---
 function formatPhoneNumber(phone) {
     if (!phone) return "";
     let p = String(phone);
@@ -32,10 +32,22 @@ function getProviderName(phone) {
     const prefix = p.substring(0, 4);
     if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel";
     if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat";
-    if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL/Axis";
-    if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Tri";
+    if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL";
+    if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Three";
     if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren";
     return "Acak"; 
+}
+
+function getOperatorLogo(id) {
+    const i = String(id).toLowerCase();
+    if (i.includes('telkomsel')) return 'https://upload.wikimedia.org/wikipedia/commons/b/bc/Telkomsel_2021_icon.svg';
+    if (i.includes('indosat')) return 'https://upload.wikimedia.org/wikipedia/commons/1/11/Indosat_Ooredoo_logo_%282017%29.svg';
+    if (i.includes('xl')) return 'https://upload.wikimedia.org/wikipedia/commons/3/3a/Logo_XL_Axiata.svg';
+    if (i.includes('axis')) return 'https://upload.wikimedia.org/wikipedia/commons/8/83/Axis_logo_2015.svg';
+    if (i.includes('three') || i.includes('tri')) return 'https://upload.wikimedia.org/wikipedia/commons/4/40/Tiga_logo.svg';
+    if (i.includes('smartfren')) return 'https://upload.wikimedia.org/wikipedia/commons/1/19/Smartfren_logo_2019.svg';
+    // Icon Acak / Server Utama
+    return 'https://cdn-icons-png.flaticon.com/512/3045/3045500.png'; 
 }
 
 function relocateBalanceUI() {
@@ -124,35 +136,34 @@ async function loadShopeeIndonesia() {
         if (productsRes.success && productsRes.data.length > 0) {
             let ops = productsRes.data; 
             let anyOp = ops.find(o => o.id === 'any'); 
-            if (!anyOp) anyOp = { id: 'any', price: ops[0]?.price || 0, available: 'Acak' };
+            if (!anyOp) anyOp = { id: 'any', price: ops[0]?.price || 0, available: 'Cek Server' };
             
             let specificOps = ops.filter(o => o.id !== 'any' && o.id !== '');
             
-            // PATCH LOGIC: Jika Server API Hero-SMS HANYA mengirimkan "any" dan menyembunyikan list operator, 
-            // kita akan buat list operator Indonesia secara paksa agar pengguna tetap bisa memilih dan UI bisa discroll.
+            // LOGIKA: Jika Server HANYA mengirimkan "any" (Acak) dan tidak merincikan operator,
+            // Kita buat daftarnya secara manual AGAR BISA DIPILIH OLEH USER, 
+            // Namun harga tetap ditarik secara akurat (real) dari harga default server.
             if (specificOps.length === 0) {
-                const defaultPrice = anyOp.price;
+                const realPrice = anyOp.price;
                 specificOps = [
-                    { id: 'telkomsel', price: defaultPrice, available: 'Cek Server' },
-                    { id: 'indosat', price: defaultPrice, available: 'Cek Server' },
-                    { id: 'xl', price: defaultPrice, available: 'Cek Server' },
-                    { id: 'axis', price: defaultPrice, available: 'Cek Server' },
-                    { id: 'three', price: defaultPrice, available: 'Cek Server' },
-                    { id: 'smartfren', price: defaultPrice, available: 'Cek Server' }
+                    { id: 'telkomsel', price: realPrice, available: 'Cek Server' },
+                    { id: 'indosat', price: realPrice, available: 'Cek Server' },
+                    { id: 'xl', price: realPrice, available: 'Cek Server' },
+                    { id: 'axis', price: realPrice, available: 'Cek Server' },
+                    { id: 'three', price: realPrice, available: 'Cek Server' },
+                    { id: 'smartfren', price: realPrice, available: 'Cek Server' }
                 ];
             } else {
-                // Jika server mengirimkan list spesifik, urutkan dari harga termurah
+                // Jika server mengirimkan rincian operator spesifik beserta harga & stoknya, kita urutkan.
                 specificOps.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
             }
             
-            // Gabungkan 'any' di paling atas, diikuti spesifik operator
             availableProducts = [anyOp, ...specificOps]; 
             
             if (productList) {
-                productList.innerHTML = '<div style="font-size: 11px; font-weight: 800; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; position: sticky; top: 0; background: var(--bg-container); z-index: 2; padding-bottom: 5px;">Pilih Operator (Scroll ⬇️):</div>'; 
+                productList.innerHTML = '<div style="font-size: 11px; font-weight: 800; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; position: sticky; top: 0; background: var(--bg-container); z-index: 2; padding-bottom: 5px;">Pilih Operator:</div>'; 
             }
             
-            // LOGIKA MEMORI: Membaca pilihan terakhir pengguna dari LocalStorage
             let savedOp = localStorage.getItem('hero_selected_operator');
             if (savedOp && availableProducts.find(p => p.id === savedOp)) {
                 selectedProductId = savedOp;
@@ -162,37 +173,41 @@ async function loadShopeeIndonesia() {
             
             if (btnOrder) btnOrder.disabled = false;
             
+            // RENDER LIST OPERATOR BESERTA LOGO
             availableProducts.forEach(product => {
                 const card = document.createElement("div"); 
                 card.className = "product-card"; 
                 if (selectedProductId === product.id) card.classList.add('selected');
                 
-                let opName = "";
-                if (product.id === 'any') {
-                    opName = '⭐ Acak (Termurah)';
-                } else {
-                    opName = `📡 ${product.id.toUpperCase()}`;
-                }
+                let opName = product.id === 'any' ? 'Pilih Acak / Bebas' : product.id.toUpperCase();
+                let stockLabel = (product.available === 'Acak' || product.available === 'Cek Server') ? product.available : (product.available > 1000 ? "1000+" : product.available);
                 
-                const stockLabel = (product.available === 'Acak' || product.available === 'Cek Server') ? product.available : (product.available > 1000 ? "1000+" : product.available);
+                // Ambil link gambar logo sesuai id operator
+                let logoImg = getOperatorLogo(product.id);
                 
-                card.innerHTML = `<div class="product-info"><h4>${opName}</h4><p>Stok: ${stockLabel}</p></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
+                card.innerHTML = `
+                    <div class="op-logo-container">
+                        <img src="${logoImg}" class="op-logo" alt="${opName}">
+                    </div>
+                    <div class="product-info">
+                        <h4>${opName}</h4>
+                        <p>Stok: <span style="font-weight:700; color:var(--text-primary);">${stockLabel}</span></p>
+                    </div>
+                    <div class="product-price">${usdFormatter.format(product.price)}</div>
+                `;
                 
                 card.onclick = () => { 
                     document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
                     card.classList.add('selected'); 
                     selectedProductId = product.id; 
-                    
-                    // Menyimpan pilihan ke memori (LocalStorage) agar teringat meski web ditutup
                     localStorage.setItem('hero_selected_operator', product.id); 
-                    
                     if (btnOrder) btnOrder.disabled = false; 
                 };
                 
                 if (productList) productList.appendChild(card);
             });
 
-            // LOGIKA AUTO-SCROLL: Otomatis menggulir kotak operator ke pilihan yang tersimpan
+            // LOGIKA AUTO-SCROLL
             setTimeout(() => {
                 const selectedEl = document.querySelector('.product-card.selected');
                 if(selectedEl && productList) {
@@ -219,14 +234,12 @@ function renderOrders() {
         const isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
         
         let opTag = order.productId;
-        // Ganti Acak menjadi nama provider asli berdasarkan nomor telepon
         if (opTag === 'any' || !opTag) {
             opTag = getProviderName(order.phone);
         } else {
             opTag = String(opTag).toUpperCase();
         }
 
-        // Pakai harga aktual jika ada (API default), hindari override pakai data acak
         const matchedProduct = availableProducts.find(p => p.id === order.productId);
         const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || availableProducts[0]?.price || 0);
         
@@ -239,19 +252,25 @@ function renderOrders() {
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
 
         if (isSuccess) { 
-            finishBtnAttr = ""; 
-            resendBtnAttr = "disabled";
+            finishBtnAttr = ""; resendBtnAttr = "disabled";
         } else if (wait <= 0 && !order.isAutoCanceling) { 
             cancelBtnAttr = ""; replaceBtnAttr = ""; 
         } else if (order.isAutoCanceling) { 
             cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; 
         }
 
+        let headerLogoUrl = getOperatorLogo(opTag);
+
         card.innerHTML = `
             <div class="order-header">
-                <div class="order-info-left">
-                    <span class="order-id-label">#${order.id} ${opTag ? `(${opTag})` : ''}</span> 
-                    <span class="order-price">${displayPrice}</span>
+                <div class="order-info-left" style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;">
+                        <img src="${headerLogoUrl}" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                    </div>
+                    <div>
+                        <div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id}</div> 
+                        <div class="order-price" style="display:block;">${displayPrice}</div>
+                    </div>
                 </div>
                 <span class="timer" id="timer-${order.id}">--:--</span>
             </div>
