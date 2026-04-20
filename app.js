@@ -30,15 +30,17 @@ function getProviderName(phone) {
     return "Acak"; 
 }
 
+// PERBAIKAN LOGO: Menggunakan Clearbit Logo API (Lebih stabil dan Anti-Rusak)
 function getOperatorLogo(id) {
     const i = String(id).toLowerCase();
-    // Menggunakan Wikipedia Thumbnail (format PNG asli) agar tidak rusak
-    if (i.includes('telkomsel')) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/Telkomsel_2021_icon.svg/120px-Telkomsel_2021_icon.svg.png';
-    if (i.includes('indosat')) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/Indosat_Ooredoo_Hutchison_logo_%282022%29.svg/120px-Indosat_Ooredoo_Hutchison_logo_%282022%29.svg.png';
-    if (i.includes('xl')) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Logo_XL_Axiata.svg/120px-Logo_XL_Axiata.svg.png';
-    if (i.includes('axis')) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/Axis_logo_2015.svg/120px-Axis_logo_2015.svg.png';
-    if (i.includes('three') || i.includes('tri')) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Tiga_logo.svg/120px-Tiga_logo.svg.png';
-    if (i.includes('smartfren')) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Smartfren_logo_2019.svg/120px-Smartfren_logo_2019.svg.png';
+    if (i.includes('telkomsel')) return 'https://logo.clearbit.com/telkomsel.com';
+    if (i.includes('indosat')) return 'https://logo.clearbit.com/indosatooredoo.com';
+    if (i.includes('xl')) return 'https://logo.clearbit.com/xl.co.id';
+    if (i.includes('axis')) return 'https://logo.clearbit.com/axis.co.id';
+    if (i.includes('three') || i.includes('tri')) return 'https://logo.clearbit.com/tri.co.id';
+    if (i.includes('smartfren')) return 'https://logo.clearbit.com/smartfren.com';
+    
+    // Icon Acak / Server Utama / Fallback
     return 'https://cdn-icons-png.flaticon.com/512/3045/3045500.png'; 
 }
 
@@ -190,10 +192,12 @@ async function loadShopeeIndonesia() {
                 let stockLabel = (product.available === 'Acak' || product.available === 'Cek Server') ? product.available : (product.available > 1000 ? "1000+" : product.available);
                 
                 let logoImg = getOperatorLogo(product.id);
+                let fallbackImg = 'https://cdn-icons-png.flaticon.com/512/3045/3045500.png';
                 
+                // MENAMBAHKAN ONERROR (Sistem Anti-Gambar Rusak)
                 card.innerHTML = `
                     <div class="op-logo-container">
-                        <img src="${logoImg}" class="op-logo" alt="${opName}">
+                        <img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}">
                     </div>
                     <div class="product-info">
                         <h4>${opName}</h4>
@@ -254,12 +258,14 @@ function renderOrders() {
         }
 
         let headerLogoUrl = getOperatorLogo(opTag);
+        let fallbackImg = 'https://cdn-icons-png.flaticon.com/512/3045/3045500.png';
 
+        // MENAMBAHKAN ONERROR (Sistem Anti-Gambar Rusak) untuk pesanan aktif
         card.innerHTML = `
             <div class="order-header">
                 <div class="order-info-left" style="display: flex; align-items: center; gap: 10px;">
                     <div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;">
-                        <img src="${headerLogoUrl}" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                        <img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;">
                     </div>
                     <div>
                         <div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id}</div> 
