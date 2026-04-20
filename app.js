@@ -30,15 +30,15 @@ function getProviderName(phone) {
     return "Acak"; 
 }
 
-// PERBAIKAN LOGO: Menggunakan Clearbit Logo API (Lebih stabil dan Anti-Rusak)
+// PERBAIKAN LOGO: Menggunakan Tautan Custom Pilihan Pengguna
 function getOperatorLogo(id) {
     const i = String(id).toLowerCase();
-    if (i.includes('telkomsel')) return 'https://logo.clearbit.com/telkomsel.com';
-    if (i.includes('indosat')) return 'https://logo.clearbit.com/indosatooredoo.com';
-    if (i.includes('xl')) return 'https://logo.clearbit.com/xl.co.id';
-    if (i.includes('axis')) return 'https://logo.clearbit.com/axis.co.id';
-    if (i.includes('three') || i.includes('tri')) return 'https://logo.clearbit.com/tri.co.id';
-    if (i.includes('smartfren')) return 'https://logo.clearbit.com/smartfren.com';
+    if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png';
+    if (i.includes('indosat')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg';
+    if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png';
+    if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg';
+    if (i.includes('three') || i.includes('tri')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg';
+    if (i.includes('smartfren')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp';
     
     // Icon Acak / Server Utama / Fallback
     return 'https://cdn-icons-png.flaticon.com/512/3045/3045500.png'; 
