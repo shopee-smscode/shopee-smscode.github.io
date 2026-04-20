@@ -6,30 +6,22 @@ const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", auth
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); const DB_PATH = 'notes/public';
 
-let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null;
+let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
 
 // --- FUNGSI FORMATTING & LOGO OPERATOR ---
 function formatPhoneNumber(phone) {
-    if (!phone) return "";
-    let p = String(phone);
-    if (p.startsWith("62")) { p = "0" + p.substring(2); }
-    return p.replace(/(.{4})/g, '$1 ').trim();
+    if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim();
 }
 
 function formatOTP(otp) {
-    if (!otp) return "";
-    const otpStr = String(otp);
-    if (otpStr.length >= 6) { return otpStr.slice(0, 3) + "&nbsp;&nbsp;" + otpStr.slice(3); }
-    return otpStr;
+    if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + "&nbsp;&nbsp;" + otpStr.slice(3); } return otpStr;
 }
 
 function getProviderName(phone) {
-    let p = String(phone);
-    if (p.startsWith("62")) p = "0" + p.substring(2);
-    const prefix = p.substring(0, 4);
+    let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2); const prefix = p.substring(0, 4);
     if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel";
     if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat";
     if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL";
@@ -40,41 +32,27 @@ function getProviderName(phone) {
 
 function getOperatorLogo(id) {
     const i = String(id).toLowerCase();
-    if (i.includes('telkomsel')) return 'https://upload.wikimedia.org/wikipedia/commons/b/bc/Telkomsel_2021_icon.svg';
-    if (i.includes('indosat')) return 'https://upload.wikimedia.org/wikipedia/commons/1/11/Indosat_Ooredoo_logo_%282017%29.svg';
-    if (i.includes('xl')) return 'https://upload.wikimedia.org/wikipedia/commons/3/3a/Logo_XL_Axiata.svg';
-    if (i.includes('axis')) return 'https://upload.wikimedia.org/wikipedia/commons/8/83/Axis_logo_2015.svg';
-    if (i.includes('three') || i.includes('tri')) return 'https://upload.wikimedia.org/wikipedia/commons/4/40/Tiga_logo.svg';
-    if (i.includes('smartfren')) return 'https://upload.wikimedia.org/wikipedia/commons/1/19/Smartfren_logo_2019.svg';
-    // Icon Acak / Server Utama
+    // Menggunakan Wikipedia Thumbnail (format PNG asli) agar tidak rusak
+    if (i.includes('telkomsel')) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/Telkomsel_2021_icon.svg/120px-Telkomsel_2021_icon.svg.png';
+    if (i.includes('indosat')) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/Indosat_Ooredoo_Hutchison_logo_%282022%29.svg/120px-Indosat_Ooredoo_Hutchison_logo_%282022%29.svg.png';
+    if (i.includes('xl')) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Logo_XL_Axiata.svg/120px-Logo_XL_Axiata.svg.png';
+    if (i.includes('axis')) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/83/Axis_logo_2015.svg/120px-Axis_logo_2015.svg.png';
+    if (i.includes('three') || i.includes('tri')) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/Tiga_logo.svg/120px-Tiga_logo.svg.png';
+    if (i.includes('smartfren')) return 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Smartfren_logo_2019.svg/120px-Smartfren_logo_2019.svg.png';
     return 'https://cdn-icons-png.flaticon.com/512/3045/3045500.png'; 
 }
 
 function relocateBalanceUI() {
-    const headerContainer = document.querySelector('.app-header-container');
-    const balanceContainer = document.querySelector('.balance-container');
+    const headerContainer = document.querySelector('.app-header-container'); const balanceContainer = document.querySelector('.balance-container');
     if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) {
         balanceContainer.style.display = 'none'; 
-        
-        const newBalanceDiv = document.createElement('div');
-        newBalanceDiv.style.textAlign = 'right';
-        newBalanceDiv.innerHTML = `
-            <span style="font-size: 11px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span>
-            <span id="newBalanceDisplay" style="font-size: 18px; font-weight: 900; color: var(--primary-color);">...</span>
-        `;
-        
-        headerContainer.style.display = 'flex';
-        headerContainer.style.justifyContent = 'space-between';
-        headerContainer.style.alignItems = 'center';
-        
-        const oldBalance = document.getElementById('balanceDisplay');
-        if(oldBalance) oldBalance.removeAttribute('id');
-        newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay';
-        
-        headerContainer.appendChild(newBalanceDiv);
+        const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right';
+        newBalanceDiv.innerHTML = `<span style="font-size: 11px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 18px; font-weight: 900; color: var(--primary-color);">...</span>`;
+        headerContainer.style.display = 'flex'; headerContainer.style.justifyContent = 'space-between'; headerContainer.style.alignItems = 'center';
+        const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id');
+        newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay'; headerContainer.appendChild(newBalanceDiv);
     }
 }
-// ----------------------------------------
 
 if (btnOrder) {
     const btnCopyPassword = document.createElement('button'); btnCopyPassword.innerHTML = '<i class="fas fa-copy"></i> Salin Sandi'; btnCopyPassword.className = "btn-primary"; btnCopyPassword.style.backgroundColor = "var(--info-color)";
@@ -83,7 +61,9 @@ if (btnOrder) {
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
-    if (!noteFormModal.classList.contains('hidden')) { handleCancelNoteForm(); history.pushState(null, null, window.location.href); }
+    const histM = document.getElementById('historyModal');
+    if (histM && !histM.classList.contains('hidden')) { window.closeHistoryModal(); history.pushState(null, null, window.location.href); }
+    else if (!noteFormModal.classList.contains('hidden')) { handleCancelNoteForm(); history.pushState(null, null, window.location.href); }
     else if (!noteDetailModal.classList.contains('hidden')) { closeNoteDetailModal(); history.pushState(null, null, window.location.href); }
     else if (!notesListModal.classList.contains('hidden')) { closeNotesListModal(); history.pushState(null, null, window.location.href); }
     else if (isExitModalOpen) { closeExitModal(); history.pushState(null, null, window.location.href); }
@@ -93,22 +73,52 @@ window.addEventListener('popstate', (e) => {
 function closeExitModal() { exitModal.classList.add('hidden'); isExitModalOpen = false; }
 function confirmExit() { setAccountViewingStatus(false); window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
 
-async function apiCall(endpoint, method = "GET", body = null) {
-    const options = { method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } };
-    if (body) options.body = JSON.stringify(body);
-    const response = await fetch(`${BASE_URL}${endpoint}`, options); return await response.json();
-}
-
+async function apiCall(endpoint, method = "GET", body = null) { const options = { method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; if (body) options.body = JSON.stringify(body); const response = await fetch(`${BASE_URL}${endpoint}`, options); return await response.json(); }
 function saveToStorage() { localStorage.setItem(`hero_orders_${activeAccountName}`, JSON.stringify(activeOrders)); updateAccountOrdersStatus(); renderOrders(); }
 function showToast(pesan, type = "success") { const t = document.getElementById("toast"); if(!t) return; t.innerHTML = pesan; if (type === "error") { t.style.backgroundColor = "var(--danger-color)"; t.style.color = "#ffffff"; } else { t.style.backgroundColor = "var(--success-color)"; t.style.color = "#ffffff"; } t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 3000); }
 function copyToClipboard(t) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(t).then(() => { showToast("Berhasil disalin!"); }).catch(err => { copyFallback(t); }); } else { copyFallback(t); } }
 function copyFallback(t) { const ta = document.createElement("textarea"); ta.value = t; ta.setAttribute('readonly', ''); ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999); try { document.execCommand('copy'); showToast("Berhasil disalin!"); } catch (err) { showToast("Gagal menyalin.", "error"); } document.body.removeChild(ta); }
-
 function setAccountViewingStatus(isViewing) { if (!activeAccountName) return; if (isViewing) { const connectedRef = db.ref('.info/connected'); viewingPresenceRef = db.ref(`presence/${activeAccountName}/is_viewing`); connectedRef.on('value', (snap) => { if (snap.val() === true) { viewingPresenceRef.onDisconnect().set(false); viewingPresenceRef.set(true); } }); } else { if (viewingPresenceRef) { viewingPresenceRef.set(false); viewingPresenceRef.onDisconnect().cancel(); } } }
 function updateAccountOrdersStatus() { if (!activeAccountName) return; db.ref(`presence/${activeAccountName}/has_orders`).set(activeOrders.length > 0); }
 
+// --- LOGIKA RIWAYAT (HISTORY) ---
+function loadHistory() { orderHistory = JSON.parse(localStorage.getItem(`hero_history_${activeAccountName}`)) || []; renderHistory(); }
+function saveToHistory(order, status) {
+    const historyItem = { id: order.id, phone: order.phone, op: order.productId, price: order.price, otp: order.otp || "-", status: status, date: Date.now() };
+    orderHistory.unshift(historyItem); if (orderHistory.length > 50) orderHistory.pop(); // Max 50 riwayat
+    localStorage.setItem(`hero_history_${activeAccountName}`, JSON.stringify(orderHistory)); renderHistory();
+}
+function renderHistory() {
+    const list = document.getElementById('history-list'); if (!list) return;
+    if (orderHistory.length === 0) { list.innerHTML = '<div class="status-text">Belum ada riwayat pesanan.</div>'; return; }
+    list.innerHTML = "";
+    orderHistory.forEach(item => {
+        const card = document.createElement('div'); card.style.background = "var(--bg-card)"; card.style.padding = "12px"; card.style.borderRadius = "10px"; card.style.border = "1px solid var(--border-color)"; card.style.fontSize = "13px";
+        let statusColor = "var(--text-secondary)"; let icon = "fa-clock";
+        if (item.status === "SUKSES") { statusColor = "var(--success-color)"; icon = "fa-check-circle"; }
+        if (item.status === "BATAL") { statusColor = "var(--danger-color)"; icon = "fa-times-circle"; }
+        if (item.status === "GANTI") { statusColor = "var(--warning-color)"; icon = "fa-sync-alt"; }
+        const opTag = getProviderName(item.phone); const dt = new Date(item.date); const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <strong style="color: var(--text-primary); font-size: 15px; letter-spacing: 1px;">${formatPhoneNumber(item.phone)} <span style="font-size:11px; font-weight:normal; color:var(--text-secondary);">(${opTag})</span></strong>
+                <span style="color: ${statusColor}; font-weight: 800;"><i class="fas ${icon}"></i> ${item.status}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 12px; margin-bottom: ${item.status === 'SUKSES' ? '8px' : '0'};">
+                <span>ID: #${item.id}</span><span>${timeStr}</span>
+            </div>
+            ${item.status === 'SUKSES' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 6px; text-align: center; border-radius: 6px; font-weight: 900; letter-spacing: 4px; font-size: 18px; text-shadow: 0 0 10px rgba(34,197,94,0.3);">${item.otp}</div>` : ''}
+        `;
+        list.appendChild(card);
+    });
+}
+window.openHistoryModal = function() { document.getElementById('historyModal').classList.remove('hidden'); history.pushState(null, null, "#history"); }
+window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
+window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`hero_history_${activeAccountName}`); renderHistory(); } }
+// --------------------------------
+
 async function fetchAccounts() { try { const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json(); if (data.accounts && data.accounts.length > 0) { loginAccount(data.accounts[0]); } else { if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; showToast("Tidak ada akun", "error"); } } catch (error) { if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; showToast("Gagal terhubung", "error"); } }
-function loginAccount(accountName) { activeAccountName = accountName; if(currentAccountName) currentAccountName.innerText = accountName; setAccountViewingStatus(true); const rawOrders = JSON.parse(localStorage.getItem(`hero_orders_${accountName}`)) || []; activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); if (rawOrders.length !== activeOrders.length) saveToStorage(); initMainApp(); }
+function loginAccount(accountName) { activeAccountName = accountName; if(currentAccountName) currentAccountName.innerText = accountName; setAccountViewingStatus(true); const rawOrders = JSON.parse(localStorage.getItem(`hero_orders_${accountName}`)) || []; activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); if (rawOrders.length !== activeOrders.length) saveToStorage(); loadHistory(); initMainApp(); }
 
 window.openNotesFromAnywhere = function() { if(notesListModal) notesListModal.classList.remove('hidden'); history.pushState(null, null, "#notes"); };
 document.addEventListener('click', function(e) { const target = e.target.closest('button'); if (target && (target.id === 'btnOpenNotes' || (target.getAttribute('onclick') || '').includes('btnOpenNotes'))) { e.preventDefault(); e.stopPropagation(); window.openNotesFromAnywhere(); } }, true);
@@ -140,21 +150,19 @@ async function loadShopeeIndonesia() {
             
             let specificOps = ops.filter(o => o.id !== 'any' && o.id !== '');
             
-            // LOGIKA: Jika Server HANYA mengirimkan "any" (Acak) dan tidak merincikan operator,
-            // Kita buat daftarnya secara manual AGAR BISA DIPILIH OLEH USER, 
-            // Namun harga tetap ditarik secara akurat (real) dari harga default server.
+            // LOGIKA: Menyematkan harga dan STOK ASLI dari "any" ke masing-masing operator
             if (specificOps.length === 0) {
                 const realPrice = anyOp.price;
+                const realStock = anyOp.available; // Mengambil stok asli dari server Acak
                 specificOps = [
-                    { id: 'telkomsel', price: realPrice, available: 'Cek Server' },
-                    { id: 'indosat', price: realPrice, available: 'Cek Server' },
-                    { id: 'xl', price: realPrice, available: 'Cek Server' },
-                    { id: 'axis', price: realPrice, available: 'Cek Server' },
-                    { id: 'three', price: realPrice, available: 'Cek Server' },
-                    { id: 'smartfren', price: realPrice, available: 'Cek Server' }
+                    { id: 'telkomsel', price: realPrice, available: realStock },
+                    { id: 'indosat', price: realPrice, available: realStock },
+                    { id: 'xl', price: realPrice, available: realStock },
+                    { id: 'axis', price: realPrice, available: realStock },
+                    { id: 'three', price: realPrice, available: realStock },
+                    { id: 'smartfren', price: realPrice, available: realStock }
                 ];
             } else {
-                // Jika server mengirimkan rincian operator spesifik beserta harga & stoknya, kita urutkan.
                 specificOps.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
             }
             
@@ -173,7 +181,6 @@ async function loadShopeeIndonesia() {
             
             if (btnOrder) btnOrder.disabled = false;
             
-            // RENDER LIST OPERATOR BESERTA LOGO
             availableProducts.forEach(product => {
                 const card = document.createElement("div"); 
                 card.className = "product-card"; 
@@ -182,7 +189,6 @@ async function loadShopeeIndonesia() {
                 let opName = product.id === 'any' ? 'Pilih Acak / Bebas' : product.id.toUpperCase();
                 let stockLabel = (product.available === 'Acak' || product.available === 'Cek Server') ? product.available : (product.available > 1000 ? "1000+" : product.available);
                 
-                // Ambil link gambar logo sesuai id operator
                 let logoImg = getOperatorLogo(product.id);
                 
                 card.innerHTML = `
@@ -198,8 +204,7 @@ async function loadShopeeIndonesia() {
                 
                 card.onclick = () => { 
                     document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
-                    card.classList.add('selected'); 
-                    selectedProductId = product.id; 
+                    card.classList.add('selected'); selectedProductId = product.id; 
                     localStorage.setItem('hero_selected_operator', product.id); 
                     if (btnOrder) btnOrder.disabled = false; 
                 };
@@ -207,20 +212,13 @@ async function loadShopeeIndonesia() {
                 if (productList) productList.appendChild(card);
             });
 
-            // LOGIKA AUTO-SCROLL
             setTimeout(() => {
                 const selectedEl = document.querySelector('.product-card.selected');
-                if(selectedEl && productList) {
-                    selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
+                if(selectedEl && productList) selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }, 300);
 
-        } else { 
-            if (productList) productList.innerHTML = '<div class="status-text">Stok sedang kosong.</div>'; 
-        }
-    } catch (error) { 
-        if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error muat data.</div>`; 
-    }
+        } else { if (productList) productList.innerHTML = '<div class="status-text">Stok sedang kosong.</div>'; }
+    } catch (error) { if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error muat data.</div>`; }
 }
 
 function renderOrders() {
@@ -234,11 +232,7 @@ function renderOrders() {
         const isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
         
         let opTag = order.productId;
-        if (opTag === 'any' || !opTag) {
-            opTag = getProviderName(order.phone);
-        } else {
-            opTag = String(opTag).toUpperCase();
-        }
+        if (opTag === 'any' || !opTag) { opTag = getProviderName(order.phone); } else { opTag = String(opTag).toUpperCase(); }
 
         const matchedProduct = availableProducts.find(p => p.id === order.productId);
         const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || availableProducts[0]?.price || 0);
@@ -290,9 +284,7 @@ function renderOrders() {
 }
 
 function startPollingAndTimer() {
-    if (timerInterval) clearInterval(timerInterval);
-    if (pollingInterval) clearInterval(pollingInterval);
-    
+    if (timerInterval) clearInterval(timerInterval); if (pollingInterval) clearInterval(pollingInterval);
     timerInterval = setInterval(() => {
         const now = Date.now();
         activeOrders.forEach((o, i) => {
@@ -306,7 +298,6 @@ function startPollingAndTimer() {
 
             const wait = o.cancelUnlockTime - now;
             const btnCancel = document.getElementById(`btn-cancel-${o.id}`); const btnReplace = document.getElementById(`btn-replace-${o.id}`); const btnResend = document.getElementById(`btn-resend-${o.id}`); 
-
             if (o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) {
                 if (wait <= 0) {
                     if (btnCancel && btnCancel.disabled) btnCancel.disabled = false;
@@ -324,8 +315,7 @@ function startPollingAndTimer() {
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
-            let o = activeOrders[i];
-            if (o.status === "OTP_RECEIVED") continue;
+            let o = activeOrders[i]; if (o.status === "OTP_RECEIVED") continue;
             try {
                 const res = await apiCall(`/orders/${o.id}`);
                 if (res.success && res.data.status === "OTP_RECEIVED") { 
@@ -358,6 +348,7 @@ if (btnOrder) {
 window.replaceSpecificOrder = async function(orderId) {
     const idStr = String(orderId); const oldOrder = activeOrders.find(o => String(o.id) === idStr); const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
     const btn = document.getElementById(`btn-replace-${idStr}`); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
+    if (oldOrder) saveToHistory(oldOrder, "GANTI"); // Merekam riwayat ganti
     try {
         await apiCall('/orders/cancel', 'POST', { id: idStr }); activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
         const n = await apiCall('/orders/create', 'POST', { operator: opToUse });
@@ -373,12 +364,14 @@ window.replaceSpecificOrder = async function(orderId) {
 window.cancelSpecificOrder = async function(id, auto = false) {
     const idStr = String(id); const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
+    const oldOrder = activeOrders.find(o => String(o.id) === idStr); if (oldOrder) saveToHistory(oldOrder, "BATAL"); // Merekam riwayat batal
     try { await apiCall('/orders/cancel', 'POST', { id: idStr }); activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis dibatalkan (Waktu Sisa 10 Menit)", "error"); } catch (e) { if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
 };
 
 window.finishSpecificOrder = async function(id) {
     const idStr = String(id); const btnFinish = document.getElementById(`btn-finish-${idStr}`); 
     if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
+    const oldOrder = activeOrders.find(o => String(o.id) === idStr); if (oldOrder) saveToHistory(oldOrder, "SUKSES"); // Merekam riwayat sukses
     copyToClipboard("Aku123..");
     try { await apiCall('/orders/finish', 'POST', { id: idStr }); } catch (e) {} 
     activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage();
