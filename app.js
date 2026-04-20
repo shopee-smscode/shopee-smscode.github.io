@@ -125,40 +125,28 @@ async function loadShopeeIndonesia() {
             let anyOp = ops.find(o => o.id === 'any'); 
             if (!anyOp) anyOp = { id: 'any', price: ops[0]?.price || 0, available: 'Acak' };
             
-            // Urutkan semua spesifik operator dari yang termurah ke termahal
+            // 1. Urutkan semua spesifik operator dari yang termurah ke termahal
             let specificOps = ops.filter(o => o.id !== 'any').sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
             
-            // Tampilkan SEMUA operator yang tersedia
+            // 2. Tampilkan SEMUA operator yang tersedia (Tanpa di-slice/dibatasi)
             availableProducts = [anyOp, ...specificOps]; 
             
-            if (productList) {
-                // Beri judul kecil penanda list operator
-                productList.innerHTML = '<div style="font-size: 12px; font-weight: 800; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; position: sticky; top: 0; background: var(--bg-container); z-index: 2; padding-bottom: 4px;">Pilih Operator (Bisa di-scroll):</div>'; 
-            }
+            if (productList) productList.innerHTML = ""; 
             
-            // === LOGIKA MEMORI (PERSISTENT STORAGE) ===
-            // Cek apakah sebelumnya pengguna pernah memilih operator
-            let savedOp = localStorage.getItem('hero_selected_operator');
+            // --- MEMORY: Ambil pilihan sebelumnya dari LocalStorage, default 'any' ---
+            let savedOp = localStorage.getItem(`hero_op_pref_${activeAccountName}`) || 'any';
             
-            // Jika ada memori dan operator tersebut masih tersedia di list server, gunakan itu
-            if (savedOp && availableProducts.find(p => p.id === savedOp)) {
-                selectedProductId = savedOp;
-            } else {
-                // Jika tidak ada histori (atau operator lama sedang dihapus server), fallback ke "any" (Acak)
-                selectedProductId = 'any'; 
-            }
+            // Validasi apakah operator yang disimpan masih ada di daftar API (menghindari error jika provider dihapus)
+            let isOpAvailable = availableProducts.find(p => p.id === savedOp);
+            selectedProductId = isOpAvailable ? savedOp : 'any';
+
+            if (availableProducts.length > 0) { if (btnOrder) btnOrder.disabled = false; }
             
-            if (btnOrder) btnOrder.disabled = false;
-            
-            // Render kartu-kartu operator ke dalam container
             availableProducts.forEach(product => {
-                const card = document.createElement("div"); 
-                card.className = "product-card"; 
-                
-                // Tandai yang terpilih
+                const card = document.createElement("div"); card.className = "product-card"; 
                 if (selectedProductId === product.id) card.classList.add('selected');
                 
-                const opName = product.id === 'any' ? '⭐ Acak (Termurah & Tercepat)' : `📡 ${product.id.toUpperCase()}`;
+                const opName = product.id === 'any' ? '⭐ Acak (Termurah)' : `📡 ${product.id.toUpperCase()}`;
                 const stockLabel = product.available === 'Acak' ? 'Acak' : (product.available > 1000 ? "1000+" : product.available);
                 
                 card.innerHTML = `<div class="product-info"><h4>${opName}</h4><p>Stok: ${stockLabel}</p></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
@@ -168,8 +156,8 @@ async function loadShopeeIndonesia() {
                     card.classList.add('selected'); 
                     selectedProductId = product.id; 
                     
-                    // Simpan pilihan ke memori lokal
-                    localStorage.setItem('hero_selected_operator', product.id); 
+                    // --- SIMPAN PILIHAN KE LOCALSTORAGE ---
+                    localStorage.setItem(`hero_op_pref_${activeAccountName}`, product.id);
                     
                     if (btnOrder) btnOrder.disabled = false; 
                 };
@@ -177,22 +165,14 @@ async function loadShopeeIndonesia() {
                 if (productList) productList.appendChild(card);
             });
 
-            // === AUTO-SCROLL KE OPERATOR TERPILIH ===
-            // Menggulir kotak daftar agar pilihan pengguna langsung terlihat di layar
+            // Auto-scroll perlahan ke operator yang terpilih agar terlihat oleh pengguna
             setTimeout(() => {
-                const selectedEl = document.querySelector('.product-card.selected');
-                if(selectedEl && productList) {
-                    // Hanya gulir kotak productList-nya saja, jangan halaman utamanya
-                    selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
-            }, 300);
+                const selectedEl = productList.querySelector('.product-card.selected');
+                if (selectedEl) selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
 
-        } else { 
-            if (productList) productList.innerHTML = '<div class="status-text">Stok sedang kosong.</div>'; 
-        }
-    } catch (error) { 
-        if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error muat data.</div>`; 
-    }
+        } else { if (productList) productList.innerHTML = '<div class="status-text">Stok sedang kosong.</div>'; }
+    } catch (error) { if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error muat data.</div>`; }
 }
 
 function renderOrders() {
@@ -214,7 +194,7 @@ function renderOrders() {
         }
 
         // Pakai harga aktual jika ada (API default), hindari override pakai data acak
-        const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(availableProducts.find(p => p.id === order.productId)?.price || availableProducts[0]?.price || 0);
+        const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(availableProducts[0]?.price || 0);
         const wait = order.cancelUnlockTime - now; 
         
         let otpHtml = isSuccess ? 
@@ -322,14 +302,24 @@ if (btnOrder) {
 }
 
 window.replaceSpecificOrder = async function(orderId) {
-    const idStr = String(orderId); const oldOrder = activeOrders.find(o => String(o.id) === idStr); const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
+    const idStr = String(orderId); 
+    // Ganti Logika: Gunakan operator yang sedang dipilih di daftar, bukan operator pada pesanan lama
+    // Ini memungkinkan pengguna mengganti nomor dengan operator berbeda (misal: gagal Indosat, ganti ke Telkomsel)
+    const opToUse = selectedProductId || 'any'; 
+    
     const btn = document.getElementById(`btn-replace-${idStr}`); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         await apiCall('/orders/cancel', 'POST', { id: idStr }); activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
         const n = await apiCall('/orders/create', 'POST', { operator: opToUse });
         if (n.success) {
             const od = n.data.orders[0]; const opInfo = availableProducts.find(p => p.id === opToUse); 
-            const opPrice = od.price || od.cost || od.amount || (opInfo ? opInfo.price : (oldOrder ? oldOrder.price : 0));
+            
+            // Perbaikan penarikan harga
+            let oldOrderPrice = 0;
+            const oldOrderObj = JSON.parse(localStorage.getItem(`hero_orders_${activeAccountName}`)).find(o => String(o.id) === idStr);
+            if(oldOrderObj) oldOrderPrice = oldOrderObj.price;
+            const opPrice = od.price || od.cost || od.amount || (opInfo ? opInfo.price : oldOrderPrice);
+            
             activeOrders.unshift({ id: od.id, productId: opToUse, phone: od.phone_number, price: opPrice, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
             saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(od.phone_number); showToast("Nomor diganti!"); window.scrollTo({ top: 0, behavior: 'smooth' });
         } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru.", "error"); }
