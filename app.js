@@ -1,7 +1,7 @@
 const BASE_URL = "https://hero-sms-proxy.masreno6pro.workers.dev"; 
 
 // 0. KONFIGURASI FIREBASE & SOUND
-const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+const notifSound = new Audio('https://cdn.pixabay.com/audio/2026/03/02/audio_c9eb237466.mp3');
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); const DB_PATH = 'notes/public';
