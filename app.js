@@ -25,7 +25,6 @@ function formatPhoneNumber(phone) {
 function formatOTP(otp) {
     if (!otp) return ""; 
     const otpStr = String(otp); 
-    // PERBAIKAN: Mengubah spasi menjadi " - "
     if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } 
     return otpStr;
 }
@@ -48,8 +47,6 @@ function getOperatorLogo(id) {
     if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg';
     if (i.includes('three') || i.includes('tri')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg';
     if (i.includes('smartfren')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp';
-    
-    // PERBAIKAN: Icon Acak menggunakan link kustom
     return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; 
 }
 
@@ -117,14 +114,18 @@ async function processOrderFreshNumber(operatorId, maxRetries = 5) {
         const o = res.data.orders[0];
         const phoneStr = String(o.phone_number);
         
+        // Cek jika nomor ADA di blacklist (pernah sukses dapat OTP)
         if (usedNumbersDB.has(phoneStr)) {
             showToast(`⚠️ Nomor ${phoneStr} pernah dipakai. Mencari otomatis yang baru...`, "warning");
+            // Nomor ini bekas, sembunyikan dan batalkan
             hiddenBadOrders.push({ id: o.id, cancelAt: Date.now() + (3 * 60 * 1000), isCanceling: false });
             localStorage.setItem(`hero_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders));
+            
+            // Coba cari lagi
             return await processOrderFreshNumber(operatorId, maxRetries - 1);
         } else {
-            db.ref('used_numbers/hero_sms').push({ phone: phoneStr, timestamp: Date.now() });
-            usedNumbersDB.add(phoneStr);
+            // PERUBAHAN: Nomor dilewatkan ke layar, TAPI BELUM DISIMPAN KE BLACKLIST!
+            // Akan disimpan ke blacklist hanya jika OTP berhasil masuk (di fungsi polling).
             return o;
         }
     } else {
@@ -254,7 +255,6 @@ async function loadShopeeIndonesia() {
                 let stockLabel = (product.available === 'Acak' || product.available === 'Cek Server') ? product.available : (product.available > 1000 ? "1000+" : product.available);
                 
                 let logoImg = getOperatorLogo(product.id);
-                // PERBAIKAN: Menggunakan link custom untuk fallback anti-rusak
                 let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
                 
                 card.innerHTML = `
@@ -322,13 +322,12 @@ function renderOrders() {
         let headerLogoUrl = getOperatorLogo(opTag);
         let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
 
-        // PERBAIKAN: Logika Warna Timer Dinamis saat dirender pertama kali
         const left = order.expiresAt - now;
-        let timerColor = "#ffffff"; // Putih saat baru berjalan (< 2 menit)
+        let timerColor = "#ffffff"; 
         if (left <= 12 * 60000) {
-            timerColor = "var(--danger-color)"; // Merah jika berjalan > 8 menit
+            timerColor = "var(--danger-color)"; 
         } else if (left <= 18 * 60000) {
-            timerColor = "var(--warning-color)"; // Kuning jika berjalan > 2 menit
+            timerColor = "var(--warning-color)"; 
         }
 
         card.innerHTML = `
@@ -385,13 +384,12 @@ function startPollingAndTimer() {
                 const m = Math.floor(left/60000); const s = Math.floor((left%60000)/1000); 
                 el.innerText = `${m}:${s<10?'0':''}${s}`; 
                 
-                // PERBAIKAN: Logika Warna Timer Dinamis saat berjalan (Real-Time)
                 if (left <= 12 * 60000) {
-                    el.style.color = "var(--danger-color)"; // Merah jika berjalan > 8 menit
+                    el.style.color = "var(--danger-color)"; 
                 } else if (left <= 18 * 60000) {
-                    el.style.color = "var(--warning-color)"; // Kuning jika berjalan > 2 menit
+                    el.style.color = "var(--warning-color)"; 
                 } else {
-                    el.style.color = "#ffffff"; // Putih saat baru berjalan (< 2 menit)
+                    el.style.color = "#ffffff"; 
                 }
             }
 
@@ -423,7 +421,16 @@ function startPollingAndTimer() {
                 const res = await apiCall(`/orders/${o.id}`);
                 if (res.success && res.data.status === "OTP_RECEIVED") { 
                     notifSound.play().catch(e => console.log("Sound error:", e));
-                    activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; saveToStorage(); fetchBalance();
+                    activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; 
+                    saveToStorage(); fetchBalance();
+
+                    // PERUBAHAN: Memasukkan nomor ke Blacklist HANYA JIKA OTP SUKSES MASUK
+                    const phoneStr = String(activeOrders[i].phone);
+                    if (!usedNumbersDB.has(phoneStr)) {
+                        db.ref('used_numbers/hero_sms').push({ phone: phoneStr, timestamp: Date.now() });
+                        usedNumbersDB.add(phoneStr);
+                    }
+
                 } else if (res.success && res.data.status === "CANCELLED") { 
                     activeOrders = activeOrders.filter(ord => String(ord.id) !== String(o.id)); saveToStorage(); fetchBalance(); 
                 }
