@@ -13,12 +13,17 @@
 <body class="theme-hero">
     <div id="appView" class="container">
         
-        <div class="top-switchers" style="position: absolute; top: 15px; left: 15px; right: 100px; z-index: 10; display: flex; gap: 8px; height: 32px;">
+        <div class="top-switchers" style="position: absolute; top: 15px; left: 15px; right: 135px; z-index: 10; display: flex; gap: 8px; height: 32px;">
             <select onchange="window.location.href=this.value" class="server-select server-select-sm" style="max-width: 140px;">
                 <option value="index.html" selected>🔵 Hero-SMS</option>
                 <option value="smscode.html">🟠 SMSCode</option>
             </select>
         </div>
+
+        <button onclick="openBlacklistModal()" class="btn-switch" style="position: absolute; top: 15px; right: 95px; background-color: var(--bg-card); color: var(--primary-color); border-color: var(--border-color); width: 32px; padding: 0; justify-content: center; height: 32px; z-index: 5; border-radius: 8px;">
+            <i class="fas fa-ban"></i>
+            <span id="blacklistBadge" style="position: absolute; top: -5px; right: -5px; background: var(--danger-color); color: white; font-size: 9px; padding: 2px 5px; border-radius: 10px; font-weight: 800; border: 1px solid var(--bg-container);">0</span>
+        </button>
 
         <button onclick="openHistoryModal()" class="btn-switch" style="position: absolute; top: 15px; right: 55px; background-color: var(--bg-card); color: var(--primary-color); border-color: var(--border-color); width: 32px; padding: 0; justify-content: center; height: 32px; z-index: 5; border-radius: 8px;">
             <i class="fas fa-history"></i>
@@ -54,6 +59,20 @@
                 <div class="status-text">Memuat data Server...</div>
             </div>
             <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
+        </div>
+    </div>
+
+    <div id="blacklistModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column; max-width: 400px; width: 90%;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 class="modal-title" style="margin:0;">Database Blacklist</h3>
+                <button onclick="closeBlacklistModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="text-align: center; padding: 20px 0;">
+                <div style="font-size: 56px; font-weight: 900; color: var(--primary-color); margin-bottom: 10px; text-shadow: 0 0 20px rgba(150, 212, 0, 0.3);" id="blacklistDetailCount">0</div>
+                <p style="color: var(--text-primary); font-weight: 700; margin-bottom: 5px;">Nomor Terblokir Otomatis</p>
+                <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.4; margin: 0 10px;">Nomor yang sudah sukses mendapatkan OTP akan diingat selamanya dan tidak akan diberikan lagi kepada Anda demi keamanan akun.</p>
+            </div>
         </div>
     </div>
 
