@@ -8,7 +8,6 @@ const db = firebase.database(); const DB_PATH = 'notes/public';
 
 let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
 
-// --- VARIABEL UNTUK FITUR BLACKLIST (ANTI-NOMOR BEKAS) ---
 let usedNumbersDB = new Set(); 
 let hiddenBadOrders = []; 
 let isUsedNumbersLoaded = false; 
@@ -17,7 +16,17 @@ const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currenc
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
 
-// --- FUNGSI FORMATTING & LOGO OPERATOR ---
+// --- FUNGSI STANDARDISASI NOMOR (NORMALIZATION) ANTI-KECOLOONGAN ---
+function normalizePhone(phone) {
+    if (!phone) return "";
+    let p = String(phone).replace(/\D/g, ""); // Hapus semua karakter non-angka (seperti + atau spasi)
+    if (p.startsWith("0")) {
+        p = "62" + p.substring(1); // Ubah awalan 0 jadi 62 agar format seragam
+    }
+    return p;
+}
+
+// --- FUNGSI FORMATTING UI ---
 function formatPhoneNumber(phone) {
     if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim();
 }
@@ -99,13 +108,13 @@ function initUsedNumbersSync() {
         if (snapshot.exists()) {
             snapshot.forEach(child => {
                 if (child.val().phone) {
-                    usedNumbersDB.add(String(child.val().phone));
+                    // STANDARISASI NOMOR SAAT DIMUAT DARI FIREBASE
+                    usedNumbersDB.add(normalizePhone(child.val().phone));
                     totalBlacklist++;
                 }
             });
         }
         isUsedNumbersLoaded = true;
-        // UPDATE COUNT REALTIME KE UI
         const badge = document.getElementById('blacklistBadge');
         if(badge) badge.innerText = totalBlacklist;
         const modalCount = document.getElementById('blacklistDetailCount');
@@ -127,12 +136,18 @@ async function processOrderFreshNumber(operatorId, maxRetries = 5) {
     const res = await apiCall('/orders/create', 'POST', { operator: operatorId });
     if (res.success && res.data && res.data.orders && res.data.orders.length > 0) {
         const o = res.data.orders[0];
-        const phoneStr = String(o.phone_number);
+        
+        // STANDARISASI NOMOR BARU DARI API UNTUK DICOCOKAN
+        const rawPhone = String(o.phone_number);
+        const phoneStr = normalizePhone(rawPhone);
         
         if (usedNumbersDB.has(phoneStr)) {
-            showToast(`⚠️ Nomor ${phoneStr} pernah dipakai. Mencari otomatis yang baru...`, "warning");
+            // Jika format hasil standar sudah ada di Blacklist
+            showToast(`⚠️ Nomor ${rawPhone} pernah dipakai. Mencari otomatis yang baru...`, "warning");
             hiddenBadOrders.push({ id: o.id, cancelAt: Date.now() + (3 * 60 * 1000), isCanceling: false });
             localStorage.setItem(`hero_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders));
+            
+            // Rekursif, cari lagi
             return await processOrderFreshNumber(operatorId, maxRetries - 1);
         } else {
             return o;
@@ -178,7 +193,6 @@ function renderHistory() {
 window.openHistoryModal = function() { document.getElementById('historyModal').classList.remove('hidden'); history.pushState(null, null, "#history"); }
 window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
 window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`hero_history_${activeAccountName}`); renderHistory(); } }
-// --------------------------------
 
 async function fetchAccounts() { try { const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json(); if (data.accounts && data.accounts.length > 0) { loginAccount(data.accounts[0]); } else { if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; showToast("Tidak ada akun", "error"); } } catch (error) { if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; showToast("Gagal terhubung", "error"); } }
 function loginAccount(accountName) { 
@@ -222,6 +236,7 @@ async function loadShopeeIndonesia() {
             let ops = productsRes.data; 
             let anyOp = ops.find(o => o.id === 'any'); 
             if (!anyOp) anyOp = { id: 'any', price: ops[0]?.price || 0, available: 'Cek Server' };
+            
             let specificOps = ops.filter(o => o.id !== 'any' && o.id !== '');
             if (specificOps.length === 0) {
                 const realPrice = anyOp.price;
@@ -237,33 +252,59 @@ async function loadShopeeIndonesia() {
             } else {
                 specificOps.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
             }
+            
             availableProducts = [anyOp, ...specificOps]; 
+            
             if (productList) {
                 productList.innerHTML = '<div style="font-size: 11px; font-weight: 800; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; position: sticky; top: 0; background: var(--bg-container); z-index: 2; padding-bottom: 5px;">Pilih Operator:</div>'; 
             }
+            
             let savedOp = localStorage.getItem('hero_selected_operator');
             if (savedOp && availableProducts.find(p => p.id === savedOp)) {
                 selectedProductId = savedOp;
             } else {
                 selectedProductId = 'any'; 
             }
+            
             if (btnOrder) btnOrder.disabled = false;
+            
             availableProducts.forEach(product => {
                 const card = document.createElement("div"); 
                 card.className = "product-card"; 
                 if (selectedProductId === product.id) card.classList.add('selected');
+                
                 let opName = product.id === 'any' ? 'Pilih Acak / Bebas' : product.id.toUpperCase();
                 let stockLabel = (product.available === 'Acak' || product.available === 'Cek Server') ? product.available : (product.available > 1000 ? "1000+" : product.available);
+                
                 let logoImg = getOperatorLogo(product.id);
-                let fallbackImg = 'https://cdn-icons-png.flaticon.com/512/3045/3045500.png';
-                card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4><p>Stok: <span style="font-weight:700; color:var(--text-primary);">${stockLabel}</span></p></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
-                card.onclick = () => { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); selectedProductId = product.id; localStorage.setItem('hero_selected_operator', product.id); if (btnOrder) btnOrder.disabled = false; };
+                let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
+                
+                card.innerHTML = `
+                    <div class="op-logo-container">
+                        <img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}">
+                    </div>
+                    <div class="product-info">
+                        <h4>${opName}</h4>
+                        <p>Stok: <span style="font-weight:700; color:var(--text-primary);">${stockLabel}</span></p>
+                    </div>
+                    <div class="product-price">${usdFormatter.format(product.price)}</div>
+                `;
+                
+                card.onclick = () => { 
+                    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
+                    card.classList.add('selected'); selectedProductId = product.id; 
+                    localStorage.setItem('hero_selected_operator', product.id); 
+                    if (btnOrder) btnOrder.disabled = false; 
+                };
+                
                 if (productList) productList.appendChild(card);
             });
+
             setTimeout(() => {
                 const selectedEl = document.querySelector('.product-card.selected');
                 if(selectedEl && productList) selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }, 300);
+
         } else { if (productList) productList.innerHTML = '<div class="status-text">Stok sedang kosong.</div>'; }
     } catch (error) { if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error muat data.</div>`; }
 }
@@ -273,25 +314,68 @@ function renderOrders() {
     if (activeOrders.length === 0) { if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Belum ada pesanan aktif.</div>'; return; }
     if (activeOrdersContainer) activeOrdersContainer.innerHTML = "";
     const now = Date.now();
+
     activeOrders.forEach(order => {
         const card = document.createElement("div"); card.className = "order-card"; card.id = `order-card-${order.id}`;
         const isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
+        
         let opTag = order.productId;
         if (opTag === 'any' || !opTag) { opTag = getProviderName(order.phone); } else { opTag = String(opTag).toUpperCase(); }
+
         const matchedProduct = availableProducts.find(p => p.id === order.productId);
         const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || availableProducts[0]?.price || 0);
+        
         const wait = order.cancelUnlockTime - now; 
-        let otpHtml = isSuccess ? `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
+        
+        let otpHtml = isSuccess ? 
+            `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : 
+            `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
+            
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
-        if (isSuccess) { finishBtnAttr = ""; resendBtnAttr = "disabled";
-        } else if (wait <= 0 && !order.isAutoCanceling) { cancelBtnAttr = ""; replaceBtnAttr = ""; 
-        } else if (order.isAutoCanceling) { cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; }
+
+        if (isSuccess) { 
+            finishBtnAttr = ""; resendBtnAttr = "disabled";
+        } else if (wait <= 0 && !order.isAutoCanceling) { 
+            cancelBtnAttr = ""; replaceBtnAttr = ""; 
+        } else if (order.isAutoCanceling) { 
+            cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; 
+        }
+
         let headerLogoUrl = getOperatorLogo(opTag);
-        let fallbackImg = 'https://cdn-icons-png.flaticon.com/512/3045/3045500.png';
+        let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
+
         const left = order.expiresAt - now;
         let timerColor = "#ffffff"; 
-        if (left <= 12 * 60000) { timerColor = "var(--danger-color)"; } else if (left <= 18 * 60000) { timerColor = "var(--warning-color)"; }
-        card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id}</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
+        if (left <= 12 * 60000) {
+            timerColor = "var(--danger-color)"; 
+        } else if (left <= 18 * 60000) {
+            timerColor = "var(--warning-color)"; 
+        }
+
+        card.innerHTML = `
+            <div class="order-header">
+                <div class="order-info-left" style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;">
+                        <img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                    </div>
+                    <div>
+                        <div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id}</div> 
+                        <div class="order-price" style="display:block;">${displayPrice}</div>
+                    </div>
+                </div>
+                <span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">--:--</span>
+            </div>
+            <div class="phone-row">
+                <span class="phone-number">${formatPhoneNumber(order.phone)}</span>
+                <button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button>
+            </div>
+            <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div>
+            <div class="action-buttons-grid">
+                <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button>
+                <button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button>
+                <button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button>
+                <button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button>
+            </div>`;
         if (activeOrdersContainer) activeOrdersContainer.appendChild(card);
     });
 }
@@ -300,6 +384,7 @@ function startPollingAndTimer() {
     if (timerInterval) clearInterval(timerInterval); if (pollingInterval) clearInterval(pollingInterval);
     timerInterval = setInterval(() => {
         const now = Date.now();
+        
         for (let j = hiddenBadOrders.length - 1; j >= 0; j--) {
             let bo = hiddenBadOrders[j];
             if (now >= bo.cancelAt && !bo.isCanceling) {
@@ -307,18 +392,33 @@ function startPollingAndTimer() {
                 apiCall('/orders/cancel', 'POST', { id: bo.id }).then(res => {
                     hiddenBadOrders.splice(j, 1);
                     localStorage.setItem(`hero_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders));
-                }).catch(e => { bo.isCanceling = false; });
+                }).catch(e => {
+                    bo.isCanceling = false; 
+                });
             }
         }
+
         activeOrders.forEach((o, i) => {
             const left = o.expiresAt - now; const el = document.getElementById(`timer-${o.id}`);
             if (left <= 0) { activeOrders.splice(i, 1); saveToStorage(); fetchBalance(); return; }
+            
             if (el) { 
                 const m = Math.floor(left/60000); const s = Math.floor((left%60000)/1000); 
                 el.innerText = `${m}:${s<10?'0':''}${s}`; 
-                if (left <= 12 * 60000) { el.style.color = "var(--danger-color)"; } else if (left <= 18 * 60000) { el.style.color = "var(--warning-color)"; } else { el.style.color = "#ffffff"; }
+                
+                if (left <= 12 * 60000) {
+                    el.style.color = "var(--danger-color)"; 
+                } else if (left <= 18 * 60000) {
+                    el.style.color = "var(--warning-color)"; 
+                } else {
+                    el.style.color = "#ffffff"; 
+                }
             }
-            if (left <= 600000 && o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) { o.isAutoCanceling = true; cancelSpecificOrder(o.id, true); }
+
+            if (left <= 600000 && o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) {
+                o.isAutoCanceling = true; cancelSpecificOrder(o.id, true);
+            }
+
             const wait = o.cancelUnlockTime - now;
             const btnCancel = document.getElementById(`btn-cancel-${o.id}`); const btnReplace = document.getElementById(`btn-replace-${o.id}`); const btnResend = document.getElementById(`btn-resend-${o.id}`); 
             if (o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) {
@@ -345,11 +445,14 @@ function startPollingAndTimer() {
                     notifSound.play().catch(e => console.log("Sound error:", e));
                     activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; 
                     saveToStorage(); fetchBalance();
-                    const phoneStr = String(activeOrders[i].phone);
+
+                    // STANDARISASI NOMOR SAAT MENCATAT KE FIREBASE
+                    const phoneStr = normalizePhone(activeOrders[i].phone);
                     if (!usedNumbersDB.has(phoneStr)) {
                         db.ref('used_numbers/hero_sms').push({ phone: phoneStr, timestamp: Date.now() });
                         usedNumbersDB.add(phoneStr);
                     }
+
                 } else if (res.success && res.data.status === "CANCELLED") { 
                     activeOrders = activeOrders.filter(ord => String(ord.id) !== String(o.id)); saveToStorage(); fetchBalance(); 
                 }
@@ -361,9 +464,11 @@ function startPollingAndTimer() {
 if (btnOrder) {
     btnOrder.onclick = async () => {
         if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
+        
         btnOrder.disabled = true; const originalText = btnOrder.innerText; btnOrder.innerText = "Memproses...";
         try {
             const o = await processOrderFreshNumber(selectedProductId, 5); 
+            
             if (o) {
                 const opInfo = availableProducts.find(p => p.id === selectedProductId); 
                 const opPrice = o.price || o.cost || o.amount || (opInfo ? opInfo.price : 0);
@@ -377,12 +482,15 @@ if (btnOrder) {
 
 window.replaceSpecificOrder = async function(orderId) {
     if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
+    
     const idStr = String(orderId); const oldOrder = activeOrders.find(o => String(o.id) === idStr); const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
     const btn = document.getElementById(`btn-replace-${idStr}`); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     if (oldOrder) saveToHistory(oldOrder, "GANTI"); 
     try {
         await apiCall('/orders/cancel', 'POST', { id: idStr }); activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
+        
         const od = await processOrderFreshNumber(opToUse, 5); 
+        
         if (od) {
             const opInfo = availableProducts.find(p => p.id === opToUse); 
             const opPrice = od.price || od.cost || od.amount || (opInfo ? opInfo.price : (oldOrder ? oldOrder.price : 0));
@@ -413,14 +521,22 @@ window.resendSpecificOrder = async function(orderId) {
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         const res = await apiCall('/orders/resend', 'POST', { id: idStr });
-        if (res.success) { showToast("Meminta kode baru..."); let idx = activeOrders.findIndex(o => String(o.id) === idStr); if (idx !== -1) { activeOrders[idx].status = "ACTIVE"; activeOrders[idx].otp = null; saveToStorage(); }
-        } else { showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
+        if (res.success) { 
+            showToast("Meminta kode baru..."); 
+            let idx = activeOrders.findIndex(o => String(o.id) === idStr);
+            if (idx !== -1) { activeOrders[idx].status = "ACTIVE"; activeOrders[idx].otp = null; saveToStorage(); }
+        } 
+        else { showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
     } catch (e) { showToast("Kesalahan jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
 };
 
 async function initMainApp() { fetchBalance(); await loadShopeeIndonesia(); renderOrders(); startPollingAndTimer(); }
 
 window.onload = () => { 
-    relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); 
-    initNotesSync(); initUsedNumbersSync(); fetchAccounts(); 
+    relocateBalanceUI(); 
+    setAccountViewingStatus(false); 
+    history.pushState(null, null, window.location.href); 
+    initNotesSync(); 
+    initUsedNumbersSync(); 
+    fetchAccounts(); 
 };
