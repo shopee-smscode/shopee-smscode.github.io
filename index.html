@@ -13,12 +13,16 @@
 <body class="theme-hero">
     <div id="appView" class="container">
         
-        <div class="top-switchers" style="position: absolute; top: 15px; left: 15px; right: 135px; z-index: 10; display: flex; gap: 8px; height: 32px;">
+        <div class="top-switchers" style="position: absolute; top: 15px; left: 15px; right: 175px; z-index: 10; display: flex; gap: 8px; height: 32px;">
             <select onchange="window.location.href=this.value" class="server-select server-select-sm" style="max-width: 140px;">
                 <option value="index.html" selected>🔵 Hero-SMS</option>
                 <option value="smscode.html">🟠 SMSCode</option>
             </select>
         </div>
+
+        <button onclick="openStatsModal()" class="btn-switch" style="position: absolute; top: 15px; right: 135px; background-color: var(--bg-card); color: var(--primary-color); border-color: var(--border-color); width: 32px; padding: 0; justify-content: center; height: 32px; z-index: 5; border-radius: 8px;">
+            <i class="fas fa-chart-bar"></i>
+        </button>
 
         <button onclick="openBlacklistModal()" class="btn-switch" style="position: absolute; top: 15px; right: 95px; background-color: var(--bg-card); color: var(--primary-color); border-color: var(--border-color); width: 32px; padding: 0; justify-content: center; height: 32px; z-index: 5; border-radius: 8px;">
             <i class="fas fa-ban"></i>
@@ -62,6 +66,28 @@
         </div>
     </div>
 
+    <div id="statsModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 350px; width: 90%;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 class="modal-title" style="margin:0;">Statistik Harian</h3>
+                <button onclick="closeStatsModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <input type="date" id="statDate" class="form-input" style="margin-bottom:15px; font-weight:bold; text-align:center; color: var(--text-primary); background: var(--bg-card); border: 1px solid var(--border-color);">
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div style="background: rgba(46, 204, 113, 0.1); padding: 15px; border-radius: 10px; text-align: center; border: 1px solid var(--success-color);">
+                    <div style="font-size: 28px; font-weight: 900; color: var(--success-color);" id="statSuccess">0</div>
+                    <div style="font-size: 11px; font-weight: bold; color: var(--text-secondary); text-transform: uppercase;">Sukses OTP</div>
+                </div>
+                <div style="background: rgba(231, 76, 60, 0.1); padding: 15px; border-radius: 10px; text-align: center; border: 1px solid var(--danger-color);">
+                    <div style="font-size: 28px; font-weight: 900; color: var(--danger-color);" id="statFailed">0</div>
+                    <div style="font-size: 11px; font-weight: bold; color: var(--text-secondary); text-transform: uppercase;">Batal / Ganti</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="blacklistModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column; max-width: 400px; width: 90%;">
             <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
@@ -71,7 +97,8 @@
             <div style="text-align: center; padding: 20px 0;">
                 <div style="font-size: 56px; font-weight: 900; color: var(--primary-color); margin-bottom: 10px; text-shadow: 0 0 20px rgba(150, 212, 0, 0.3);" id="blacklistDetailCount">0</div>
                 <p style="color: var(--text-primary); font-weight: 700; margin-bottom: 5px;">Nomor Terblokir Otomatis</p>
-                <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.4; margin: 0 10px;">Nomor yang sudah sukses mendapatkan OTP akan diingat selamanya dan tidak akan diberikan lagi kepada Anda demi keamanan akun.</p>
+                <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.4; margin: 0 10px;">Nomor yang sudah sukses mendapatkan OTP akan diingat selamanya dan tidak akan diberikan lagi.</p>
+                <div id="operatorBreakdown" style="margin-top: 15px; text-align: center;"></div>
             </div>
         </div>
     </div>
