@@ -17,7 +17,7 @@
         #appFrame { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; background: var(--bg-color); z-index: 10; display: none; }
         #appFrame.active { display: block; }
 
-        /* OVERLAY SIDEBAR */
+        /* OVERLAY SIDEBAR & MODAL */
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
         .overlay.show { opacity: 1; pointer-events: all; }
 
@@ -29,14 +29,9 @@
         .close-btn { font-size: 24px; color: inherit; opacity: 0.8; cursor: pointer; transition: 0.2s; }
         .close-btn:active { transform: scale(0.8); }
         .sidebar-menu { flex: 1; overflow-y: auto; padding: 15px 0; }
-        
-        /* PEMBARUAN: Ukuran font, padding, dan gap diperkecil agar lebih rapat */
         .menu-item { display: flex; align-items: center; gap: 12px; padding: 8px 20px; color: inherit; text-decoration: none; font-size: 13px; font-weight: 600; transition: 0.2s; cursor: pointer; }
         .menu-item:active { background-color: rgba(255, 255, 255, 0.25); }
-        
-        /* PEMBARUAN: Ukuran bulatan ikon diperkecil menyesuaikan teks */
         .menu-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 15px; background: rgba(255, 255, 255, 0.5); }
-        
         .loader-bar { position: absolute; top: 0; left: 0; width: 0%; height: 3px; background: var(--primary); transition: width 0.3s; z-index: 95; }
 
         /* PUSAT KOMANDO */
@@ -90,6 +85,16 @@
         </div>
     </div>
 
+    <div class="overlay" id="exitOverlay" style="z-index: 199;" onclick="closeExitModal()"></div>
+    <div id="exitModal" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: var(--white); width: 90%; max-width: 260px; border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 200; opacity: 0; pointer-events: none; transition: 0.3s; color: #333;">
+        <h3 style="margin: 0 0 10px; text-align: center; color: #333; font-size: 18px;">Keluar Aplikasi?</h3>
+        <p style="text-align: center; font-size: 13px; margin-bottom: 20px; color: #555;">Apakah Anda yakin ingin menutup Workspace ini?</p>
+        <div style="display: flex; gap: 10px;">
+            <button style="flex: 1; padding: 10px; border: none; border-radius: 10px; background: #eee; font-weight: 700; color: #333; cursor: pointer; font-size: 13px; transition: 0.2s;" onclick="closeExitModal()">Batal</button>
+            <button style="flex: 1; padding: 10px; border: none; border-radius: 10px; background: #cb2431; font-weight: 700; color: white; cursor: pointer; font-size: 13px; transition: 0.2s;" onclick="confirmExit()">Keluar</button>
+        </div>
+    </div>
+
     <div class="main-workspace">
         <div class="loader-bar" id="loaderBar"></div>
         <div id="skyCanvas"></div>
@@ -110,8 +115,7 @@
 
     <script>
         // =========================================================================
-        // 🔧 PENGATURAN DAFTAR APLIKASI (TAMBAH/UBAH DAFTAR LINK DI SINI)
-        // Cara tambah: Anda cukup ketik Emoji dari HP Anda di bagian 'icon'.
+        // 🔧 PENGATURAN DAFTAR APLIKASI
         // =========================================================================
         const DAFTAR_APLIKASI = [
             { url: 'Hero SMS/herosms.html', name: 'Hero SMS', icon: '💬', bg: '#e0e7ff', color: '#4f46e5' },
@@ -133,7 +137,6 @@
         const recentAppsRow = document.getElementById('recentAppsRow');
         const appListContainer = document.getElementById('appListContainer');
 
-        // --- MUAT DAFTAR APLIKASI KE SIDEBAR ---
         function renderSidebarApps() {
             let html = '';
             DAFTAR_APLIKASI.forEach(app => {
@@ -146,7 +149,6 @@
         }
         renderSidebarApps();
 
-        // --- SISTEM RIWAYAT APLIKASI ---
         let recentApps = JSON.parse(localStorage.getItem('hub_recent_apps')) || [];
 
         function renderRecentApps() {
@@ -157,12 +159,12 @@
             
             let html = '';
             recentApps.forEach(app => {
-                // PEMBARUAN: Ukuran kotak riwayat juga sedikit diperkecil agar proporsional
+                // DIKEMBALIKAN: Ukuran Ikon menjadi 56px dan Font Ikon 26px
                 html += `
                 <div onclick="loadApp('${app.url}', '${app.name}', '${app.icon}', '${app.bg}', '${app.color}')" 
                      style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; transition: transform 0.1s;">
-                    <div style="width: 48px; height: 48px; border-radius: 14px; background: ${app.bg}; color: ${app.color}; 
-                                display: flex; justify-content: center; align-items: center; font-size: 22px; 
+                    <div style="width: 56px; height: 56px; border-radius: 16px; background: ${app.bg}; color: ${app.color}; 
+                                display: flex; justify-content: center; align-items: center; font-size: 26px; 
                                 box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
                         ${app.icon}
                     </div>
@@ -173,7 +175,6 @@
         }
         renderRecentApps(); 
 
-        // --- FUNGSI NAVIGASI & ANIMASI TOMBOL ---
         function openSidebar() { 
             sidebar.classList.add('open'); 
             overlay.classList.add('show'); 
@@ -228,7 +229,6 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // --- LOGIKA SAPAAN, RENDER LANGIT, & TEMA SIDEBAR ---
         function updateSkyAndDate() {
             const dateText = document.getElementById('dateText');
             const greetingText = document.getElementById('greetingText');
@@ -295,6 +295,63 @@
             if (startX < 50 && diffX > 70) openSidebar(); 
             else if (sidebar.classList.contains('open') && diffX < -50) closeSidebar(); 
         }, {passive: true});
+
+        // =========================================================================
+        // 🚀 LOGIKA TOMBOL KEMBALI (HARDWARE BACK BUTTON ANDROID)
+        // =========================================================================
+        
+        // Memasang jebakan riwayat (History Trap) saat pertama kali dimuat
+        history.pushState(null, null, location.href);
+        
+        window.onpopstate = function(event) {
+            // 1. Jika Menu Terbuka -> Tutup Menu
+            if (sidebar.classList.contains('open')) {
+                closeSidebar();
+                history.pushState(null, null, location.href); // Pasang jebakan lagi
+            } 
+            // 2. Jika Sedang Buka Aplikasi -> Kembali ke Layar Utama
+            else if (appFrame.classList.contains('active')) {
+                goHome();
+                history.pushState(null, null, location.href); // Pasang jebakan lagi
+            } 
+            // 3. Jika Modal Keluar Sedang Terbuka -> Tutup Modal
+            else if (document.getElementById('exitModal').style.opacity === '1') {
+                closeExitModal();
+                history.pushState(null, null, location.href); // Pasang jebakan lagi
+            }
+            // 4. Jika Sedang di Layar Utama -> Tampilkan Modal Keluar
+            else {
+                openExitModal();
+                history.pushState(null, null, location.href); // Tahan agar tidak langsung keluar
+            }
+        };
+
+        const exitModal = document.getElementById('exitModal');
+        const exitOverlay = document.getElementById('exitOverlay');
+
+        function openExitModal() {
+            exitModal.style.opacity = '1';
+            exitModal.style.transform = 'translate(-50%, -50%) scale(1)';
+            exitModal.style.pointerEvents = 'all';
+            exitOverlay.style.opacity = '1';
+            exitOverlay.style.pointerEvents = 'all';
+        }
+
+        function closeExitModal() {
+            exitModal.style.opacity = '0';
+            exitModal.style.transform = 'translate(-50%, -50%) scale(0.9)';
+            exitModal.style.pointerEvents = 'none';
+            exitOverlay.style.opacity = '0';
+            exitOverlay.style.pointerEvents = 'none';
+        }
+
+        function confirmExit() {
+            // Matikan jebakan tombol kembali
+            window.onpopstate = null;
+            // Tutup Modal dan Paksa Mundur
+            closeExitModal();
+            history.back(); 
+        }
     </script>
 </body>
 </html>
