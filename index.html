@@ -108,7 +108,7 @@
             <!-- LAYAR UTAMA (DIPERBESAR) -->
             <div class="menu-item home-item" onclick="goHome()">
                 <div class="menu-icon" style="background: rgba(255,255,255,0.85); color: #333;">🏠</div> 
-                <span class="menu-text">Layar Utama</span>
+                <span class="menu-text">Beranda</span>
             </div>
             
             <div id="appListContainer"></div>
@@ -252,6 +252,9 @@
                 renderRecentApps();
             }
 
+            // SIMPAN AKTIVITAS TERAKHIR
+            localStorage.setItem('hub_last_session', url);
+
             loaderBar.style.width = '30%';
             placeholder.style.display = 'none'; 
             skyCanvas.style.display = 'none'; 
@@ -269,6 +272,18 @@
             appFrame.src = '';
             placeholder.style.display = 'flex'; 
             skyCanvas.style.display = 'block'; 
+            
+            // HAPUS MEMORI SESI SAAT KEMBALI KE BERANDA
+            localStorage.removeItem('hub_last_session');
+        }
+
+        // --- PEMULIHAN SESI TERAKHIR OTOMATIS ---
+        const lastSession = localStorage.getItem('hub_last_session');
+        if (lastSession) {
+            placeholder.style.display = 'none'; 
+            skyCanvas.style.display = 'none'; 
+            appFrame.classList.add('active');   
+            appFrame.src = lastSession;
         }
 
         // --- LOGIKA JAM REAL-TIME ---
