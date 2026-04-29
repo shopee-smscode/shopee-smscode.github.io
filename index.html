@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -7,198 +5,435 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>My App Hub</title>
     <style>
-        :root {
-            --bg-color: #f0f2f5;
-            --white: #ffffff;
-            --text-main: #050505;
-            --text-muted: #65676b;
-            --primary: #1877f2;
-        }
+        :root { --bg-color: #f0f2f5; --white: #ffffff; --text-main: #050505; --text-muted: #65676b; --primary: #1877f2; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background-color: var(--bg-color); overflow: hidden; }
 
-        body, html {
-            margin: 0; padding: 0; height: 100%;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-            background-color: var(--bg-color);
-            overflow: hidden; 
-        }
-
-        /* TOMBOL MENGAMBANG (POJOK KANAN BAWAH + ANIMASI) */
-        .floating-menu-btn {
-            position: fixed; bottom: 25px; right: 25px; width: 42px; height: 42px;
-            background-color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(5px);
-            border-radius: 50%; display: flex; justify-content: center; align-items: center;
-            font-size: 18px; color: #1a1a1a; box-shadow: 0 4px 15px rgba(0,0,0,0.25);
-            z-index: 90; cursor: pointer; -webkit-tap-highlight-color: transparent;
-            /* Efek pegas (bounce) yang membal saat animasi transform */
-            transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.3s ease, background-color 0.2s;
-        }
-        /* Animasi sederhana saat ditahan */
+        /* TOMBOL MENGAMBANG */
+        .floating-menu-btn { position: fixed; bottom: 25px; right: 25px; width: 42px; height: 42px; background-color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(5px); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 18px; color: #1a1a1a; box-shadow: 0 4px 15px rgba(0,0,0,0.25); z-index: 90; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.3s ease, background-color 0.2s; }
         .floating-menu-btn:active { transform: scale(0.85) rotate(15deg); background-color: #ffffff; }
 
         /* AREA KONTEN (FULL SCREEN) */
         .main-workspace { height: 100%; width: 100%; position: relative; background: #000; }
-        
-        #appFrame {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            border: none; background: var(--bg-color); z-index: 10; display: none; 
-        }
+        #appFrame { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; background: var(--bg-color); z-index: 10; display: none; }
         #appFrame.active { display: block; }
 
-        /* OVERLAY GELAP SIDEBAR */
-        .overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6); z-index: 100; opacity: 0; pointer-events: none;
-            transition: opacity 0.3s ease;
-        }
+        /* OVERLAY SIDEBAR & MODAL */
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
         .overlay.show { opacity: 1; pointer-events: all; }
 
-        /* MENU SIDEBAR (ESTETIK DINAMIS) */
-        .sidebar {
-            position: fixed; top: 0; left: -300px; width: 280px; height: 100%;
-            /* Latar belakang default, akan ditimpa oleh JS agar sesuai dengan langit */
-            background: var(--white); color: var(--text-main);
-            z-index: 101; transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 1s ease, color 0.5s ease;
-            box-shadow: 2px 0 15px rgba(0,0,0,0.2); display: flex; flex-direction: column;
-        }
+        /* MENU SIDEBAR */
+        .sidebar { position: fixed; top: 0; left: -300px; width: 280px; height: 100%; background: var(--white); color: var(--text-main); z-index: 101; transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 1s ease, color 0.5s ease; box-shadow: 2px 0 15px rgba(0,0,0,0.2); display: flex; flex-direction: column; }
         .sidebar.open { left: 0; }
-        
-        .sidebar-header { 
-            padding: 25px 20px 15px; 
-            border-bottom: 1px solid rgba(128, 128, 128, 0.2); /* Transparan agar menyatu dengan background */
-            display: flex; justify-content: space-between; align-items: center; 
-        }
+        .sidebar-header { padding: 25px 20px 15px; border-bottom: 1px solid rgba(128, 128, 128, 0.2); display: flex; justify-content: space-between; align-items: center; }
         .sidebar-title { font-size: 20px; font-weight: 800; margin: 0; color: inherit; }
         .close-btn { font-size: 24px; color: inherit; opacity: 0.8; cursor: pointer; transition: 0.2s; }
         .close-btn:active { transform: scale(0.8); }
-        
         .sidebar-menu { flex: 1; overflow-y: auto; padding: 15px 0; }
-        .menu-item { 
-            display: flex; align-items: center; gap: 15px; padding: 12px 20px; 
-            color: inherit; text-decoration: none; font-size: 15px; font-weight: 600; 
-            transition: 0.2s; cursor: pointer; 
-        }
-        .menu-item:active { background-color: rgba(255, 255, 255, 0.25); } /* Efek hover kaca */
+        .menu-item { display: flex; align-items: center; gap: 15px; padding: 12px 20px; color: inherit; text-decoration: none; font-size: 15px; font-weight: 600; transition: 0.2s; cursor: pointer; }
+        .menu-item:active { background-color: rgba(255, 255, 255, 0.25); }
         .menu-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 18px; background: rgba(255, 255, 255, 0.5); }
-        
         .loader-bar { position: absolute; top: 0; left: 0; width: 0%; height: 3px; background: var(--primary); transition: width 0.3s; z-index: 95; }
 
-        /* --- STYLING PUSAT KOMANDO --- */
-        #placeholder {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            padding: 20px; box-sizing: border-box; z-index: 2; 
-        }
+        /* MODAL KHUSUS EDIT/TAMBAH */
+        .github-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: var(--white); width: 90%; max-width: 350px; border-radius: 20px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 200; opacity: 0; pointer-events: none; transition: 0.3s; color: #333; }
+        .github-modal.show { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: all; }
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; font-size: 12px; font-weight: 700; color: #666; margin-bottom: 5px; }
+        .input-group input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; box-sizing: border-box; }
+        
+        /* GRID IKON PRESET */
+        .icon-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+        .icon-preset { width: 45px; height: 45px; border-radius: 12px; display: flex; justify-content: center; align-items: center; font-size: 22px; cursor: pointer; border: 2px solid transparent; margin: 0 auto; transition: 0.2s; }
+        .icon-preset.selected { border-color: var(--primary); transform: scale(1.15); box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
 
-        /* ========================================= */
-        /* 🎨 KANVAS LANGIT DINAMIS & ANIMASI KARTUN */
-        /* ========================================= */
+        .btn-save-gh { width: 100%; padding: 12px; border: none; border-radius: 10px; background: #2ea44f; font-weight: 700; color: white; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; }
+        
+        .modal-btns { display: flex; gap: 10px; }
+        .btn-cancel { flex: 1; padding: 12px; border: none; border-radius: 10px; background: #eee; font-weight: 700; color: #333; cursor: pointer; transition: 0.2s; }
+        .btn-cancel:active { background: #ddd; }
+        .btn-save { flex: 1; padding: 12px; border: none; border-radius: 10px; background: var(--primary); font-weight: 700; color: white; cursor: pointer; transition: 0.2s; }
+        .btn-save:active { opacity: 0.8; }
+
+        #syncStatus { margin-top: 15px; font-size: 12px; font-weight: 600; text-align: center; color: #2ea44f; display: none; }
+
+        /* PUSAT KOMANDO */
+        #placeholder { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; z-index: 2; }
         #skyCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; overflow: hidden; transition: background 1s ease; }
 
+        /* (CSS Langit) */
         .sky-morning { background: linear-gradient(180deg, #87CEEB 0%, #FFB6C1 50%, #FFDAB9 100%); }
         .sky-day { background: linear-gradient(180deg, #4facfe 0%, #00f2fe 100%); }
         .sky-afternoon { background: linear-gradient(180deg, #2c3e50 0%, #fd746c 100%); }
         .sky-night { background: linear-gradient(180deg, #0f2027 0%, #203a43 50%, #2c5364 100%); }
-
         .celestial { position: absolute; border-radius: 50%; }
         .sun-morning { width: 80px; height: 80px; background: #FFD700; right: 15%; bottom: -100px; box-shadow: 0 0 40px #FFD700; animation: sunrise 4s ease-out forwards; }
         .sun-day { width: 100px; height: 100px; background: #FFDF00; right: -20px; top: -20px; box-shadow: 0 0 60px #FFDF00; }
         .sun-afternoon { width: 90px; height: 90px; background: #FF4500; right: 20%; bottom: 100px; box-shadow: 0 0 50px #FF4500; animation: sunset 4s ease-in forwards; }
         .moon-night { width: 70px; height: 70px; background: #F4F6F0; right: 20px; top: 30px; box-shadow: 0 0 30px #F4F6F0; }
         .moon-night::after { content: ''; position: absolute; top: -10px; right: -10px; width: 60px; height: 60px; background: inherit; border-radius: 50%; background: var(--bg-night); } 
-
         @keyframes sunrise { to { bottom: 100px; } }
         @keyframes sunset { to { bottom: -50px; opacity: 0.5; } }
-
-        .cloud { position: absolute; background: white; border-radius: 50px; opacity: 0.8; }
-        .cloud::before, .cloud::after { content: ''; position: absolute; background: white; border-radius: 50%; }
-        .c1 { width: 120px; height: 40px; top: 15%; animation: wind 25s linear infinite; }
-        .c1::before { width: 60px; height: 60px; top: -30px; left: 20px; }
-        .c1::after { width: 45px; height: 45px; top: -15px; right: 20px; }
-        .c2 { width: 80px; height: 30px; top: 35%; opacity: 0.5; animation: wind 18s linear infinite reverse; }
-        .c2::before { width: 40px; height: 40px; top: -20px; left: 15px; }
-
-        @keyframes wind { 0% { left: -150px; } 100% { left: 100vw; } }
-
         .star { position: absolute; background: white; border-radius: 50%; }
-        .shooting-star {
-            position: absolute; top: 10%; right: 20%; width: 120px; height: 2px;
-            background: linear-gradient(90deg, rgba(255,255,255,1), rgba(255,255,255,0));
-            transform: rotate(-45deg); opacity: 0; animation: shoot 5s infinite;
-        }
-        @keyframes shoot { 
-            0% { transform: translateX(0) translateY(0) rotate(-45deg); opacity: 1; }
-            15% { transform: translateX(-300px) translateY(300px) rotate(-45deg); opacity: 0; }
-            100% { opacity: 0; }
-        }
     </style>
 </head>
 <body>
 
-    <!-- Tombol Mengambang (Pojok Kanan Bawah) -->
+    <!-- Tombol Mengambang -->
+    <div class="floating-menu-btn" id="loginBtn" style="bottom: 80px;" onclick="openLoginModal()">🔐</div>
     <div class="floating-menu-btn" id="menuBtn" onclick="openSidebar()">☰</div>
 
-    <!-- OVERLAY & SIDEBAR (TEMA DINAMIS) -->
+    <!-- OVERLAY & SIDEBAR -->
     <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+    
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h2 class="sidebar-title">Workspace</h2>
+            <h2 class="sidebar-title" id="sidebarTitle">Pemakai</h2>
             <div class="close-btn" onclick="closeSidebar()">×</div>
         </div>
-        <div class="sidebar-menu">
-            <div class="menu-item" onclick="goHome()">
-                <div class="menu-icon" style="background: rgba(255,255,255,0.7); color: #333;">🏠</div> Layar Utama
+        <div class="sidebar-menu" style="display: flex; flex-direction: column;">
+            <div style="flex: 1;">
+                <div class="menu-item" onclick="goHome()">
+                    <div class="menu-icon" style="background: rgba(255,255,255,0.7); color: #333;">🏠</div> Layar Utama
+                </div>
+                <hr style="border:0; border-top:1px solid rgba(128,128,128,0.2); margin: 10px 20px;">
+                
+                <!-- Tempat daftar aplikasi di-render -->
+                <div id="appListContainer"></div>
             </div>
             
-            <hr style="border:0; border-top:1px solid rgba(128,128,128,0.2); margin: 10px 20px;">
-            
-            <!-- Daftar Aplikasi -->
-            <div class="menu-item" onclick="loadApp('herosms/herosms.html', 'Hero-SMS', '💬', '#e0e7ff', '#4f46e5')">
-                <div class="menu-icon" style="background:#e0e7ff; color:#4f46e5;">💬</div> Hero-SMS Pro
+            <!-- Tombol Logout -->
+            <div id="logoutContainer" style="display: none; text-align: center; padding: 20px;">
+                <button onclick="openLogoutModal()" style="padding: 10px 20px; border-radius: 20px; border: 1px solid #ff4757; color: #ff4757; background: transparent; font-weight: bold; cursor: pointer; width: 100%;">Keluar (Logout)</button>
             </div>
-            <div class="menu-item" onclick="loadApp('smscode/smscode.html', 'SMS Code', '📩', '#fce7f3', '#db2777')">
-                <div class="menu-icon" style="background:#fce7f3; color:#db2777;">📩</div> SMS Code
+        </div>
+    </div>
+
+    <!-- MODAL GITHUB SYNC (TAMBAH & EDIT) -->
+    <div class="overlay" id="modalOverlay" style="z-index: 199;" onclick="closeModal()"></div>
+    <div class="github-modal" id="githubModal">
+        <h3 id="modalTitleText" style="margin: 0 0 15px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <svg height="24" viewBox="0 0 16 16" width="24"><path fill="#2ea44f" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+            Tambah / Edit Menu
+        </h3>
+        
+        <div class="input-group">
+            <label>Nama Aplikasi / Menu</label>
+            <input type="text" id="ghAppName" placeholder="Contoh: TikTok Affiliate">
+        </div>
+        <div class="input-group">
+            <label>URL / File Target</label>
+            <input type="text" id="ghAppUrl" placeholder="Contoh: tiktok/index.html">
+        </div>
+        
+        <label style="display: block; font-size: 12px; font-weight: 700; color: #666; margin-bottom: 10px;">Pilih Ikon (Preset)</label>
+        <div class="icon-grid" id="iconGridContainer">
+            <!-- Icon Presets akan digenerate dari JS -->
+        </div>
+        
+        <button class="btn-save-gh" id="btnSync" onclick="saveAppForm()">Simpan & Commit ke GitHub</button>
+        <div id="syncStatus"></div>
+    </div>
+
+    <!-- MODAL LOGIN -->
+    <div class="overlay" id="loginOverlay" style="z-index: 199;" onclick="closeLoginModal()"></div>
+    <div class="github-modal" id="loginModal" style="max-width: 280px; padding: 20px;">
+        <h3 style="margin: 0 0 15px; text-align: center; color: #333; font-size: 18px;">Login Admin</h3>
+        <div class="input-group" style="position: relative; margin-bottom: 20px;">
+            <input type="password" id="adminPassword" placeholder="Masukkan Password..." style="padding-right: 35px;">
+            <span id="togglePasswordIcon" onclick="togglePasswordVisibility()" style="position: absolute; right: 10px; top: 11px; font-size: 16px; cursor: pointer; color: #888; user-select: none;">👁️</span>
+            <div style="font-size: 10px; color: #888; margin-top: 6px; line-height: 1.3; text-align: left;">
+                Password minimal 8 huruf, 1 numerik dan 1 simbol seperti @.
             </div>
-            <div class="menu-item" onclick="loadApp('affiliate/namadandirectlink.html', 'Affiliate', '🛒', '#ffedd5', '#ea580c')">
-                <div class="menu-icon" style="background:#ffedd5; color:#ea580c;">🛒</div> Shopee Affiliate
-            </div>
-            <div class="menu-item" onclick="loadApp('tools.html', 'Tools', '⚙️', '#f3f4f6', '#4b5563')">
-                <div class="menu-icon" style="background:#f3f4f6; color:#4b5563;">⚙️</div> Tools Lainnya
-            </div>
+        </div>
+        <div class="modal-btns">
+            <button class="btn-cancel" style="padding: 10px; font-size: 13px;" onclick="closeLoginModal()">Batal</button>
+            <button class="btn-save" style="padding: 10px; font-size: 13px;" onclick="checkPassword()">Masuk</button>
+        </div>
+    </div>
+
+    <!-- MODAL LOGOUT -->
+    <div class="overlay" id="logoutOverlay" style="z-index: 199;" onclick="closeLogoutModal()"></div>
+    <div class="github-modal" id="logoutModal" style="max-width: 260px; padding: 20px;">
+        <h3 style="margin: 0 0 10px; text-align: center; color: #333; font-size: 18px;">Konfirmasi</h3>
+        <p style="text-align: center; font-size: 13px; margin-bottom: 20px; color: #555;">Yakin ingin keluar dari mode Admin?</p>
+        <div class="modal-btns">
+            <button class="btn-cancel" style="padding: 10px; font-size: 13px;" onclick="closeLogoutModal()">Tidak</button>
+            <button class="btn-save" style="background: #cb2431; padding: 10px; font-size: 13px;" onclick="confirmLogout()">Iya, Keluar</button>
         </div>
     </div>
 
     <!-- WORKSPACE UTAMA -->
     <div class="main-workspace">
         <div class="loader-bar" id="loaderBar"></div>
-        
-        <!-- KANVAS LANGIT -->
         <div id="skyCanvas"></div>
 
-        <!-- PUSAT KOMANDO -->
         <div id="placeholder">
-            <!-- SAPAAN, JAM, TANGGAL -->
             <div style="text-align: center; margin-bottom: 40px; transition: color 0.3s; width: 100%;" id="greetingContainer">
                 <h1 style="margin: 0; font-size: 26px; font-weight: 700;" id="greetingText">Selamat Datang</h1>
                 <div id="timeText" style="font-size: 64px; font-weight: 800; margin: 5px 0; font-variant-numeric: tabular-nums; letter-spacing: -2px;">00:00</div>
                 <p style="margin: 0; font-size: 15px; font-weight: 600; opacity: 0.9;" id="dateText">Memuat tanggal...</p>
             </div>
-
-            <!-- RIWAYAT APLIKASI (RECENT APPS) -->
             <div style="width: 100%; max-width: 340px; text-align: center; transition: color 0.3s;" id="recentContainer">
                 <div style="font-size: 11px; font-weight: 800; margin-bottom: 15px; opacity: 0.8; letter-spacing: 1px;">TERAKHIR DIBUKA</div>
-                <div id="recentAppsRow" style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-                    <!-- Ikon aplikasi riwayat akan muncul di sini via JavaScript -->
-                </div>
+                <div id="recentAppsRow" style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;"></div>
             </div>
         </div>
-
-        <!-- Wadah Aplikasi -->
         <iframe id="appFrame"></iframe>
     </div>
 
-    <!-- SCRIPT -->
+    <!-- SCRIPT UTAMA -->
     <script>
+        // =========================================================================
+        // 🛑 CONFIG GITHUB API
+        // =========================================================================
+        const GITHUB_TOKEN = "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"; 
+        const GITHUB_USERNAME = "ekoanugrah"; 
+        const GITHUB_REPO = "shopee-smscode.github.io"; 
+        const FILE_PATH = "index.html"; 
+        // =========================================================================
+        
+        // --- BLOK DATA APLIKASI (JANGAN UBAH KOMENTAR INI, DIGUNAKAN SEBAGAI MARKER OLEH SCRIPT) ---
+        // DAFTAR_APLIKASI_START
+        const DAFTAR_APLIKASI = [
+            { url: 'herosms/herosms.html', name: 'Hero-SMS Pro', icon: '💬', bg: '#e0e7ff', color: '#4f46e5' },
+            { url: 'smscode/smscode.html', name: 'SMS Code', icon: '📩', bg: '#fce7f3', color: '#db2777' },
+            { url: 'affiliate/namadandirectlink.html', name: 'Shopee Affiliate', icon: '🛒', bg: '#ffedd5', color: '#ea580c' },
+            { url: 'tools.html', name: 'Tools Lainnya', icon: '⚙️', bg: '#f3f4f6', color: '#4b5563' }
+        ];
+        // DAFTAR_APLIKASI_END
+        // -----------------------------------------------------------------------------------------
+
+        // --- PRESET IKON & WARNA ---
+        const PRESET_ICONS = [
+            { icon: '💬', bg: '#e0e7ff', color: '#4f46e5' }, { icon: '📩', bg: '#fce7f3', color: '#db2777' },
+            { icon: '🛒', bg: '#ffedd5', color: '#ea580c' }, { icon: '⚙️', bg: '#f3f4f6', color: '#4b5563' },
+            { icon: '📝', bg: '#fef3c7', color: '#d97706' }, { icon: '📊', bg: '#e0f2fe', color: '#0284c7' },
+            { icon: '🌐', bg: '#dcfce7', color: '#16a34a' }, { icon: '🔐', bg: '#f3e8ff', color: '#9333ea' },
+            { icon: '📁', bg: '#e0e7ff', color: '#3730a3' }, { icon: '🎮', bg: '#ffedd5', color: '#c2410c' },
+            { icon: '🎵', bg: '#fae8ff', color: '#c026d3' }, { icon: '🚀', bg: '#ffe4e6', color: '#e11d48' }
+        ];
+
+        let selectedPresetIndex = 0;
+        let editingAppIndex = -1; // -1 jika tambah baru, >= 0 jika sedang edit
+
         const sidebar = document.getElementById('sidebar');
+        const appListContainer = document.getElementById('appListContainer');
+        const githubModal = document.getElementById('githubModal');
+        const modalOverlay = document.getElementById('modalOverlay');
+        const iconGridContainer = document.getElementById('iconGridContainer');
+
+        // --- RENDER GRID IKON ---
+        function renderIconGrid() {
+            let html = '';
+            PRESET_ICONS.forEach((preset, idx) => {
+                const isSelected = idx === selectedPresetIndex ? 'selected' : '';
+                html += `<div class="icon-preset ${isSelected}" onclick="selectIconPreset(${idx})" style="background:${preset.bg}; color:${preset.color};">${preset.icon}</div>`;
+            });
+            iconGridContainer.innerHTML = html;
+        }
+        function selectIconPreset(idx) {
+            selectedPresetIndex = idx;
+            renderIconGrid();
+        }
+
+        // --- SISTEM LOGIN ADMIN ---
+        let isAdmin = sessionStorage.getItem('apphub_admin') === 'true';
+
+        function initAdminState() {
+            const loginBtn = document.getElementById('loginBtn');
+            const sidebarTitle = document.getElementById('sidebarTitle');
+            const logoutContainer = document.getElementById('logoutContainer');
+            
+            if (isAdmin) {
+                loginBtn.style.display = 'none';
+                sidebarTitle.innerText = 'ADMIN';
+                logoutContainer.style.display = 'block';
+            } else {
+                loginBtn.style.display = 'flex';
+                sidebarTitle.innerText = 'Pemakai';
+                logoutContainer.style.display = 'none';
+            }
+            renderSidebarApps();
+        }
+
+        // --- RENDER SIDEBAR ---
+        function renderSidebarApps() {
+            let html = '';
+            DAFTAR_APLIKASI.forEach((app, index) => {
+                html += `
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(128,128,128,0.1);">
+                    <div class="menu-item" style="flex:1;" onclick="loadApp('${app.url}', '${app.name}', '${app.icon}', '${app.bg}', '${app.color}')">
+                        <div class="menu-icon" style="background:${app.bg}; color:${app.color};">${app.icon}</div> ${app.name}
+                    </div>
+                    ${isAdmin ? `
+                    <div style="display:flex; gap:12px; padding-right:20px; font-size:16px;">
+                        <span onclick="openGithubModal(${index})" style="cursor:pointer; opacity:0.8;" title="Edit">✏️</span>
+                        <span onclick="deleteApp(${index})" style="cursor:pointer; opacity:0.8;" title="Hapus">🗑️</span>
+                    </div>
+                    ` : ''}
+                </div>`;
+            });
+            
+            if (isAdmin) {
+                html += `
+                <div class="menu-item" onclick="openGithubModal(-1)" style="margin-top: 10px; color: #2ea44f;">
+                    <div class="menu-icon" style="background:#dcffe4; color:#2ea44f;">➕</div> Tambah Link Baru
+                </div>`;
+            }
+            appListContainer.innerHTML = html;
+        }
+        initAdminState();
+
+        // --- LOGIKA MODAL LOGIN & LOGOUT ---
+        function openLoginModal() { document.getElementById('loginModal').classList.add('show'); document.getElementById('loginOverlay').classList.add('show'); document.getElementById('adminPassword').value = ''; closeSidebar(); }
+        
+        function closeLoginModal() { 
+            document.getElementById('loginModal').classList.remove('show'); 
+            document.getElementById('loginOverlay').classList.remove('show'); 
+            document.getElementById('adminPassword').type = 'password'; 
+            document.getElementById('togglePasswordIcon').innerText = '👁️'; 
+        }
+
+        function togglePasswordVisibility() {
+            const pwInput = document.getElementById('adminPassword');
+            const icon = document.getElementById('togglePasswordIcon');
+            if (pwInput.type === 'password') {
+                pwInput.type = 'text';
+                icon.innerText = '🙈';
+            } else {
+                pwInput.type = 'password';
+                icon.innerText = '👁️';
+            }
+        }
+
+        function checkPassword() {
+            const pw = document.getElementById('adminPassword').value;
+            // Sandi baru Anda: 3 titik (...)
+            if (pw === '...') { 
+                isAdmin = true; 
+                sessionStorage.setItem('apphub_admin', 'true'); 
+                closeLoginModal(); 
+                initAdminState(); 
+                openSidebar(); 
+            } else { 
+                alert('Password salah!'); 
+            }
+        }
+
+        function openLogoutModal() { document.getElementById('logoutModal').classList.add('show'); document.getElementById('logoutOverlay').classList.add('show'); }
+        function closeLogoutModal() { document.getElementById('logoutModal').classList.remove('show'); document.getElementById('logoutOverlay').classList.remove('show'); }
+        function confirmLogout() { isAdmin = false; sessionStorage.removeItem('apphub_admin'); closeLogoutModal(); initAdminState(); }
+
+        // --- GITHUB SYNC LOGIC (TAMBAH, EDIT, HAPUS) ---
+        function openGithubModal(index = -1) {
+            closeSidebar();
+            editingAppIndex = index;
+            const titleEl = document.getElementById('modalTitleText');
+            
+            if (index === -1) {
+                // Mode Tambah
+                titleEl.innerHTML = `<svg height="24" viewBox="0 0 16 16" width="24"><path fill="#2ea44f" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg> Tambah Aplikasi`;
+                document.getElementById('ghAppName').value = '';
+                document.getElementById('ghAppUrl').value = '';
+                selectedPresetIndex = 0;
+            } else {
+                // Mode Edit
+                const app = DAFTAR_APLIKASI[index];
+                titleEl.innerHTML = `✏️ Edit Aplikasi`;
+                document.getElementById('ghAppName').value = app.name;
+                document.getElementById('ghAppUrl').value = app.url;
+                
+                // Cari index preset berdasarkan icon yang ada
+                const foundIdx = PRESET_ICONS.findIndex(p => p.icon === app.icon);
+                selectedPresetIndex = foundIdx !== -1 ? foundIdx : 0;
+            }
+            
+            renderIconGrid();
+            githubModal.classList.add('show');
+            modalOverlay.classList.add('show');
+            document.getElementById('syncStatus').style.display = 'none';
+        }
+
+        function closeModal() {
+            githubModal.classList.remove('show');
+            modalOverlay.classList.remove('show');
+        }
+
+        function deleteApp(index) {
+            if (confirm(`Yakin ingin MENGHAPUS '${DAFTAR_APLIKASI[index].name}' dari GitHub?`)) {
+                DAFTAR_APLIKASI.splice(index, 1);
+                commitToGithub("Auto-Update: Menghapus Aplikasi via AppHub");
+            }
+        }
+
+        function saveAppForm() {
+            const name = document.getElementById('ghAppName').value.trim();
+            const url = document.getElementById('ghAppUrl').value.trim();
+            const preset = PRESET_ICONS[selectedPresetIndex];
+
+            if(!name || !url) { alert("Nama dan URL wajib diisi!"); return; }
+
+            if (editingAppIndex === -1) {
+                DAFTAR_APLIKASI.push({ url, name, icon: preset.icon, bg: preset.bg, color: preset.color });
+                commitToGithub(`Auto-Update: Menambah '${name}' via AppHub`);
+            } else {
+                DAFTAR_APLIKASI[editingAppIndex] = { url, name, icon: preset.icon, bg: preset.bg, color: preset.color };
+                commitToGithub(`Auto-Update: Mengedit '${name}' via AppHub`);
+            }
+        }
+
+        async function commitToGithub(commitMessage) {
+            const btn = document.getElementById('btnSync');
+            const statusDiv = document.getElementById('syncStatus');
+            
+            if(btn) { btn.innerHTML = "⏳ Mengunggah..."; btn.disabled = true; }
+            if(statusDiv) { statusDiv.style.display = 'block'; statusDiv.style.color = '#333'; statusDiv.innerText = "1. Mengambil data server..."; }
+
+            try {
+                // 1. Ambil File Terbaru
+                const apiUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${FILE_PATH}`;
+                const getRes = await fetch(apiUrl, { headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' } });
+                
+                if (!getRes.ok) throw new Error("Gagal terhubung ke GitHub.");
+                const fileData = await getRes.json();
+                const contentStr = decodeURIComponent(escape(window.atob(fileData.content)));
+                const sha = fileData.sha;
+
+                // 2. Tulis Kode Baru
+                if(statusDiv) statusDiv.innerText = "2. Menginjeksi kode baru...";
+                const newArrayString = JSON.stringify(DAFTAR_APLIKASI, null, 12).replace(/\"([^(\")"]+)\":/g,"$1:"); 
+                const regex = /\/\/ DAFTAR_APLIKASI_START[\s\S]*?\/\/ DAFTAR_APLIKASI_END/;
+                const newCodeBlock = `// DAFTAR_APLIKASI_START\n        const DAFTAR_APLIKASI = ${newArrayString};\n        // DAFTAR_APLIKASI_END`;
+                const updatedContentStr = contentStr.replace(regex, newCodeBlock);
+                const encodedContent = window.btoa(unescape(encodeURIComponent(updatedContentStr)));
+
+                // 3. Push Commit
+                if(statusDiv) statusDiv.innerText = "3. Melakukan Commit...";
+                const putRes = await fetch(apiUrl, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: commitMessage, content: encodedContent, sha: sha })
+                });
+
+                if (!putRes.ok) throw new Error("Gagal menyimpan perubahan.");
+
+                // Berhasil
+                if(btn) { btn.style.background = "#2ea44f"; btn.innerHTML = "✅ Tersimpan!"; }
+                if(statusDiv) { statusDiv.style.color = "#2ea44f"; statusDiv.innerText = "Selesai. GitHub Pages akan di-refresh segera."; }
+                
+                renderSidebarApps();
+                setTimeout(() => { if(githubModal.classList.contains('show')) closeModal(); }, 2000);
+
+            } catch (err) {
+                console.error(err);
+                if(btn) { btn.style.background = "#cb2431"; btn.innerHTML = "❌ Gagal"; }
+                if(statusDiv) { statusDiv.style.color = "#cb2431"; statusDiv.innerText = err.message; }
+            } finally {
+                if(btn) setTimeout(() => { btn.disabled = false; btn.style.background = "#2ea44f"; btn.innerHTML = "Simpan & Commit ke GitHub"; }, 4000);
+            }
+        }
+
+        // --- FUNGSI STANDAR (LOAD APP, HOME, CLOCK, RECENT, GESTURE) ---
         const overlay = document.getElementById('overlay');
         const appFrame = document.getElementById('appFrame');
         const placeholder = document.getElementById('placeholder');
@@ -209,160 +444,64 @@
         const recentContainer = document.getElementById('recentContainer');
         const recentAppsRow = document.getElementById('recentAppsRow');
 
-        // --- SISTEM RIWAYAT APLIKASI ---
         let recentApps = JSON.parse(localStorage.getItem('hub_recent_apps')) || [];
-
         function renderRecentApps() {
-            if (recentApps.length === 0) {
-                recentAppsRow.innerHTML = '<span style="font-size: 13px; opacity: 0.7;">Belum ada riwayat.</span>';
-                return;
-            }
-            
+            if (recentApps.length === 0) { recentAppsRow.innerHTML = '<span style="font-size: 13px; opacity: 0.7;">Belum ada riwayat.</span>'; return; }
             let html = '';
             recentApps.forEach(app => {
-                html += `
-                <div onclick="loadApp('${app.url}', '${app.name}', '${app.icon}', '${app.bg}', '${app.color}')" 
-                     style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; transition: transform 0.1s;">
-                    <div style="width: 56px; height: 56px; border-radius: 16px; background: ${app.bg}; color: ${app.color}; 
-                                display: flex; justify-content: center; align-items: center; font-size: 26px; 
-                                box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
-                        ${app.icon}
-                    </div>
-                    <span style="font-size: 11px; font-weight: 700; max-width: 65px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${app.name}</span>
-                </div>`;
+                html += `<div onclick="loadApp('${app.url}', '${app.name}', '${app.icon}', '${app.bg}', '${app.color}')" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; transition: transform 0.1s;"><div style="width: 56px; height: 56px; border-radius: 16px; background: ${app.bg}; color: ${app.color}; display: flex; justify-content: center; align-items: center; font-size: 26px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">${app.icon}</div><span style="font-size: 11px; font-weight: 700; max-width: 65px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${app.name}</span></div>`;
             });
             recentAppsRow.innerHTML = html;
         }
         renderRecentApps(); 
 
-        // --- FUNGSI NAVIGASI & ANIMASI TOMBOL ---
-        function openSidebar() { 
-            sidebar.classList.add('open'); 
-            overlay.classList.add('show'); 
-            // Animasi memutar dan mengecil hingga menghilang
-            menuBtn.style.transform = "scale(0) rotate(-180deg)"; 
-            menuBtn.style.opacity = "0"; 
-        }
-        
-        function closeSidebar() { 
-            sidebar.classList.remove('open'); 
-            overlay.classList.remove('show'); 
-            // Animasi memutar kembali dan membal (bouncing)
-            menuBtn.style.transform = "scale(1) rotate(0deg)"; 
-            menuBtn.style.opacity = "1"; 
-        }
-
+        function openSidebar() { sidebar.classList.add('open'); overlay.classList.add('show'); menuBtn.style.transform = "scale(0) rotate(-180deg)"; menuBtn.style.opacity = "0"; }
+        function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('show'); menuBtn.style.transform = "scale(1) rotate(0deg)"; menuBtn.style.opacity = "1"; }
         function loadApp(url, name, icon, bg, color) {
-            closeSidebar(); 
-            if(!url) return;
-
+            closeSidebar(); if(!url) return;
             if(name && icon) {
                 recentApps = recentApps.filter(a => a.url !== url);
                 recentApps.unshift({ url, name, icon, bg, color });
                 if(recentApps.length > 4) recentApps.pop();
-                localStorage.setItem('hub_recent_apps', JSON.stringify(recentApps));
-                renderRecentApps();
+                localStorage.setItem('hub_recent_apps', JSON.stringify(recentApps)); renderRecentApps();
             }
-
-            loaderBar.style.width = '30%';
-            placeholder.style.display = 'none'; 
-            skyCanvas.style.display = 'none'; 
-            appFrame.classList.add('active');   
-            appFrame.src = url;
-            appFrame.onload = () => {
-                loaderBar.style.width = '100%';
-                setTimeout(() => { loaderBar.style.width = '0%'; }, 300);
-            };
+            loaderBar.style.width = '30%'; placeholder.style.display = 'none'; skyCanvas.style.display = 'none'; 
+            appFrame.classList.add('active'); appFrame.src = url;
+            appFrame.onload = () => { loaderBar.style.width = '100%'; setTimeout(() => { loaderBar.style.width = '0%'; }, 300); };
         }
+        function goHome() { closeSidebar(); appFrame.classList.remove('active'); appFrame.src = ''; placeholder.style.display = 'flex'; skyCanvas.style.display = 'block'; }
 
-        function goHome() {
-            closeSidebar();
-            appFrame.classList.remove('active');
-            appFrame.src = '';
-            placeholder.style.display = 'flex'; 
-            skyCanvas.style.display = 'block'; 
-        }
+        function updateClock() { document.getElementById('timeText').innerText = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); }
+        setInterval(updateClock, 1000); updateClock();
 
-        // --- LOGIKA JAM REAL-TIME ---
-        function updateClock() {
-            const timeText = document.getElementById('timeText');
-            const now = new Date();
-            timeText.innerText = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-        }
-        setInterval(updateClock, 1000);
-        updateClock();
-
-        // --- LOGIKA SAPAAN, RENDER LANGIT, & TEMA SIDEBAR ---
         function updateSkyAndDate() {
-            const dateText = document.getElementById('dateText');
-            const greetingText = document.getElementById('greetingText');
-            const now = new Date();
-            const hour = now.getHours();
-            
-            let greeting = "Selamat Malam";
-            let timeOfDay = "night";
-
+            const dateText = document.getElementById('dateText'); const greetingText = document.getElementById('greetingText');
+            const now = new Date(); const hour = now.getHours();
+            let greeting = "Selamat Malam"; let timeOfDay = "night";
             if (hour >= 5 && hour < 11) { greeting = "Selamat Pagi"; timeOfDay = "morning"; }
             else if (hour >= 11 && hour < 15) { greeting = "Selamat Siang"; timeOfDay = "day"; }
             else if (hour >= 15 && hour < 18) { greeting = "Selamat Sore"; timeOfDay = "afternoon"; }
+            
+            greetingText.innerText = greeting; dateText.innerText = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            if (timeOfDay === "night" || timeOfDay === "afternoon") { greetingContainer.style.color = "#ffffff"; recentContainer.style.color = "#ffffff"; sidebar.style.color = "#ffffff"; greetingContainer.style.textShadow = "0 2px 10px rgba(0,0,0,0.4)"; recentContainer.style.textShadow = "0 2px 10px rgba(0,0,0,0.4)"; } 
+            else { greetingContainer.style.color = "#1a1a1a"; recentContainer.style.color = "#1a1a1a"; sidebar.style.color = "#1a1a1a"; greetingContainer.style.textShadow = "none"; recentContainer.style.textShadow = "none"; }
 
-            greetingText.innerText = greeting;
-            dateText.innerText = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-
-            // Otomatis ubah warna font mengikuti terang/gelapnya langit
-            if (timeOfDay === "night" || timeOfDay === "afternoon") {
-                greetingContainer.style.color = "#ffffff";
-                recentContainer.style.color = "#ffffff";
-                sidebar.style.color = "#ffffff"; // Font sidebar ikut terang
-                greetingContainer.style.textShadow = "0 2px 10px rgba(0,0,0,0.4)";
-                recentContainer.style.textShadow = "0 2px 10px rgba(0,0,0,0.4)";
-            } else {
-                greetingContainer.style.color = "#1a1a1a";
-                recentContainer.style.color = "#1a1a1a";
-                sidebar.style.color = "#1a1a1a"; // Font sidebar ikut gelap
-                greetingContainer.style.textShadow = "none";
-                recentContainer.style.textShadow = "none";
-            }
-
-            // --- TEMA ESTETIK SIDEBAR (MENGIKUTI LANGIT) ---
-            const skyGradients = {
-                morning: "linear-gradient(180deg, #87CEEB 0%, #FFB6C1 50%, #FFDAB9 100%)",
-                day: "linear-gradient(180deg, #4facfe 0%, #00f2fe 100%)",
-                afternoon: "linear-gradient(180deg, #2c3e50 0%, #fd746c 100%)",
-                night: "linear-gradient(180deg, #0f2027 0%, #203a43 50%, #2c5364 100%)"
-            };
+            const skyGradients = { morning: "linear-gradient(180deg, #87CEEB 0%, #FFB6C1 50%, #FFDAB9 100%)", day: "linear-gradient(180deg, #4facfe 0%, #00f2fe 100%)", afternoon: "linear-gradient(180deg, #2c3e50 0%, #fd746c 100%)", night: "linear-gradient(180deg, #0f2027 0%, #203a43 50%, #2c5364 100%)" };
             sidebar.style.background = skyGradients[timeOfDay];
-
-            // --- RENDER ANIMASI LANGIT (DASHBOARD) ---
-            skyCanvas.className = `sky-${timeOfDay}`;
-            let skyHtml = '';
-            if (timeOfDay === 'morning') {
-                skyHtml = '<div class="celestial sun-morning"></div>';
-            } else if (timeOfDay === 'day') {
-                skyHtml = '<div class="celestial sun-day"></div><div class="cloud c1"></div><div class="cloud c2"></div>';
-            } else if (timeOfDay === 'afternoon') {
-                skyHtml = '<div class="celestial sun-afternoon"></div>';
-            } else if (timeOfDay === 'night') {
-                skyHtml = '<div class="celestial moon-night"></div><div class="shooting-star"></div>';
-                for(let i=0; i<25; i++) {
-                   skyHtml += `<div class="star" style="width:2px; height:2px; top:${Math.random()*60}%; left:${Math.random()*100}%; opacity:${Math.random()}"></div>`;
-                }
-            }
+            skyCanvas.className = `sky-${timeOfDay}`; let skyHtml = '';
+            if (timeOfDay === 'morning') skyHtml = '<div class="celestial sun-morning"></div>';
+            else if (timeOfDay === 'day') skyHtml = '<div class="celestial sun-day"></div><div class="cloud c1"></div><div class="cloud c2"></div>';
+            else if (timeOfDay === 'afternoon') skyHtml = '<div class="celestial sun-afternoon"></div>';
+            else if (timeOfDay === 'night') { skyHtml = '<div class="celestial moon-night"></div><div class="shooting-star"></div>'; for(let i=0; i<25; i++) skyHtml += `<div class="star" style="width:2px; height:2px; top:${Math.random()*60}%; left:${Math.random()*100}%; opacity:${Math.random()}"></div>`; }
             skyCanvas.innerHTML = skyHtml;
         }
-        updateSkyAndDate();
-        setInterval(updateSkyAndDate, 60000); 
+        updateSkyAndDate(); setInterval(updateSkyAndDate, 60000); 
 
-        // --- GESTURE SWIPE ---
         let startX = 0, currentX = 0;
         document.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, {passive: true});
         document.addEventListener('touchend', (e) => {
-            currentX = e.changedTouches[0].clientX;
-            let diffX = currentX - startX;
-            // Geser dari ujung kiri ke kanan untuk BUKA
-            if (startX < 50 && diffX > 70) openSidebar(); 
-            // Geser dari arah manapun ke kiri untuk TUTUP
-            else if (sidebar.classList.contains('open') && diffX < -50) closeSidebar(); 
+            currentX = e.changedTouches[0].clientX; let diffX = currentX - startX;
+            if (startX < 50 && diffX > 70) openSidebar(); else if (sidebar.classList.contains('open') && diffX < -50) closeSidebar(); 
         }, {passive: true});
     </script>
 </body>
