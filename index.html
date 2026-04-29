@@ -83,7 +83,7 @@
             </div>
             <hr style="border:0; border-top:1px solid rgba(128,128,128,0.2); margin: 10px 20px;">
             
-            <!-- Tempat daftar aplikasi akan dimuat otomatis oleh GitHub API -->
+            <!-- Tempat daftar aplikasi akan dimuat otomatis -->
             <div id="appListContainer"></div>
         </div>
     </div>
@@ -110,55 +110,50 @@
     <!-- SCRIPT UTAMA -->
     <script>
         // =========================================================================
-        // 🛑 CONFIG GITHUB API (Koneksi untuk Auto-Discovery Folder)
+        // CONFIG GITHUB (TANPA TOKEN!)
         // =========================================================================
-        const GITHUB_TOKEN = "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"; 
-        const GITHUB_USERNAME = "ekoanugrah"; 
-        const GITHUB_REPO = "shopee-smscode.github.io"; 
+        const GITHUB_USERNAME = "ekoanugrah"; // Pastikan ini benar
+        const GITHUB_REPO = "shopee-smscode.github.io"; // Pastikan ini benar
         
         let DAFTAR_APLIKASI = [];
 
-        // Fungsi merapikan nama folder (Misal: "HeroSMS" -> "Hero SMS", "smscode" -> "Smscode")
+        // Fungsi merapikan nama (Misal: "HeroSMS" -> "Hero SMS")
         function formatAppName(str) {
-            let name = str.replace(/([a-z])([A-Z])/g, '$1 $2'); // Memisahkan camelCase
-            name = name.charAt(0).toUpperCase() + name.slice(1); // Huruf awal kapital
+            let name = str.replace(/([a-z])([A-Z])/g, '$1 $2'); 
+            name = name.charAt(0).toUpperCase() + name.slice(1);
             return name;
         }
 
-        // Fungsi utama: Cek GitHub, Cari Folder, Ubah Jadi Aplikasi
+        // Fungsi Auto-Discovery Folder TANPA Token
         async function fetchAppsFromGitHub() {
             const appListContainer = document.getElementById('appListContainer');
-            appListContainer.innerHTML = '<div style="padding: 20px; text-align: center; font-size: 12px; opacity: 0.8;">Memindai aplikasi di server...</div>';
+            appListContainer.innerHTML = '<div style="padding: 20px; text-align: center; font-size: 12px; opacity: 0.8;">Memindai folder aplikasi...</div>';
 
             try {
-                // 1. Dapatkan daftar isi root repositori
-                const res = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/`, {
-                    headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
-                });
+                // Fetch tanpa Authorization header (Bisa untuk Repo Publik)
+                const res = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/`);
 
-                if (!res.ok) throw new Error("Gagal terhubung ke GitHub API");
-                const data = await res.json();
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.message);
+                }
                 
-                // Ambil hanya yang tipe-nya folder (dir)
+                const data = await res.json();
                 const folders = data.filter(item => item.type === 'dir');
                 DAFTAR_APLIKASI = [];
 
-                // 2. Cek setiap folder apakah menyimpan file .html
                 for (let folder of folders) {
-                    const dirRes = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${folder.name}`, {
-                        headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
-                    });
+                    const dirRes = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${folder.name}`);
 
                     if (dirRes.ok) {
                         const dirData = await dirRes.json();
-                        // Cari file yang berakhiran .html di dalam folder
+                        // Cari file HTML di dalam folder tersebut
                         const htmlFile = dirData.find(f => f.name.endsWith('.html'));
 
                         if (htmlFile) {
-                            // Jika folder tersebut punya HTML, jadikan aplikasi!
                             const appName = formatAppName(folder.name);
                             
-                            // Preset Ikon & Warna (Otomatis berdasarkan panjang nama folder agar konsisten)
+                            // Preset Ikon & Warna acak berdasarkan panjang nama
                             const presetIndex = folder.name.length % 5;
                             const presets = [
                                 { icon: '💠', bg: '#e0e7ff', color: '#4f46e5' },
@@ -169,7 +164,7 @@
                             ];
 
                             DAFTAR_APLIKASI.push({
-                                url: htmlFile.path, // URL otomatis sesuai path di github
+                                url: htmlFile.path, 
                                 name: appName,
                                 icon: presets[presetIndex].icon,
                                 bg: presets[presetIndex].bg,
@@ -179,12 +174,15 @@
                     }
                 }
                 
-                // 3. Tampilkan hasilnya ke Sidebar
                 renderSidebarApps();
 
             } catch (error) {
                 console.error(error);
-                appListContainer.innerHTML = `<div style="padding: 20px; text-align: center; color: #ff4757; font-size: 12px; font-weight: bold;">Gagal memuat aplikasi.<br>Periksa Koneksi atau Token GitHub.</div>`;
+                appListContainer.innerHTML = `
+                <div style="padding: 20px; text-align: center; color: #ff4757; font-size: 12px;">
+                    <b>Gagal Memuat Menu!</b><br>
+                    <span style="font-size: 10px; color: #666;">Pastikan repo bersifat Public dan username benar.</span>
+                </div>`;
             }
         }
 
@@ -192,7 +190,7 @@
         function renderSidebarApps() {
             const appListContainer = document.getElementById('appListContainer');
             if (DAFTAR_APLIKASI.length === 0) {
-                appListContainer.innerHTML = '<div style="padding: 20px; text-align: center; font-size: 12px; opacity: 0.8;">Belum ada folder aplikasi.</div>';
+                appListContainer.innerHTML = '<div style="padding: 20px; text-align: center; font-size: 12px; opacity: 0.8;">Tidak ada folder aplikasi ditemukan.</div>';
                 return;
             }
 
@@ -206,10 +204,10 @@
             appListContainer.innerHTML = html;
         }
 
-        // Panggil fungsi pencari otomatis saat web dimuat
+        // Panggil saat web dimuat
         fetchAppsFromGitHub();
 
-        // --- SISTEM RIWAYAT APLIKASI (RECENT APPS) ---
+        // --- SISTEM RIWAYAT APLIKASI ---
         const recentAppsRow = document.getElementById('recentAppsRow');
         let recentApps = JSON.parse(localStorage.getItem('hub_recent_apps')) || [];
 
