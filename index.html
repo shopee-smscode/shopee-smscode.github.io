@@ -29,9 +29,14 @@
         .close-btn { font-size: 24px; color: inherit; opacity: 0.8; cursor: pointer; transition: 0.2s; }
         .close-btn:active { transform: scale(0.8); }
         .sidebar-menu { flex: 1; overflow-y: auto; padding: 15px 0; }
-        .menu-item { display: flex; align-items: center; gap: 15px; padding: 12px 20px; color: inherit; text-decoration: none; font-size: 15px; font-weight: 600; transition: 0.2s; cursor: pointer; }
+        
+        /* PEMBARUAN: Ukuran font, padding, dan gap diperkecil agar lebih rapat */
+        .menu-item { display: flex; align-items: center; gap: 12px; padding: 8px 20px; color: inherit; text-decoration: none; font-size: 13px; font-weight: 600; transition: 0.2s; cursor: pointer; }
         .menu-item:active { background-color: rgba(255, 255, 255, 0.25); }
-        .menu-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 18px; background: rgba(255, 255, 255, 0.5); }
+        
+        /* PEMBARUAN: Ukuran bulatan ikon diperkecil menyesuaikan teks */
+        .menu-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 15px; background: rgba(255, 255, 255, 0.5); }
+        
         .loader-bar { position: absolute; top: 0; left: 0; width: 0%; height: 3px; background: var(--primary); transition: width 0.3s; z-index: 95; }
 
         /* PUSAT KOMANDO */
@@ -106,13 +111,13 @@
     <script>
         // =========================================================================
         // 🔧 PENGATURAN DAFTAR APLIKASI (TAMBAH/UBAH DAFTAR LINK DI SINI)
-        // Cara tambah: { url: 'link_file.html', name: 'Nama App', icon: '⭐', bg: '#WarnaBg', color: '#WarnaTeks' }
+        // Cara tambah: Anda cukup ketik Emoji dari HP Anda di bagian 'icon'.
         // =========================================================================
         const DAFTAR_APLIKASI = [
-            { url: 'Hero SMS/herosms.html', name: 'Hero SMS', icon: '', bg: '#e0e7ff', color: '#4f46e5' },
-            { url: 'SMS Code/smscode.html', name: 'SMS Code', icon: '', bg: '#fce7f3', color: '#db2777' },
-            { url: 'Affiliate/namadandirectlink.html', name: 'Shopee Affiliate', icon: '', bg: '#ffedd5', color: '#ea580c' },
-            { url: 'Notes/notes.html', name: 'Notes', icon: '', bg: '#f3f4f6', color: '#4b5563' }
+            { url: 'Hero SMS/herosms.html', name: 'Hero SMS', icon: '💬', bg: '#e0e7ff', color: '#4f46e5' },
+            { url: 'SMS Code/smscode.html', name: 'SMS Code', icon: '📩', bg: '#fce7f3', color: '#db2777' },
+            { url: 'Affiliate/namadandirectlink.html', name: 'Shopee Affiliate', icon: '🛒', bg: '#ffedd5', color: '#ea580c' },
+            { url: 'Notes/notes.html', name: 'Notes', icon: '📝', bg: '#f3f4f6', color: '#4b5563' }
         ];
         // =========================================================================
 
@@ -152,11 +157,12 @@
             
             let html = '';
             recentApps.forEach(app => {
+                // PEMBARUAN: Ukuran kotak riwayat juga sedikit diperkecil agar proporsional
                 html += `
                 <div onclick="loadApp('${app.url}', '${app.name}', '${app.icon}', '${app.bg}', '${app.color}')" 
                      style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; transition: transform 0.1s;">
-                    <div style="width: 56px; height: 56px; border-radius: 16px; background: ${app.bg}; color: ${app.color}; 
-                                display: flex; justify-content: center; align-items: center; font-size: 26px; 
+                    <div style="width: 48px; height: 48px; border-radius: 14px; background: ${app.bg}; color: ${app.color}; 
+                                display: flex; justify-content: center; align-items: center; font-size: 22px; 
                                 box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
                         ${app.icon}
                     </div>
