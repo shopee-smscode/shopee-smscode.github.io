@@ -66,10 +66,8 @@
 </head>
 <body>
 
-    <!-- Tombol Mengambang (Pojok Kanan Bawah) -->
     <div class="floating-menu-btn" id="menuBtn" onclick="openSidebar()">☰</div>
 
-    <!-- OVERLAY & SIDEBAR -->
     <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
     
     <div class="sidebar" id="sidebar">
@@ -83,12 +81,10 @@
             </div>
             <hr style="border:0; border-top:1px solid rgba(128,128,128,0.2); margin: 10px 20px;">
             
-            <!-- Tempat daftar aplikasi akan dimuat otomatis -->
             <div id="appListContainer"></div>
         </div>
     </div>
 
-    <!-- WORKSPACE UTAMA -->
     <div class="main-workspace">
         <div class="loader-bar" id="loaderBar"></div>
         <div id="skyCanvas"></div>
@@ -107,121 +103,19 @@
         <iframe id="appFrame"></iframe>
     </div>
 
-    <!-- SCRIPT UTAMA -->
     <script>
         // =========================================================================
-        // CONFIG GITHUB (TANPA TOKEN!)
+        // 🔧 PENGATURAN DAFTAR APLIKASI (TAMBAH/UBAH DAFTAR LINK DI SINI)
+        // Cara tambah: { url: 'link_file.html', name: 'Nama App', icon: '⭐', bg: '#WarnaBg', color: '#WarnaTeks' }
         // =========================================================================
-        const GITHUB_USERNAME = "ekoanugrah"; // Pastikan ini benar
-        const GITHUB_REPO = "shopee-smscode.github.io"; // Pastikan ini benar
-        
-        let DAFTAR_APLIKASI = [];
+        const DAFTAR_APLIKASI = [
+            { url: 'Hero SMS/herosms.html', name: 'Hero SMS', icon: '', bg: '#e0e7ff', color: '#4f46e5' },
+            { url: 'SMS Code/smscode.html', name: 'SMS Code', icon: '', bg: '#fce7f3', color: '#db2777' },
+            { url: 'Affiliate/namadandirectlink.html', name: 'Shopee Affiliate', icon: '', bg: '#ffedd5', color: '#ea580c' },
+            { url: 'Notes/notes.html', name: 'Notes', icon: '', bg: '#f3f4f6', color: '#4b5563' }
+        ];
+        // =========================================================================
 
-        // Fungsi merapikan nama (Misal: "HeroSMS" -> "Hero SMS")
-        function formatAppName(str) {
-            let name = str.replace(/([a-z])([A-Z])/g, '$1 $2'); 
-            name = name.charAt(0).toUpperCase() + name.slice(1);
-            return name;
-        }
-
-        // Fungsi Auto-Discovery Folder TANPA Token
-        async function fetchAppsFromGitHub() {
-            const appListContainer = document.getElementById('appListContainer');
-            appListContainer.innerHTML = '<div style="padding: 20px; text-align: center; font-size: 12px; opacity: 0.8;">Memindai folder aplikasi...</div>';
-
-            try {
-                // Fetch tanpa Authorization header (Bisa untuk Repo Publik)
-                const res = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/`);
-
-                if (!res.ok) {
-                    const errData = await res.json();
-                    throw new Error(errData.message);
-                }
-                
-                const data = await res.json();
-                const folders = data.filter(item => item.type === 'dir');
-                DAFTAR_APLIKASI = [];
-
-                for (let folder of folders) {
-                    const dirRes = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/${folder.name}`);
-
-                    if (dirRes.ok) {
-                        const dirData = await dirRes.json();
-                        // Cari file HTML di dalam folder tersebut
-                        const htmlFile = dirData.find(f => f.name.endsWith('.html'));
-
-                        if (htmlFile) {
-                            const appName = formatAppName(folder.name);
-                            
-                            // Preset Ikon & Warna acak berdasarkan panjang nama
-                            const presetIndex = folder.name.length % 5;
-                            const presets = [
-                                { icon: '💠', bg: '#e0e7ff', color: '#4f46e5' },
-                                { icon: '🚀', bg: '#fce7f3', color: '#db2777' },
-                                { icon: '⚡', bg: '#ffedd5', color: '#ea580c' },
-                                { icon: '🔥', bg: '#dcfce7', color: '#16a34a' },
-                                { icon: '✨', bg: '#f3e8ff', color: '#9333ea' }
-                            ];
-
-                            DAFTAR_APLIKASI.push({
-                                url: htmlFile.path, 
-                                name: appName,
-                                icon: presets[presetIndex].icon,
-                                bg: presets[presetIndex].bg,
-                                color: presets[presetIndex].color
-                            });
-                        }
-                    }
-                }
-                
-                renderSidebarApps();
-
-            } catch (error) {
-                console.error(error);
-                appListContainer.innerHTML = `
-                <div style="padding: 20px; text-align: center; color: #ff4757; font-size: 12px;">
-                    <b>Gagal Memuat Menu!</b><br>
-                    <span style="font-size: 10px; color: #666;">Pastikan repo bersifat Public dan username benar.</span>
-                </div>`;
-            }
-        }
-
-        // --- RENDER MENU KE SIDEBAR ---
-        function renderSidebarApps() {
-            const appListContainer = document.getElementById('appListContainer');
-            if (DAFTAR_APLIKASI.length === 0) {
-                appListContainer.innerHTML = '<div style="padding: 20px; text-align: center; font-size: 12px; opacity: 0.8;">Tidak ada folder aplikasi ditemukan.</div>';
-                return;
-            }
-
-            let html = '';
-            DAFTAR_APLIKASI.forEach(app => {
-                html += `
-                <div class="menu-item" onclick="loadApp('${app.url}', '${app.name}', '${app.icon}', '${app.bg}', '${app.color}')">
-                    <div class="menu-icon" style="background:${app.bg}; color:${app.color};">${app.icon}</div> ${app.name}
-                </div>`;
-            });
-            appListContainer.innerHTML = html;
-        }
-
-        // Panggil saat web dimuat
-        fetchAppsFromGitHub();
-
-        // --- SISTEM RIWAYAT APLIKASI ---
-        const recentAppsRow = document.getElementById('recentAppsRow');
-        let recentApps = JSON.parse(localStorage.getItem('hub_recent_apps')) || [];
-
-        function renderRecentApps() {
-            if (recentApps.length === 0) { recentAppsRow.innerHTML = '<span style="font-size: 13px; opacity: 0.7;">Belum ada riwayat.</span>'; return; }
-            let html = '';
-            recentApps.forEach(app => {
-                html += `<div onclick="loadApp('${app.url}', '${app.name}', '${app.icon}', '${app.bg}', '${app.color}')" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; transition: transform 0.1s;"><div style="width: 56px; height: 56px; border-radius: 16px; background: ${app.bg}; color: ${app.color}; display: flex; justify-content: center; align-items: center; font-size: 26px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">${app.icon}</div><span style="font-size: 11px; font-weight: 700; max-width: 65px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${app.name}</span></div>`;
-            });
-            recentAppsRow.innerHTML = html;
-        }
-        renderRecentApps(); 
-
-        // --- FUNGSI NAVIGASI DASAR ---
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('overlay');
         const appFrame = document.getElementById('appFrame');
@@ -231,58 +125,169 @@
         const skyCanvas = document.getElementById('skyCanvas');
         const greetingContainer = document.getElementById('greetingContainer');
         const recentContainer = document.getElementById('recentContainer');
+        const recentAppsRow = document.getElementById('recentAppsRow');
+        const appListContainer = document.getElementById('appListContainer');
 
-        function openSidebar() { sidebar.classList.add('open'); overlay.classList.add('show'); menuBtn.style.transform = "scale(0) rotate(-180deg)"; menuBtn.style.opacity = "0"; }
-        function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('show'); menuBtn.style.transform = "scale(1) rotate(0deg)"; menuBtn.style.opacity = "1"; }
+        // --- MUAT DAFTAR APLIKASI KE SIDEBAR ---
+        function renderSidebarApps() {
+            let html = '';
+            DAFTAR_APLIKASI.forEach(app => {
+                html += `
+                <div class="menu-item" onclick="loadApp('${app.url}', '${app.name}', '${app.icon}', '${app.bg}', '${app.color}')">
+                    <div class="menu-icon" style="background:${app.bg}; color:${app.color};">${app.icon}</div> ${app.name}
+                </div>`;
+            });
+            appListContainer.innerHTML = html;
+        }
+        renderSidebarApps();
+
+        // --- SISTEM RIWAYAT APLIKASI ---
+        let recentApps = JSON.parse(localStorage.getItem('hub_recent_apps')) || [];
+
+        function renderRecentApps() {
+            if (recentApps.length === 0) {
+                recentAppsRow.innerHTML = '<span style="font-size: 13px; opacity: 0.7;">Belum ada riwayat.</span>';
+                return;
+            }
+            
+            let html = '';
+            recentApps.forEach(app => {
+                html += `
+                <div onclick="loadApp('${app.url}', '${app.name}', '${app.icon}', '${app.bg}', '${app.color}')" 
+                     style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; transition: transform 0.1s;">
+                    <div style="width: 56px; height: 56px; border-radius: 16px; background: ${app.bg}; color: ${app.color}; 
+                                display: flex; justify-content: center; align-items: center; font-size: 26px; 
+                                box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
+                        ${app.icon}
+                    </div>
+                    <span style="font-size: 11px; font-weight: 700; max-width: 65px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${app.name}</span>
+                </div>`;
+            });
+            recentAppsRow.innerHTML = html;
+        }
+        renderRecentApps(); 
+
+        // --- FUNGSI NAVIGASI & ANIMASI TOMBOL ---
+        function openSidebar() { 
+            sidebar.classList.add('open'); 
+            overlay.classList.add('show'); 
+            menuBtn.style.transform = "scale(0) rotate(-180deg)"; 
+            menuBtn.style.opacity = "0"; 
+        }
         
+        function closeSidebar() { 
+            sidebar.classList.remove('open'); 
+            overlay.classList.remove('show'); 
+            menuBtn.style.transform = "scale(1) rotate(0deg)"; 
+            menuBtn.style.opacity = "1"; 
+        }
+
         function loadApp(url, name, icon, bg, color) {
-            closeSidebar(); if(!url) return;
+            closeSidebar(); 
+            if(!url) return;
+
             if(name && icon) {
                 recentApps = recentApps.filter(a => a.url !== url);
                 recentApps.unshift({ url, name, icon, bg, color });
                 if(recentApps.length > 4) recentApps.pop();
-                localStorage.setItem('hub_recent_apps', JSON.stringify(recentApps)); renderRecentApps();
+                localStorage.setItem('hub_recent_apps', JSON.stringify(recentApps));
+                renderRecentApps();
             }
-            loaderBar.style.width = '30%'; placeholder.style.display = 'none'; skyCanvas.style.display = 'none'; 
-            appFrame.classList.add('active'); appFrame.src = url;
-            appFrame.onload = () => { loaderBar.style.width = '100%'; setTimeout(() => { loaderBar.style.width = '0%'; }, 300); };
+
+            loaderBar.style.width = '30%';
+            placeholder.style.display = 'none'; 
+            skyCanvas.style.display = 'none'; 
+            appFrame.classList.add('active');   
+            appFrame.src = url;
+            appFrame.onload = () => {
+                loaderBar.style.width = '100%';
+                setTimeout(() => { loaderBar.style.width = '0%'; }, 300);
+            };
         }
-        function goHome() { closeSidebar(); appFrame.classList.remove('active'); appFrame.src = ''; placeholder.style.display = 'flex'; skyCanvas.style.display = 'block'; }
+
+        function goHome() {
+            closeSidebar();
+            appFrame.classList.remove('active');
+            appFrame.src = '';
+            placeholder.style.display = 'flex'; 
+            skyCanvas.style.display = 'block'; 
+        }
 
         // --- LOGIKA JAM REAL-TIME ---
-        function updateClock() { document.getElementById('timeText').innerText = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); }
-        setInterval(updateClock, 1000); updateClock();
+        function updateClock() {
+            const timeText = document.getElementById('timeText');
+            const now = new Date();
+            timeText.innerText = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
 
-        // --- LOGIKA TEMA LANGIT ---
+        // --- LOGIKA SAPAAN, RENDER LANGIT, & TEMA SIDEBAR ---
         function updateSkyAndDate() {
-            const dateText = document.getElementById('dateText'); const greetingText = document.getElementById('greetingText');
-            const now = new Date(); const hour = now.getHours();
-            let greeting = "Selamat Malam"; let timeOfDay = "night";
+            const dateText = document.getElementById('dateText');
+            const greetingText = document.getElementById('greetingText');
+            const now = new Date();
+            const hour = now.getHours();
+            
+            let greeting = "Selamat Malam";
+            let timeOfDay = "night";
+
             if (hour >= 5 && hour < 11) { greeting = "Selamat Pagi"; timeOfDay = "morning"; }
             else if (hour >= 11 && hour < 15) { greeting = "Selamat Siang"; timeOfDay = "day"; }
             else if (hour >= 15 && hour < 18) { greeting = "Selamat Sore"; timeOfDay = "afternoon"; }
-            
-            greetingText.innerText = greeting; dateText.innerText = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-            if (timeOfDay === "night" || timeOfDay === "afternoon") { greetingContainer.style.color = "#ffffff"; recentContainer.style.color = "#ffffff"; sidebar.style.color = "#ffffff"; greetingContainer.style.textShadow = "0 2px 10px rgba(0,0,0,0.4)"; recentContainer.style.textShadow = "0 2px 10px rgba(0,0,0,0.4)"; } 
-            else { greetingContainer.style.color = "#1a1a1a"; recentContainer.style.color = "#1a1a1a"; sidebar.style.color = "#1a1a1a"; greetingContainer.style.textShadow = "none"; recentContainer.style.textShadow = "none"; }
 
-            const skyGradients = { morning: "linear-gradient(180deg, #87CEEB 0%, #FFB6C1 50%, #FFDAB9 100%)", day: "linear-gradient(180deg, #4facfe 0%, #00f2fe 100%)", afternoon: "linear-gradient(180deg, #2c3e50 0%, #fd746c 100%)", night: "linear-gradient(180deg, #0f2027 0%, #203a43 50%, #2c5364 100%)" };
+            greetingText.innerText = greeting;
+            dateText.innerText = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+            if (timeOfDay === "night" || timeOfDay === "afternoon") {
+                greetingContainer.style.color = "#ffffff";
+                recentContainer.style.color = "#ffffff";
+                sidebar.style.color = "#ffffff"; 
+                greetingContainer.style.textShadow = "0 2px 10px rgba(0,0,0,0.4)";
+                recentContainer.style.textShadow = "0 2px 10px rgba(0,0,0,0.4)";
+            } else {
+                greetingContainer.style.color = "#1a1a1a";
+                recentContainer.style.color = "#1a1a1a";
+                sidebar.style.color = "#1a1a1a"; 
+                greetingContainer.style.textShadow = "none";
+                recentContainer.style.textShadow = "none";
+            }
+
+            const skyGradients = {
+                morning: "linear-gradient(180deg, #87CEEB 0%, #FFB6C1 50%, #FFDAB9 100%)",
+                day: "linear-gradient(180deg, #4facfe 0%, #00f2fe 100%)",
+                afternoon: "linear-gradient(180deg, #2c3e50 0%, #fd746c 100%)",
+                night: "linear-gradient(180deg, #0f2027 0%, #203a43 50%, #2c5364 100%)"
+            };
             sidebar.style.background = skyGradients[timeOfDay];
-            skyCanvas.className = `sky-${timeOfDay}`; let skyHtml = '';
-            if (timeOfDay === 'morning') skyHtml = '<div class="celestial sun-morning"></div>';
-            else if (timeOfDay === 'day') skyHtml = '<div class="celestial sun-day"></div><div class="cloud c1"></div><div class="cloud c2"></div>';
-            else if (timeOfDay === 'afternoon') skyHtml = '<div class="celestial sun-afternoon"></div>';
-            else if (timeOfDay === 'night') { skyHtml = '<div class="celestial moon-night"></div><div class="shooting-star"></div>'; for(let i=0; i<25; i++) skyHtml += `<div class="star" style="width:2px; height:2px; top:${Math.random()*60}%; left:${Math.random()*100}%; opacity:${Math.random()}"></div>`; }
+
+            skyCanvas.className = `sky-${timeOfDay}`;
+            let skyHtml = '';
+            if (timeOfDay === 'morning') {
+                skyHtml = '<div class="celestial sun-morning"></div>';
+            } else if (timeOfDay === 'day') {
+                skyHtml = '<div class="celestial sun-day"></div><div class="cloud c1"></div><div class="cloud c2"></div>';
+            } else if (timeOfDay === 'afternoon') {
+                skyHtml = '<div class="celestial sun-afternoon"></div>';
+            } else if (timeOfDay === 'night') {
+                skyHtml = '<div class="celestial moon-night"></div><div class="shooting-star"></div>';
+                for(let i=0; i<25; i++) {
+                   skyHtml += `<div class="star" style="width:2px; height:2px; top:${Math.random()*60}%; left:${Math.random()*100}%; opacity:${Math.random()}"></div>`;
+                }
+            }
             skyCanvas.innerHTML = skyHtml;
         }
-        updateSkyAndDate(); setInterval(updateSkyAndDate, 60000); 
+        updateSkyAndDate();
+        setInterval(updateSkyAndDate, 60000); 
 
         // --- GESTURE SWIPE ---
         let startX = 0, currentX = 0;
         document.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, {passive: true});
         document.addEventListener('touchend', (e) => {
-            currentX = e.changedTouches[0].clientX; let diffX = currentX - startX;
-            if (startX < 50 && diffX > 70) openSidebar(); else if (sidebar.classList.contains('open') && diffX < -50) closeSidebar(); 
+            currentX = e.changedTouches[0].clientX;
+            let diffX = currentX - startX;
+            if (startX < 50 && diffX > 70) openSidebar(); 
+            else if (sidebar.classList.contains('open') && diffX < -50) closeSidebar(); 
         }, {passive: true});
     </script>
 </body>
