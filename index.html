@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SANTRIDROID Hub</title>
+    <title>J E S U S Hub</title>
     
     <meta name="theme-color" content="#000000">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="SANTRIDROID">
+    <meta name="apple-mobile-web-app-title" content="J E S U S">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1183/1183672.png">
 
     <style>
@@ -43,11 +43,11 @@
         .sidebar.minimized .sidebar-footer { justify-content: center; padding: 15px 0; }
 
         .sidebar-header { padding: 25px 20px 15px; border-bottom: 1px solid rgba(128, 128, 128, 0.2); display: flex; justify-content: space-between; align-items: center; }
-        .sidebar-title { font-size: 20px; font-weight: 800; margin: 0; color: inherit; letter-spacing: 0.5px; }
+        /* PEMBARUAN: Ditambahkan letter-spacing dan margin-right negatif agar benar-benar di tengah */
+        .sidebar-title { font-size: 20px; font-weight: 800; margin: 0; color: inherit; letter-spacing: 2px; margin-right: -2px; text-align: center; }
         .close-btn { font-size: 24px; color: inherit; opacity: 0.8; cursor: pointer; transition: 0.2s; }
         .close-btn:active { transform: scale(0.8); }
         
-        /* PEMBARUAN: Padding atas dihapus (0) agar Beranda langsung menempel pada garis header secara akurat */
         .sidebar-menu { flex: 1; overflow-y: auto; padding: 0; }
         
         /* Item Aplikasi Biasa */
@@ -55,7 +55,7 @@
         .menu-item:active { background-color: rgba(255, 255, 255, 0.25); }
         .menu-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 16px; background: rgba(255, 255, 255, 0.5); }
         
-        /* Item Khusus "Beranda" (PEMBARUAN: Padding atas-bawah diseimbangkan menjadi 16px agar persis di tengah) */
+        /* Item Khusus "Beranda" */
         .home-item { padding: 16px 20px; font-size: 14px; font-weight: 800; border-bottom: 1px solid rgba(128,128,128,0.15); margin-bottom: 10px; }
         .home-item .menu-icon { width: 38px; height: 38px; font-size: 18px; box-shadow: 0 3px 8px rgba(0,0,0,0.08); margin-left: -3px; margin-right: -3px; }
         .home-item:active { background-color: rgba(255, 255, 255, 0.15); }
@@ -102,7 +102,7 @@
     
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h2 class="sidebar-title">SANTRIDROID</h2>
+            <h2 class="sidebar-title">J E S U S</h2>
             <div class="close-btn" onclick="closeSidebar()">×</div>
         </div>
         
@@ -154,8 +154,8 @@
         // 🚀 INJEKSI PWA MANIFEST OTOMATIS
         // =========================================================================
         const manifestData = {
-            "name": "SANTRIDROID Hub",
-            "short_name": "SANTRIDROID",
+            "name": "J E S U S Hub",
+            "short_name": "J E S U S",
             "start_url": window.location.pathname,
             "display": "standalone",
             "background_color": "#000000",
