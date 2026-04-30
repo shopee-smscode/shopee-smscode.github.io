@@ -30,7 +30,6 @@
         .offline-icon { font-size: 65px; margin-bottom: 20px; animation: pulse 1.5s infinite; filter: drop-shadow(0 0 15px rgba(255,204,0,0.5));}
         @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.6; } 100% { transform: scale(1); opacity: 1; } }
         .offline-text { font-size: 22px; font-weight: 900; letter-spacing: 2px; margin: 0; text-align: center; text-transform: uppercase; }
-        .offline-subtext { font-size: 13px; color: #aaaaaa; margin-top: 10px; text-align: center; padding: 0 30px; line-height: 1.5;}
 
         /* TOMBOL MENGAMBANG */
         .floating-menu-btn { position: fixed; bottom: 25px; right: 25px; width: 42px; height: 42px; background-color: rgba(255, 255, 255, 0.9); backdrop-filter: blur(5px); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 18px; color: #1a1a1a; box-shadow: 0 4px 15px rgba(0,0,0,0.25); z-index: 90; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.3s ease, background-color 0.2s; }
@@ -128,7 +127,6 @@
     <div id="offlineOverlay">
         <div class="offline-icon">📡❌</div>
         <h2 class="offline-text">Koneksi Terputus</h2>
-        <p class="offline-subtext">Sistem mengunci layar untuk keamanan Privasi & URL.<br>Menunggu jaringan internet kembali stabil...</p>
     </div>
 
     <div class="floating-menu-btn" id="menuBtn" onclick="openSidebar()">☰</div>
@@ -342,7 +340,7 @@
             closeSidebar(); 
             if(!url) return;
 
-            // CEGAH MEMBUKA APLIKASI JIKA OFFLINE (UNTUK MENGHINDARI ERROR BROWSER BAWAAN YANG MUNCULKAN URL)
+            // CEGAH MEMBUKA APLIKASI JIKA OFFLINE
             if (!navigator.onLine) {
                 offlineOverlay.classList.add('show');
                 return;
@@ -379,7 +377,6 @@
 
         const lastSession = localStorage.getItem('hub_last_session');
         if (lastSession) {
-            // Jika memori mengingat aplikasi terakhir, pastikan koneksi online sebelum memuatnya
             if (navigator.onLine) {
                 placeholder.style.display = 'none'; 
                 skyCanvas.style.display = 'none'; 
@@ -387,7 +384,7 @@
                 appFrame.src = lastSession;
                 setMenuMarker(lastSession);
             } else {
-                goHome(); // Jika offline, paksa masuk ke beranda agar tidak error URL
+                goHome(); // Paksa masuk ke beranda saat offline
             }
         } else {
             setMenuMarker(null);
