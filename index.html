@@ -49,12 +49,12 @@
         
         .sidebar-menu { flex: 1; overflow-y: auto; padding: 0; }
         
-        /* Item Aplikasi Biasa - Ditambah position: relative untuk mark */
+        /* Item Aplikasi Biasa */
         .menu-item { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: inherit; text-decoration: none; font-size: 13px; font-weight: 600; transition: 0.2s; cursor: pointer; }
         .menu-item:active { background-color: rgba(255, 255, 255, 0.25); }
         .menu-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 16px; background: rgba(255, 255, 255, 0.5); }
         
-        /* Item Khusus "Beranda" - Ditambah position: relative untuk mark */
+        /* Item Khusus "Beranda" */
         .home-item { position: relative; padding: 16px 20px; font-size: 14px; font-weight: 800; border-bottom: 1px solid rgba(128,128,128,0.15); margin-bottom: 10px; }
         .home-item .menu-icon { width: 38px; height: 38px; font-size: 18px; box-shadow: 0 3px 8px rgba(0,0,0,0.08); margin-left: -3px; margin-right: -3px; }
         .home-item:active { background-color: rgba(255, 255, 255, 0.15); }
@@ -221,7 +221,6 @@
         function renderSidebarApps() {
             let html = '';
             DAFTAR_APLIKASI.forEach(app => {
-                // Menambahkan kelas app-item dan atribut data-url untuk keperluan sistem penanda
                 html += `
                 <div class="menu-item app-item" data-url="${app.url}" onclick="loadApp('${app.url}', '${app.name}', '${app.icon}', '${app.bg}', '${app.color}')">
                     <div class="menu-icon" style="background:${app.bg}; color:${app.color};">${app.icon}</div> 
@@ -232,16 +231,12 @@
         }
         renderSidebarApps();
 
-        // --- SISTEM UPDATE MARKER (PENANDA AKTIF) ---
+        // --- SISTEM UPDATE MARKER ---
         function setMenuMarker(url) {
-            // Hapus mark dari semua menu
             document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active-app'));
-            
             if (!url) {
-                // Jika URL kosong, berarti kembali ke Beranda
                 document.querySelector('.home-item').classList.add('active-app');
             } else {
-                // Cari aplikasi yang sedang dibuka berdasarkan URL
                 const items = document.querySelectorAll('.app-item');
                 items.forEach(item => {
                     if (item.getAttribute('data-url') === url) {
@@ -250,6 +245,35 @@
                 });
             }
         }
+
+        // --- DETEKSI PERUBAHAN REAL-TIME PADA IFRAME ---
+        appFrame.addEventListener('load', function() {
+            // Selesaikan animasi loading
+            loaderBar.style.width = '100%'; 
+            setTimeout(() => { loaderBar.style.width = '0%'; }, 300);
+
+            try {
+                // Ambil URL yang saat ini sedang aktif di dalam dashboard
+                const currentUrl = appFrame.contentWindow.location.href;
+                
+                // Jika sedang di layar utama, abaikan (diurus oleh goHome)
+                if (currentUrl === 'about:blank' || currentUrl === '' || currentUrl === window.location.href) {
+                    return; 
+                }
+
+                // Cocokkan URL dashboard dengan daftar menu di sidebar
+                for (let app of DAFTAR_APLIKASI) {
+                    // Encode URI digunakan agar karakter spasi (%20) terdeteksi dengan tepat
+                    if (currentUrl.includes(encodeURI(app.url)) || currentUrl.includes(app.url)) {
+                        setMenuMarker(app.url);
+                        localStorage.setItem('hub_last_session', app.url);
+                        break;
+                    }
+                }
+            } catch (e) {
+                // Mengabaikan error jika aplikasi memuat halaman luar domain (CORS Policy)
+            }
+        });
 
         let recentApps = JSON.parse(localStorage.getItem('hub_recent_apps')) || [];
 
@@ -291,15 +315,15 @@
                 renderRecentApps();
             }
 
+            // Set Marker secara instan agar UI terasa cepat
+            setMenuMarker(url);
             localStorage.setItem('hub_last_session', url);
-            setMenuMarker(url); // Pindah mark ke aplikasi yang dipilih
 
             loaderBar.style.width = '30%';
             placeholder.style.display = 'none'; 
             skyCanvas.style.display = 'none'; 
             appFrame.classList.add('active');   
             appFrame.src = url;
-            appFrame.onload = () => { loaderBar.style.width = '100%'; setTimeout(() => { loaderBar.style.width = '0%'; }, 300); };
         }
 
         function goHome() {
@@ -310,7 +334,7 @@
             skyCanvas.style.display = 'block'; 
             
             localStorage.removeItem('hub_last_session');
-            setMenuMarker(null); // Pindah mark kembali ke Beranda
+            setMenuMarker(null);
         }
 
         const lastSession = localStorage.getItem('hub_last_session');
@@ -319,7 +343,7 @@
             skyCanvas.style.display = 'none'; 
             appFrame.classList.add('active');   
             appFrame.src = lastSession;
-            setMenuMarker(lastSession); // Pasang mark saat sesi dipulihkan
+            setMenuMarker(lastSession);
         } else {
             setMenuMarker(null);
         }
