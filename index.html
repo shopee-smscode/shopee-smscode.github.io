@@ -42,8 +42,19 @@
         .sidebar.minimized .home-item { padding: 16px 0; justify-content: center; }
         .sidebar.minimized .sidebar-footer { justify-content: center; padding: 15px 0; }
 
-        /* PEMBARUAN: Header Sidebar diberi background gradasi kuning-hitam dan font warna putih */
-        .sidebar-header { padding: 25px 20px 15px; border-bottom: 2px solid #ffcc00; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #ffcc00 0%, #111111 60%); color: #ffffff; }
+        /* PEMBARUAN: Header Sidebar dengan gambar dari link Anda dan efek gelap */
+        .sidebar-header { 
+            padding: 25px 20px 15px; 
+            border-bottom: 2px solid #ffcc00; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.8)), url('https://miro.medium.com/v2/resize:fit:1100/format:webp/1*3VfaH2XLWLRCYl-z3Dd5Hg.png'); 
+            background-size: cover;
+            background-position: center;
+            color: #ffffff; 
+        }
+        
         .sidebar-title { font-size: 20px; font-weight: 800; margin: 0; color: inherit; letter-spacing: 2px; margin-right: -2px; text-align: center; }
         .close-btn { font-size: 24px; color: inherit; opacity: 0.8; cursor: pointer; transition: 0.2s; }
         .close-btn:active { transform: scale(0.8); }
@@ -63,21 +74,8 @@
         /* ========================================= */
         /* HIGHLIGHT MENU AKTIF (MARKER)             */
         /* ========================================= */
-        .active-app {
-            background-color: rgba(24, 119, 242, 0.08) !important;
-            color: var(--primary) !important;
-        }
-        .active-app::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 4px;
-            background-color: var(--primary);
-            border-top-right-radius: 4px;
-            border-bottom-right-radius: 4px;
-        }
+        .active-app { background-color: rgba(24, 119, 242, 0.08) !important; color: var(--primary) !important; }
+        .active-app::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background-color: var(--primary); border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
 
         .sidebar-footer { padding: 15px 20px; border-top: 1px solid rgba(128, 128, 128, 0.2); display: flex; justify-content: flex-end; align-items: center; }
         .toggle-btn { width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,0.08); display: flex; justify-content: center; align-items: center; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; color: inherit;}
