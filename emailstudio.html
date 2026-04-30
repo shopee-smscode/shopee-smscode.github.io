@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>A S E A Email Studio</title>
+    
+    <meta name="theme-color" content="#111111">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="A S E A">
+
+    <style>
+        /* ========================================= */
+        /* VARIABEL TEMA GELAP (DEFAULT)             */
+        /* ========================================= */
+        :root {
+            --bg-main: #000000;
+            --card-bg: rgba(15, 15, 15, 0.75); 
+            --text-dark: #ffffff; 
+            --text-muted: #aaaaaa;
+            --border-color: rgba(255, 204, 0, 0.25); 
+            --primary: #ffcc00; 
+            --header-dark: rgba(15, 15, 15, 0.9);
+            --danger: #ef4444;
+            --success: #22c55e;
+            --info: #3b82f6;
+            --nav-bg: rgba(15, 15, 15, 0.95);
+            --radius: 12px;
+        }
+
+        * {
+            margin: 0; padding: 0; box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent !important;
+        }
+
+        html, body {
+            height: 100%; width: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-dark);
+            overflow: hidden; 
+            display: flex; flex-direction: column;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* ========================================= */
+        /* EFEK TEMA TERANG (LIGHT MODE OVERRIDES)   */
+        /* ========================================= */
+        body.light-theme {
+            --bg-main: #eef2f6;
+            --card-bg: #ffffff;
+            --text-dark: #111111;
+            --text-muted: #6b7280;
+            --border-color: #d1d5db;
+            --header-dark: #111111; 
+            --nav-bg: #ffffff;
+        }
+
+        body.light-theme #skyCanvas { display: none; /* Matikan awan di mode terang */ }
+        
+        body.light-theme .card {
+            backdrop-filter: none; -webkit-backdrop-filter: none;
+            border: none; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        body.light-theme input, body.light-theme textarea, body.light-theme select {
+            background-color: #f9fafb; color: #111111; border: 1px solid #d1d5db; box-shadow: none;
+        }
+        body.light-theme input:focus, body.light-theme textarea:focus, body.light-theme select:focus {
+            background-color: #ffffff; border-color: #111111; box-shadow: none;
+        }
+        body.light-theme textarea[readonly], body.light-theme input[readonly] {
+            background-color: #f3f4f6; color: #6b7280; border-color: #d1d5db;
+        }
+
+        body.light-theme .btn-primary { background: #111111; color: var(--primary); box-shadow: none; }
+        body.light-theme .btn-outline { background: transparent; border: 1px solid #d1d5db; color: #111111; }
+        body.light-theme .card-title { color: #111111; }
+        body.light-theme label { color: #6b7280; }
+        
+        body.light-theme .bottom-nav { background: #ffffff; backdrop-filter: none; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
+        body.light-theme .nav-item { color: #6b7280; }
+        body.light-theme .nav-item.active { color: #111111; background: #fafafa; border-top-color: var(--primary); text-shadow: none; }
+        
+        body.light-theme .radio-group { background: #f9fafb; border: 1px solid #d1d5db; }
+        body.light-theme .radio-group label { color: #111111; }
+        body.light-theme .radio-group input { accent-color: #111111; }
+        
+        body.light-theme .modal-box { background: #ffffff; border: none; box-shadow: none; }
+        body.light-theme .modal-box h3 { color: #111111; }
+        body.light-theme .modal-box p { color: #6b7280; }
+        body.light-theme .badge { background: #eef2f6; color: #111111; border: 1px solid #d1d5db; box-shadow: none; }
+        
+        body.light-theme header {
+            background: linear-gradient(135deg, #111111 40%, #2a2a2a 100%);
+            backdrop-filter: none; border-bottom: 3px solid var(--primary);
+        }
+
+
+        /* ========================================= */
+        /* LATAR BELAKANG LANGIT KARTUN (TEMA KUNING)*/
+        /* ========================================= */
+        #skyCanvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1; overflow: hidden; transition: background 1s ease;
+        }
+        .sky-morning { background: linear-gradient(180deg, #2a2a2a 0%, #b38f00 100%); }
+        .sky-day { background: linear-gradient(180deg, #1a1a1a 0%, #ffcc00 100%); }
+        .sky-afternoon { background: linear-gradient(180deg, #111111 0%, #d9a400 100%); }
+        .sky-night { background: linear-gradient(180deg, #050505 0%, #1a1a1a 100%); }
+        
+        .celestial { position: absolute; border-radius: 50%; }
+        .sun-morning { width: 80px; height: 80px; background: #ffea80; right: 15%; bottom: -100px; box-shadow: 0 0 40px #ffcc00; animation: sunrise 4s ease-out forwards; }
+        .sun-day { width: 100px; height: 100px; background: #ffcc00; right: -20px; top: -20px; box-shadow: 0 0 60px #ffcc00; }
+        .sun-afternoon { width: 90px; height: 90px; background: #cc9900; right: 20%; bottom: 100px; box-shadow: 0 0 50px #cc9900; animation: sunset 4s ease-in forwards; }
+        .moon-night { width: 70px; height: 70px; background: #ffcc00; right: 20px; top: 30px; box-shadow: 0 0 30px #ffcc00; }
+        .moon-night::after { content: ''; position: absolute; top: -10px; right: -10px; width: 60px; height: 60px; border-radius: 50%; background: #050505; } 
+        
+        .cloud { position: absolute; background: rgba(255, 204, 0, 0.15); border-radius: 50px; backdrop-filter: blur(2px);}
+        .cloud::before, .cloud::after { content: ''; position: absolute; background: inherit; border-radius: 50%; }
+        .c1 { width: 120px; height: 40px; top: 15%; animation: wind 25s linear infinite; }
+        .c1::before { width: 60px; height: 60px; top: -30px; left: 20px; }
+        .c1::after { width: 45px; height: 45px; top: -15px; right: 20px; }
+        .c2 { width: 80px; height: 30px; top: 35%; opacity: 0.5; animation: wind 18s linear infinite reverse; }
+        .c2::before { width: 40px; height: 40px; top: -20px; left: 15px; }
+        
+        @keyframes sunrise { to { bottom: 100px; } }
+        @keyframes sunset { to { bottom: -50px; opacity: 0.5; } }
+        @keyframes wind { 0% { left: -150px; } 100% { left: 100vw; } }
+        
+        .star { position: absolute; background: #ffcc00; border-radius: 50%; }
+        .shooting-star { position: absolute; top: 10%; right: 20%; width: 120px; height: 2px; background: linear-gradient(90deg, rgba(255,204,0,1), rgba(255,204,0,0)); transform: rotate(-45deg); opacity: 0; animation: shoot 5s infinite; }
+        @keyframes shoot { 0% { transform: translateX(0) translateY(0) rotate(-45deg); opacity: 1; } 15% { transform: translateX(-300px) translateY(300px) rotate(-45deg); opacity: 0; } 100% { opacity: 0; } }
+
+        /* ========================================= */
+        /* KOMPONEN UI APLIKASI                      */
+        /* ========================================= */
+        header {
+            background: var(--header-dark); backdrop-filter: blur(10px); color: var(--primary);
+            padding: 8px 15px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid var(--primary); box-shadow: 0 4px 15px rgba(0,0,0,0.5); z-index: 10; flex-shrink: 0;
+        }
+        header .title-wrapper { text-align: center; }
+        header h1 { font-size: 16px; font-weight: 800; letter-spacing: 2px; margin-bottom: 0px;}
+        header span { font-size: 9px; color: #fff; font-weight: bold; letter-spacing: 1px; opacity: 0.8;}
+        
+        /* Tombol Toggle Tema */
+        #themeToggleBtn {
+            width: 34px; height: 34px; padding: 0; border: 1px solid var(--primary);
+            background: rgba(255,255,255,0.1); color: var(--primary); font-size: 16px;
+            border-radius: 8px; display: flex; justify-content: center; align-items: center;
+            cursor: pointer; box-shadow: none; flex-shrink: 0; transition: 0.2s;
+        }
+        #themeToggleBtn:active { transform: scale(0.85); background: var(--primary); color: #000; }
+
+        main { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 10px; padding-bottom: 70px; z-index: 2; }
+        .tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+
+        .card {
+            background: var(--card-bg); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            padding: 12px; border-radius: var(--radius); border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3); display: flex; flex-direction: column;
+            margin-bottom: 10px; flex: 1; min-height: 0; 
+        }
+        .card.auto-height { flex: none; } 
+        .card-title { font-size: 14px; font-weight: 800; margin-bottom: 10px; color: var(--primary); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.5px; }
+        label { font-size: 12px; font-weight: 700; color: #ccc; margin-bottom: 5px; flex-shrink: 0;}
+        
+        input, textarea, select {
+            width: 100%; padding: 10px 12px; border: 1px solid rgba(255,204,0,0.4); border-radius: 6px; font-size: 13px;
+            background-color: rgba(0,0,0,0.6); color: #fff; transition: all 0.3s ease; margin-bottom: 10px;
+        }
+        input { flex-shrink: 0; }
+        textarea { flex: 1; min-height: 0; resize: none; line-height: 1.5; }
+        input:focus, textarea:focus, select:focus { outline: none; border-color: var(--primary); background-color: rgba(0,0,0,0.8); box-shadow: 0 0 8px rgba(255,204,0,0.2); }
+        textarea[readonly], input[readonly] { background-color: rgba(255,255,255,0.05); color: var(--primary); border-color: rgba(255,255,255,0.1); cursor: not-allowed;}
+        ::placeholder { color: #888; }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); border-radius: 4px;}
+        ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 4px; }
+
+        .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; flex-shrink: 0;}
+        .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; flex-shrink: 0;}
+        .row-last { margin-bottom: 0 !important; }
+
+        button {
+            padding: 12px; border: none; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer;
+            transition: transform 0.1s, background-color 0.2s, box-shadow 0.2s; width: 100%; text-align: center; flex-shrink: 0; color: #000;
+        }
+        button:active { transform: scale(0.96); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+
+        .btn-primary { background: var(--primary); color: #000; box-shadow: 0 0 10px rgba(255,204,0,0.2); }
+        .btn-yellow { background: #e6b800; color: #000; }
+        .btn-danger { background: rgba(239, 68, 68, 0.8); color: #fff; }
+        .btn-success { background: rgba(34, 197, 94, 0.8); color: #fff; }
+        .btn-info { background: rgba(59, 130, 246, 0.8); color: #fff; }
+        .btn-outline { background: rgba(0,0,0,0.5); border: 1px solid var(--primary); color: var(--primary); }
+
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; width: 100%; background: var(--nav-bg); backdrop-filter: blur(10px);
+            border-top: 1px solid var(--border-color); display: flex; justify-content: space-around;
+            padding-bottom: env(safe-area-inset-bottom, 0); box-shadow: 0 -4px 20px rgba(0,0,0,0.5); z-index: 100;
+        }
+        .nav-item {
+            flex: 1; background: transparent; border: none; padding: 18px 0; font-size: 13px; font-weight: 700;
+            color: #888; border-top: 3px solid transparent; border-radius: 0; transition: 0.3s; box-shadow: none;
+        }
+        .nav-item.active { color: #000; border-top-color: var(--primary); background: var(--primary); text-shadow: 0 0 5px rgba(0,0,0,0.2); }
+
+        .radio-group { display: flex; gap: 15px; margin-bottom: 10px; align-items: center; justify-content: center; flex-shrink: 0; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,204,0,0.2); }
+        .radio-group label { display: flex; align-items: center; gap: 5px; font-size: 13px; margin: 0; cursor: pointer; color: #fff;}
+        .radio-group input[type="radio"], .radio-group input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--primary); }
+
+        .toast {
+            position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); background: var(--primary); color: #000000;
+            padding: 12px 24px; border-radius: 30px; font-size: 14px; font-weight: 800; box-shadow: 0 4px 15px rgba(0,0,0,0.5); z-index: 2000;
+            transition: bottom 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55); text-align: center; white-space: nowrap; border: 1px solid #000;
+        }
+        .toast.show { bottom: 80px; }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px);
+            display: flex; justify-content: center; align-items: center; z-index: 3000; opacity: 0; visibility: hidden; transition: 0.3s;
+        }
+        .modal-overlay.show { opacity: 1; visibility: visible; }
+        .modal-box {
+            background: rgba(20,20,20,0.95); width: 85%; max-width: 320px; border-radius: var(--radius); padding: 20px; text-align: center;
+            transform: scale(0.9); transition: 0.3s; border: 1px solid var(--primary); box-shadow: 0 0 30px rgba(255,204,0,0.1);
+        }
+        .modal-overlay.show .modal-box { transform: scale(1); }
+        .modal-box h3 { margin: 0 0 10px 0; font-size: 16px; font-weight: 800; color: var(--primary);}
+        .modal-box p { font-size: 13px; color: #ccc; margin-bottom: 20px; line-height: 1.4; }
+
+        .badge { background: var(--primary); padding: 4px 10px; border-radius: 6px; font-size: 12px; color: #000; border: none; font-weight: 800; box-shadow: 0 0 10px rgba(255,204,0,0.3);}
+        .hidden { display: none !important; }
+        
+        /* Helper kustom untuk warna text input Generator yang unik */
+        #ga_result { color: #000000 !important; }
+        body.light-theme #ga_result { color: #111111 !important; }
+        #gn_preview { color: var(--primary) !important; background-color: rgba(0,0,0,0.8) !important; }
+        body.light-theme #gn_preview { color: #111111 !important; background-color: #ffffff !important; }
+
+    </style>
+</head>
+<body>
+
+    <div id="skyCanvas"></div>
+
+    <header>
+        <div style="width: 34px;"></div> <div class="title-wrapper">
+            <h1>A S E A</h1>
+            <span>EMAIL STUDIO PRO</span>
+        </div>
+        <button id="themeToggleBtn" onclick="toggleTheme()" title="Ubah Tema">☀️</button>
+    </header>
+
+    <main>
+        <div id="tab-potong" class="tab-content active">
+            <div class="card">
+                <div class="card-title">Antrean Utama <span class="badge" id="pt_sisa">0</span></div>
+                <textarea id="pt_mainList" readonly placeholder="Klik Edit, tempel email di sini..."></textarea>
+                <div class="row-3">
+                    <input type="number" id="pt_cutAmt" value="1" min="1" placeholder="Jml Potong">
+                    <input type="text" id="pt_totalCut" value="0" readonly title="Total Keluar">
+                    <button class="btn-primary" id="pt_cutBtn">Potong</button>
+                </div>
+                <div class="row-3 row-last">
+                    <button class="btn-outline" id="pt_editBtn">Edit</button>
+                    <button class="btn-outline" onclick="triggerImport('pt_mainList')">Impor</button>
+                    <button class="btn-outline" id="pt_undoBtn">Undo</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Selesai (Riwayat) <span class="badge" id="pt_bawahSisa">0</span></div>
+                <textarea id="pt_doneList" readonly placeholder="Email yang dipotong masuk ke sini..."></textarea>
+                <div class="row-3 row-last">
+                    <button class="btn-outline" id="pt_editDoneBtn">Edit</button>
+                    <button class="btn-info" id="pt_copyDoneBtn">Salin</button>
+                    <button class="btn-danger" id="pt_clearDoneBtn">Hapus</button>
+                </div>
+            </div>
+            <button class="btn-danger" style="margin-top: 5px; flex-shrink: 0;" onclick="confirmGlobalReset('potong')">Reset Data Potong</button>
+        </div>
+
+        <div id="tab-copylist" class="tab-content">
+            <div class="card">
+                <div class="card-title">Salin Email Berurut <span class="badge" id="cl_count">0</span></div>
+                <textarea id="cl_mainList" readonly placeholder="Masukkan list email di sini..."></textarea>
+                <button class="btn-primary" id="cl_copyTopBtn" style="padding: 16px; font-size: 15px; margin-bottom: 10px;">Salin Baris Teratas</button>
+                <div class="row-3">
+                    <button class="btn-outline" id="cl_editBtn">Edit</button>
+                    <button class="btn-outline" id="cl_undoBtn">Undo</button>
+                    <button class="btn-outline" onclick="triggerImport('cl_mainList')">Impor</button>
+                </div>
+                <div class="row-2 row-last">
+                    <button class="btn-outline" id="cl_undoAllBtn">Undo All</button>
+                    <button class="btn-danger" onclick="confirmGlobalReset('copylist')">Reset Seluruhnya</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-generator" class="tab-content">
+            <div class="card auto-height">
+                <div class="card-title">Acak Nama Email</div>
+                <div class="row-2">
+                    <input type="text" id="ga_result" readonly placeholder="Hasil..." style="background:#fff; border-color:var(--primary);">
+                    <select id="ga_domain">
+                        <option value="@gmail.com">@gmail.com</option>
+                        <option value="@yahoo.com">@yahoo.com</option>
+                        <option value="@outlook.com">@outlook.com</option>
+                    </select>
+                </div>
+                <div class="row-2">
+                    <input type="number" id="ga_len" value="12" min="5" max="20" placeholder="Karakter">
+                    <input type="number" id="ga_num" value="3" min="0" max="10" placeholder="Angka">
+                </div>
+                <div class="row-2 row-last">
+                    <button class="btn-outline" id="ga_genBtn">Generate Acak</button>
+                    <button class="btn-primary" id="ga_copyBtn">Salin Hasil</button>
+                </div>
+            </div>
+
+            <div class="card" id="gn_card" style="flex: none;">
+                <div class="card-title">Numerik Berurut (Custom)</div>
+                <div class="row-2">
+                    <input type="text" id="gn_base" placeholder="Email Dasar" value="contoh@gmail.com">
+                    <input type="number" id="gn_num" placeholder="Angka Mulai" value="1">
+                </div>
+                <div class="radio-group">
+                    <label><input type="radio" name="gn_pos" value="front" checked> Di Depan</label>
+                    <label><input type="radio" name="gn_pos" value="back"> Di Belakang</label>
+                    <label style="font-weight: 800; border-left: 1px solid #777; padding-left: 10px;">
+                        <input type="checkbox" id="gn_isList"> Mode List
+                    </label>
+                </div>
+                
+                <div id="gn_manual_view" style="display: flex; flex-direction: column;">
+                    <input type="text" id="gn_preview" readonly style="text-align: center; font-size: 15px;">
+                    <button class="btn-primary row-last" id="gn_copyBtn">Salin & Tambah Angka (+1)</button>
+                </div>
+
+                <div id="gn_list_view" class="hidden" style="flex-direction: column; flex: 1; min-height: 0;">
+                    <div class="row-2">
+                        <input type="number" id="gn_listAmt" placeholder="Berapa Jumlahnya? (Cth: 50)">
+                        <button class="btn-outline" id="gn_genListBtn" style="color: inherit;">Generate List</button>
+                    </div>
+                    <textarea id="gn_listResult" readonly placeholder="Hasil list berurut akan muncul di sini..."></textarea>
+                    <div class="row-2 row-last">
+                        <button class="btn-primary" id="gn_copyListBtn">Salin Semua</button>
+                        <button class="btn-danger" id="gn_resetListBtn">Reset</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-dot" class="tab-content">
+            <div class="card">
+                <div class="card-title">Dot Trick Generator</div>
+                <input type="email" id="dt_input" placeholder="Email Asli (contoh@gmail.com)">
+                <div class="row-3">
+                    <input type="text" id="dt_total" value="0" readonly placeholder="Kombinasi">
+                    <input type="number" id="dt_start" placeholder="Mulai (1)">
+                    <input type="number" id="dt_end" placeholder="Akhir (100)">
+                </div>
+                <button class="btn-outline" style="color: inherit;" id="dt_genBtn">Generate Dot Trick</button>
+                <textarea id="dt_result" readonly style="margin-top: 10px;" placeholder="Hasil kombinasi akan muncul di sini..."></textarea>
+                <div class="row-2 row-last">
+                    <button class="btn-primary" id="dt_copyBtn">Salin Hasil</button>
+                    <button class="btn-danger" id="dt_resetBtn">Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-sortir" class="tab-content">
+            <div class="card">
+                <div class="card-title" style="margin-bottom: 5px;">
+                    1. Semua Email
+                    <button class="btn-outline" style="width: auto; padding: 6px 10px; font-size: 11px;" onclick="triggerImport('sr_list1')">Impor File</button>
+                </div>
+                <textarea id="sr_list1" placeholder="Tempel database email utama di sini..."></textarea>
+                
+                <div class="card-title" style="margin-bottom: 5px; margin-top: 5px;">2. Email Yang Dihapus</div>
+                <textarea id="sr_list2" placeholder="Tempel email yang kembar/sampah di sini..."></textarea>
+                
+                <button class="btn-outline" style="color:inherit; margin-bottom: 10px;" id="sr_processBtn">Bersihkan Email Ganda</button>
+                <div class="row-3 row-last">
+                    <button class="btn-primary" id="sr_copyBtn">Salin</button>
+                    <button class="btn-info" id="sr_exportBtn">Ekspor</button>
+                    <button class="btn-danger" id="sr_resetBtn">Reset</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <nav class="bottom-nav">
+        <button class="nav-item active" onclick="switchTab('tab-potong', this)">Potong</button>
+        <button class="nav-item" onclick="switchTab('tab-copylist', this)">Salin Top</button>
+        <button class="nav-item" onclick="switchTab('tab-generator', this)">Generator</button>
+        <button class="nav-item" onclick="switchTab('tab-dot', this)">Dot Trick</button>
+        <button class="nav-item" onclick="switchTab('tab-sortir', this)">Sortir</button>
+    </nav>
+
+    <input type="file" id="globalFileInput" accept=".txt" style="display: none;">
+    <div id="globalToast" class="toast">Notifikasi</div>
+
+    <div id="confirmModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3 id="modalTitle">Konfirmasi</h3>
+            <p id="modalMsg">Apakah Anda yakin?</p>
+            <div class="row-2 row-last">
+                <button class="btn-outline" onclick="closeModal()">Batal</button>
+                <button class="btn-danger" id="modalConfirmBtn">Ya, Lanjutkan</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // SISTEM TEMA & SAKELAR (TOGGLE)
+        // ==========================================
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        
+        function toggleTheme() {
+            document.body.classList.toggle('light-theme');
+            const isLight = document.body.classList.contains('light-theme');
+            localStorage.setItem('asea_theme', isLight ? 'light' : 'dark');
+            themeToggleBtn.innerHTML = isLight ? '🌙' : '☀️';
+        }
+
+        // Terapkan tema yang tersimpan di memori saat aplikasi dimuat
+        if (localStorage.getItem('asea_theme') === 'light') {
+            document.body.classList.add('light-theme');
+            themeToggleBtn.innerHTML = '🌙';
+        }
+
+        // ==========================================
+        // SISTEM LANGIT KARTUN (TEMA HITAM KUNING)
+        // ==========================================
+        function updateSky() {
+            const hour = new Date().getHours();
+            let timeOfDay = "night";
+            if (hour >= 5 && hour < 11) timeOfDay = "morning";
+            else if (hour >= 11 && hour < 15) timeOfDay = "day";
+            else if (hour >= 15 && hour < 18) timeOfDay = "afternoon";
+
+            const skyCanvas = document.getElementById('skyCanvas');
+            skyCanvas.className = `sky-${timeOfDay}`;
+            let skyHtml = '';
+            
+            if (timeOfDay === 'morning') skyHtml = '<div class="celestial sun-morning"></div>';
+            else if (timeOfDay === 'day') skyHtml = '<div class="celestial sun-day"></div><div class="cloud c1"></div><div class="cloud c2"></div>';
+            else if (timeOfDay === 'afternoon') skyHtml = '<div class="celestial sun-afternoon"></div>';
+            else if (timeOfDay === 'night') { 
+                skyHtml = '<div class="celestial moon-night"></div><div class="shooting-star"></div>'; 
+                for(let i=0; i<30; i++) {
+                   skyHtml += `<div class="star" style="width:2px; height:2px; top:${Math.random()*60}%; left:${Math.random()*100}%; opacity:${Math.random()}"></div>`;
+                }
+            }
+            skyCanvas.innerHTML = skyHtml;
+        }
+        updateSky(); setInterval(updateSky, 60000);
+
+        // ==========================================
+        // UTILITIES & GLOBAL FUNCTIONS
+        // ==========================================
+        const toastEl = document.getElementById('globalToast');
+        let toastTimer;
+
+        function showToast(msg) {
+            clearTimeout(toastTimer); toastEl.textContent = msg; toastEl.classList.add('show');
+            toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000);
+        }
+
+        const confirmModal = document.getElementById('confirmModal');
+        let currentConfirmAction = null;
+
+        function openConfirm(title, msg, action) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMsg').textContent = msg;
+            currentConfirmAction = action; confirmModal.classList.add('show');
+        }
+        function closeModal() { confirmModal.classList.remove('show'); }
+
+        document.getElementById('modalConfirmBtn').addEventListener('click', () => {
+            if(currentConfirmAction) currentConfirmAction(); closeModal();
+        });
+
+        async function copyToClipboard(text, successMsg) {
+            if (!text.trim()) return showToast("Tidak ada teks untuk disalin!");
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text); showToast(successMsg || "Berhasil disalin!");
+                } else { throw new Error(); }
+            } catch (err) {
+                const ta = document.createElement("textarea");
+                ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); showToast(successMsg || "Berhasil disalin!"); } 
+                catch(e) { showToast("Gagal menyalin manual."); }
+                document.body.removeChild(ta);
+            }
+        }
+
+        function getCleanArray(text) { return text.split('\n').map(l => l.trim()).filter(Boolean); }
+
+        // ==========================================
+        // NAVIGATION & TABS
+        // ==========================================
+        function switchTab(tabId, btnEl) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btnEl.classList.add('active');
+            localStorage.setItem('asea_active_tab', tabId);
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTab = localStorage.getItem('asea_active_tab') || 'tab-potong';
+            const targetBtn = document.querySelector(`.nav-item[onclick*="${savedTab}"]`);
+            if(targetBtn) switchTab(savedTab, targetBtn);
+            
+            initPotong(); initCopyList(); initGenerator(); initDotTrick(); initSortir();
+        });
+
+        // ==========================================
+        // GLOBAL IMPORT SYSTEM
+        // ==========================================
+        const fileInput = document.getElementById('globalFileInput');
+        let targetImportElementId = null;
+
+        function triggerImport(targetId) { targetImportElementId = targetId; fileInput.click(); }
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const content = ev.target.result; const targetEl = document.getElementById(targetImportElementId);
+                const existing = targetEl.value.trim(); targetEl.value = existing ? existing + '\n' + content : content;
+                showToast("File diimpor!"); fileInput.value = ''; targetEl.dispatchEvent(new Event('input'));
+            }; reader.readAsText(file);
+        });
+
+        // ==========================================
+        // 1. TOOL: POTONG LIST
+        // ==========================================
+        function initPotong() {
+            const mainList = document.getElementById('pt_mainList'); const doneList = document.getElementById('pt_doneList');
+            const amtInp = document.getElementById('pt_cutAmt'); const sisaSpan = document.getElementById('pt_sisa');
+            const totalOutInp = document.getElementById('pt_totalCut'); const bawahSpan = document.getElementById('pt_bawahSisa');
+            let pt_undoSnap = null;
+
+            const updateStats = () => {
+                const ml = getCleanArray(mainList.value); const dl = getCleanArray(doneList.value);
+                sisaSpan.textContent = ml.length; bawahSpan.textContent = dl.length;
+                localStorage.setItem('asea_pt_main', mainList.value); localStorage.setItem('asea_pt_done', doneList.value);
+                localStorage.setItem('asea_pt_amt', amtInp.value); localStorage.setItem('asea_pt_total', totalOutInp.value);
+            };
+
+            mainList.value = localStorage.getItem('asea_pt_main') || ''; doneList.value = localStorage.getItem('asea_pt_done') || '';
+            amtInp.value = localStorage.getItem('asea_pt_amt') || '1'; totalOutInp.value = localStorage.getItem('asea_pt_total') || '0';
+            updateStats();
+
+            mainList.addEventListener('input', updateStats); doneList.addEventListener('input', updateStats); amtInp.addEventListener('input', updateStats);
+
+            document.getElementById('pt_editBtn').addEventListener('click', function() {
+                if(mainList.readOnly) { mainList.readOnly = false; this.textContent = 'Simpan'; this.className = 'btn-success'; mainList.focus(); } 
+                else { mainList.readOnly = true; this.textContent = 'Edit'; this.className = 'btn-outline'; mainList.value = getCleanArray(mainList.value).join('\n'); updateStats(); showToast('Tersimpan!'); }
+            });
+
+            document.getElementById('pt_editDoneBtn').addEventListener('click', function() {
+                if(doneList.readOnly) { doneList.readOnly = false; this.textContent = 'Simpan'; this.className = 'btn-success'; doneList.focus(); } 
+                else { doneList.readOnly = true; this.textContent = 'Edit'; this.className = 'btn-outline'; doneList.value = getCleanArray(doneList.value).join('\n'); updateStats(); showToast('Tersimpan!'); }
+            });
+
+            document.getElementById('pt_cutBtn').addEventListener('click', async () => {
+                let arr = getCleanArray(mainList.value); let amt = parseInt(amtInp.value) || 0;
+                if(amt <= 0 || amt > arr.length) return showToast("Jumlah tidak cukup!");
+                
+                pt_undoSnap = { main: mainList.value, done: doneList.value, total: totalOutInp.value };
+                let cutItems = arr.slice(0, amt); let remItems = arr.slice(amt); let cutStr = cutItems.join('\n');
+                await copyToClipboard(cutStr, `${amt} email dipotong!`);
+                mainList.value = remItems.join('\n'); let exDone = doneList.value.trim(); doneList.value = exDone ? exDone + '\n' + cutStr : cutStr;
+                totalOutInp.value = parseInt(totalOutInp.value) + amt; updateStats();
+            });
+
+            document.getElementById('pt_undoBtn').addEventListener('click', () => {
+                if(!pt_undoSnap) return showToast('Belum ada aksi.');
+                mainList.value = pt_undoSnap.main; doneList.value = pt_undoSnap.done; totalOutInp.value = pt_undoSnap.total;
+                pt_undoSnap = null; updateStats(); showToast('Di-undo.');
+            });
+
+            document.getElementById('pt_copyDoneBtn').addEventListener('click', () => copyToClipboard(doneList.value, 'Riwayat disalin!'));
+            document.getElementById('pt_clearDoneBtn').addEventListener('click', () => openConfirm('Hapus Riwayat', 'Hapus semua riwayat?', () => { doneList.value = ''; updateStats(); showToast('Dibersihkan.'); }));
+        }
+
+        // ==========================================
+        // 2. TOOL: SALIN TOP
+        // ==========================================
+        function initCopyList() {
+            const list = document.getElementById('cl_mainList'); const count = document.getElementById('cl_count');
+            let undoStack = JSON.parse(localStorage.getItem('asea_cl_undo') || '[]'); let original = localStorage.getItem('asea_cl_orig') || '';
+
+            const updateStats = () => {
+                let arr = getCleanArray(list.value); count.textContent = arr.length;
+                localStorage.setItem('asea_cl_main', list.value); localStorage.setItem('asea_cl_undo', JSON.stringify(undoStack));
+            };
+
+            list.value = localStorage.getItem('asea_cl_main') || ''; updateStats(); list.addEventListener('input', updateStats);
+
+            document.getElementById('cl_editBtn').addEventListener('click', function() {
+                if(list.readOnly) { list.readOnly = false; this.textContent = 'Simpan'; this.className = 'btn-success'; list.focus(); } 
+                else { list.readOnly = true; this.textContent = 'Edit'; this.className = 'btn-outline'; let arr = getCleanArray(list.value); list.value = arr.join('\n'); if(arr.length > 0 && !original) { original = list.value; localStorage.setItem('asea_cl_orig', original); } updateStats(); showToast('Tersimpan!'); }
+            });
+
+            document.getElementById('cl_copyTopBtn').addEventListener('click', async () => {
+                let arr = getCleanArray(list.value); if(arr.length === 0) return showToast("Daftar kosong!");
+                let topEmail = arr[0]; await copyToClipboard(topEmail, `Disalin: ${topEmail}`);
+                undoStack.push(topEmail); arr.shift(); list.value = arr.join('\n'); updateStats();
+            });
+
+            document.getElementById('cl_undoBtn').addEventListener('click', () => {
+                if(undoStack.length === 0) return showToast('Tidak ada histori.');
+                let arr = getCleanArray(list.value); arr.unshift(undoStack.pop()); list.value = arr.join('\n'); updateStats();
+            });
+
+            document.getElementById('cl_undoAllBtn').addEventListener('click', () => {
+                if(!original) return showToast('List asli tidak ditemukan.');
+                openConfirm('Undo All', 'Kembalikan ke susunan awal?', () => { list.value = original; undoStack = []; updateStats(); showToast('Dikembalikan!'); });
+            });
+        }
+
+        // ==========================================
+        // 3. TOOL: GENERATOR (ACAK & URUT KUSTOM)
+        // ==========================================
+        function initGenerator() {
+            const resGa = document.getElementById('ga_result'); const gaDomain = document.getElementById('ga_domain');
+            const gaLen = document.getElementById('ga_len'); const gaNum = document.getElementById('ga_num');
+            
+            gaDomain.value = localStorage.getItem('asea_ga_domain') || '@gmail.com'; gaLen.value = localStorage.getItem('asea_ga_len') || '12';
+            gaNum.value = localStorage.getItem('asea_ga_num') || '3'; resGa.value = localStorage.getItem('asea_ga_res') || '';
+            const chars = 'abcdefghijklmnopqrstuvwxyz'; const nums = '0123456789';
+
+            const genAcak = () => {
+                let len = parseInt(gaLen.value) || 12; let numC = parseInt(gaNum.value) || 3; if(numC > len) numC = len;
+                let arr = [];
+                for(let i=0; i<len-numC; i++) arr.push(chars[Math.floor(Math.random()*chars.length)]);
+                for(let i=0; i<numC; i++) arr.push(nums[Math.floor(Math.random()*nums.length)]);
+                arr.sort(() => Math.random() - 0.5); resGa.value = arr.join('');
+                localStorage.setItem('asea_ga_domain', gaDomain.value); localStorage.setItem('asea_ga_len', gaLen.value);
+                localStorage.setItem('asea_ga_num', gaNum.value); localStorage.setItem('asea_ga_res', resGa.value);
+            };
+            
+            gaDomain.addEventListener('change', genAcak); gaLen.addEventListener('input', genAcak); gaNum.addEventListener('input', genAcak);
+            document.getElementById('ga_genBtn').addEventListener('click', genAcak);
+            document.getElementById('ga_copyBtn').addEventListener('click', () => {
+                if(!resGa.value) genAcak(); let full = resGa.value + gaDomain.value; copyToClipboard(full, 'Email acak disalin!'); genAcak();
+            });
+            if(!resGa.value) genAcak();
+
+            const gnCard = document.getElementById('gn_card'); const gnBase = document.getElementById('gn_base');
+            const gnNum = document.getElementById('gn_num'); const gnPosRadios = document.getElementsByName('gn_pos');
+            const gnIsList = document.getElementById('gn_isList'); const gnPreview = document.getElementById('gn_preview');
+            const gnManualView = document.getElementById('gn_manual_view'); const gnListView = document.getElementById('gn_list_view');
+            const gnListAmt = document.getElementById('gn_listAmt'); const gnListResult = document.getElementById('gn_listResult');
+
+            gnBase.value = localStorage.getItem('asea_gn_base') || 'contoh@gmail.com'; gnNum.value = localStorage.getItem('asea_gn_num') || '1';
+            gnListAmt.value = localStorage.getItem('asea_gn_listAmt') || ''; gnListResult.value = localStorage.getItem('asea_gn_listRes') || '';
+            let savedPos = localStorage.getItem('asea_gn_pos') || 'front'; document.querySelector(`input[name="gn_pos"][value="${savedPos}"]`).checked = true;
+            gnIsList.checked = localStorage.getItem('asea_gn_isList') === 'true';
+
+            const toggleGnMode = () => {
+                if (gnIsList.checked) { gnManualView.classList.add('hidden'); gnListView.classList.remove('hidden'); gnCard.style.flex = '1'; } 
+                else { gnManualView.classList.remove('hidden'); gnListView.classList.add('hidden'); gnCard.style.flex = 'none'; }
+            };
+
+            const updateGnPreview = () => {
+                let base = gnBase.value.trim() || 'contoh@gmail.com'; let num = gnNum.value || '1';
+                let isFront = document.querySelector('input[name="gn_pos"]:checked').value === 'front';
+                let parts = base.split('@'); let user = parts[0] || 'contoh'; let dom = parts[1] || 'gmail.com';
+                gnPreview.value = isFront ? `${num}${user}@${dom}` : `${user}${num}@${dom}`;
+                localStorage.setItem('asea_gn_base', base); localStorage.setItem('asea_gn_num', num); localStorage.setItem('asea_gn_pos', isFront ? 'front' : 'back');
+            };
+
+            gnBase.addEventListener('input', updateGnPreview); gnNum.addEventListener('input', updateGnPreview); gnPosRadios.forEach(r => r.addEventListener('change', updateGnPreview));
+            gnIsList.addEventListener('change', () => { localStorage.setItem('asea_gn_isList', gnIsList.checked); toggleGnMode(); });
+            gnListAmt.addEventListener('input', () => localStorage.setItem('asea_gn_listAmt', gnListAmt.value));
+            gnListResult.addEventListener('input', () => localStorage.setItem('asea_gn_listRes', gnListResult.value));
+
+            updateGnPreview(); toggleGnMode();
+            
+            document.getElementById('gn_copyBtn').addEventListener('click', async () => {
+                let currentEmail = gnPreview.value; await copyToClipboard(currentEmail, `Disalin: ${currentEmail}`);
+                gnNum.value = parseInt(gnNum.value || 0) + 1; updateGnPreview();
+            });
+
+            document.getElementById('gn_genListBtn').addEventListener('click', () => {
+                let base = gnBase.value.trim() || 'contoh@gmail.com'; let start = parseInt(gnNum.value) || 1; let amt = parseInt(gnListAmt.value) || 10;
+                if(amt <= 0) return showToast("Masukkan jumlah list yang benar.");
+                let isFront = document.querySelector('input[name="gn_pos"]:checked').value === 'front';
+                let parts = base.split('@'); let user = parts[0] || 'contoh'; let dom = parts[1] || 'gmail.com';
+                let arr = [];
+                for (let i = 0; i < amt; i++) { let currentNum = start + i; arr.push(isFront ? `${currentNum}${user}@${dom}` : `${user}${currentNum}@${dom}`); }
+                gnListResult.value = arr.join('\n'); localStorage.setItem('asea_gn_listRes', gnListResult.value); showToast(`Berhasil membuat ${amt} email berurut!`);
+            });
+
+            document.getElementById('gn_copyListBtn').addEventListener('click', () => copyToClipboard(gnListResult.value, 'List berhasil disalin!'));
+            document.getElementById('gn_resetListBtn').addEventListener('click', () => { gnListResult.value = ''; gnListAmt.value = ''; localStorage.setItem('asea_gn_listRes', ''); localStorage.setItem('asea_gn_listAmt', ''); showToast('Direset.'); });
+        }
+
+        // ==========================================
+        // 4. TOOL: DOT TRICK
+        // ==========================================
+        function initDotTrick() {
+            const input = document.getElementById('dt_input'); const total = document.getElementById('dt_total');
+            const res = document.getElementById('dt_result'); const st = document.getElementById('dt_start'); const en = document.getElementById('dt_end');
+
+            input.value = localStorage.getItem('asea_dt_in') || ''; st.value = localStorage.getItem('asea_dt_st') || '';
+            en.value = localStorage.getItem('asea_dt_en') || ''; res.value = localStorage.getItem('asea_dt_res') || '';
+
+            const calc = () => {
+                let em = input.value.trim().split('@')[0]; let tc = em.length > 1 ? Math.pow(2, em.length - 1) : 0;
+                total.value = tc; localStorage.setItem('asea_dt_in', input.value);
+            };
+
+            st.addEventListener('input', () => localStorage.setItem('asea_dt_st', st.value)); en.addEventListener('input', () => localStorage.setItem('asea_dt_en', en.value));
+            res.addEventListener('input', () => localStorage.setItem('asea_dt_res', res.value)); input.addEventListener('input', calc); calc();
+
+            document.getElementById('dt_genBtn').addEventListener('click', () => {
+                let val = input.value.trim(); if(!val || !val.includes('@')) return showToast("Format email salah.");
+                let [user, dom] = val.split('@'); if(user.length <= 1) { res.value = val; localStorage.setItem('asea_dt_res', val); return; }
+                let tot = Math.pow(2, user.length - 1); let s = parseInt(st.value) || 1; let e = parseInt(en.value) || tot;
+                if(s<1 || e>tot || s>e) return showToast("Batas tidak valid!");
+                let arr = []; let n = user.length - 1;
+                for (let i = s-1; i < e; i++) { let nu = user[0]; for (let j = 0; j < n; j++) { if ((i >> j) & 1) nu += '.'; nu += user[j + 1]; } arr.push(`${nu}@${dom}`); }
+                res.value = arr.join('\n'); localStorage.setItem('asea_dt_res', res.value); showToast(`${arr.length} dot trick dihasilkan!`);
+            });
+
+            document.getElementById('dt_copyBtn').addEventListener('click', () => copyToClipboard(res.value, 'Dot trick disalin!'));
+            document.getElementById('dt_resetBtn').addEventListener('click', () => { input.value=''; st.value=''; en.value=''; res.value=''; calc(); localStorage.removeItem('asea_dt_st'); localStorage.removeItem('asea_dt_en'); localStorage.removeItem('asea_dt_res'); });
+        }
+
+        // ==========================================
+        // 5. TOOL: SORTIR & HAPUS GANDA
+        // ==========================================
+        function initSortir() {
+            const l1 = document.getElementById('sr_list1'); const l2 = document.getElementById('sr_list2');
+            l1.value = localStorage.getItem('asea_sr_1') || ''; l2.value = localStorage.getItem('asea_sr_2') || '';
+            l1.addEventListener('input', () => localStorage.setItem('asea_sr_1', l1.value)); l2.addEventListener('input', () => localStorage.setItem('asea_sr_2', l2.value));
+
+            document.getElementById('sr_processBtn').addEventListener('click', () => {
+                let a1 = getCleanArray(l1.value); let a2 = getCleanArray(l2.value); let toRemove = new Set(a2);
+                let res = a1.filter(e => !toRemove.has(e)); l1.value = res.join('\n'); localStorage.setItem('asea_sr_1', l1.value); showToast(`Sisa: ${res.length} email.`);
+            });
+
+            document.getElementById('sr_copyBtn').addEventListener('click', () => copyToClipboard(l1.value));
+            document.getElementById('sr_exportBtn').addEventListener('click', () => {
+                if(!l1.value.trim()) return showToast("Kosong!");
+                const blob = new Blob([l1.value], { type: 'text/plain' }); const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = 'sortir-email-asea.txt'; a.click(); URL.revokeObjectURL(url);
+            });
+            document.getElementById('sr_resetBtn').addEventListener('click', () => openConfirm('Reset Sortir', 'Kosongkan kolom sortir?', () => { l1.value=''; l2.value=''; localStorage.setItem('asea_sr_1',''); localStorage.setItem('asea_sr_2',''); showToast('Direset.'); }));
+        }
+
+        // ==========================================
+        // GLOBAL RESET ROUTER
+        // ==========================================
+        function confirmGlobalReset(type) {
+            openConfirm('Reset Data', 'Hapus semua data di tab ini?', () => {
+                if(type === 'potong') {
+                    document.getElementById('pt_mainList').value=''; document.getElementById('pt_doneList').value=''; document.getElementById('pt_totalCut').value='0';
+                    localStorage.removeItem('asea_pt_main'); localStorage.removeItem('asea_pt_done'); localStorage.removeItem('asea_pt_total'); document.getElementById('pt_mainList').dispatchEvent(new Event('input'));
+                } else if(type === 'copylist') {
+                    document.getElementById('cl_mainList').value=''; localStorage.removeItem('asea_cl_main'); localStorage.removeItem('asea_cl_undo'); localStorage.removeItem('asea_cl_orig'); document.getElementById('cl_mainList').dispatchEvent(new Event('input'));
+                }
+                showToast('Reset Berhasil!');
+            });
+        }
+    </script>
+</body>
+</html>
