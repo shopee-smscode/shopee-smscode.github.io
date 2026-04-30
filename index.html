@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>J E S U S Hub</title>
+    <title>A S E A Hub</title>
     
     <meta name="theme-color" content="#000000">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="J E S U S">
+    <meta name="apple-mobile-web-app-title" content="A S E A">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1183/1183672.png">
 
     <style>
@@ -42,7 +42,8 @@
         .sidebar.minimized .home-item { padding: 16px 0; justify-content: center; }
         .sidebar.minimized .sidebar-footer { justify-content: center; padding: 15px 0; }
 
-        .sidebar-header { padding: 25px 20px 15px; border-bottom: 1px solid rgba(128, 128, 128, 0.2); display: flex; justify-content: space-between; align-items: center; }
+        /* PEMBARUAN: Header Sidebar diberi background gradasi kuning-hitam dan font warna putih */
+        .sidebar-header { padding: 25px 20px 15px; border-bottom: 2px solid #ffcc00; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #ffcc00 0%, #111111 60%); color: #ffffff; }
         .sidebar-title { font-size: 20px; font-weight: 800; margin: 0; color: inherit; letter-spacing: 2px; margin-right: -2px; text-align: center; }
         .close-btn { font-size: 24px; color: inherit; opacity: 0.8; cursor: pointer; transition: 0.2s; }
         .close-btn:active { transform: scale(0.8); }
@@ -120,7 +121,7 @@
     
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h2 class="sidebar-title">J E S U S</h2>
+            <h2 class="sidebar-title">A S E A</h2>
             <div class="close-btn" onclick="closeSidebar()">×</div>
         </div>
         
@@ -172,8 +173,8 @@
         // 🚀 INJEKSI PWA MANIFEST OTOMATIS
         // =========================================================================
         const manifestData = {
-            "name": "J E S U S",
-            "short_name": "J E S U S",
+            "name": "A S E A",
+            "short_name": "A S E A",
             "start_url": window.location.pathname,
             "display": "standalone",
             "background_color": "#000000",
@@ -248,22 +249,17 @@
 
         // --- DETEKSI PERUBAHAN REAL-TIME PADA IFRAME ---
         appFrame.addEventListener('load', function() {
-            // Selesaikan animasi loading
             loaderBar.style.width = '100%'; 
             setTimeout(() => { loaderBar.style.width = '0%'; }, 300);
 
             try {
-                // Ambil URL yang saat ini sedang aktif di dalam dashboard
                 const currentUrl = appFrame.contentWindow.location.href;
                 
-                // Jika sedang di layar utama, abaikan (diurus oleh goHome)
                 if (currentUrl === 'about:blank' || currentUrl === '' || currentUrl === window.location.href) {
                     return; 
                 }
 
-                // Cocokkan URL dashboard dengan daftar menu di sidebar
                 for (let app of DAFTAR_APLIKASI) {
-                    // Encode URI digunakan agar karakter spasi (%20) terdeteksi dengan tepat
                     if (currentUrl.includes(encodeURI(app.url)) || currentUrl.includes(app.url)) {
                         setMenuMarker(app.url);
                         localStorage.setItem('hub_last_session', app.url);
@@ -271,7 +267,7 @@
                     }
                 }
             } catch (e) {
-                // Mengabaikan error jika aplikasi memuat halaman luar domain (CORS Policy)
+                // Mengabaikan error jika CORS
             }
         });
 
@@ -315,7 +311,6 @@
                 renderRecentApps();
             }
 
-            // Set Marker secara instan agar UI terasa cepat
             setMenuMarker(url);
             localStorage.setItem('hub_last_session', url);
 
@@ -386,24 +381,4 @@
         let startX = 0, currentX = 0;
         document.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, {passive: true});
         document.addEventListener('touchend', (e) => {
-            currentX = e.changedTouches[0].clientX; let diffX = currentX - startX;
-            if (startX < 50 && diffX > 70) openSidebar(); 
-            else if (sidebar.classList.contains('open') && diffX < -50) closeSidebar(); 
-        }, {passive: true});
-
-        // --- JEBAKAN TOMBOL KEMBALI ---
-        history.pushState(null, null, location.href);
-        window.onpopstate = function(event) {
-            if (sidebar.classList.contains('open')) { closeSidebar(); history.pushState(null, null, location.href); } 
-            else if (appFrame.classList.contains('active')) { goHome(); history.pushState(null, null, location.href); } 
-            else if (document.getElementById('exitModal').style.opacity === '1') { closeExitModal(); history.pushState(null, null, location.href); }
-            else { openExitModal(); history.pushState(null, null, location.href); }
-        };
-
-        const exitModal = document.getElementById('exitModal'); const exitOverlay = document.getElementById('exitOverlay');
-        function openExitModal() { exitModal.style.opacity = '1'; exitModal.style.transform = 'translate(-50%, -50%) scale(1)'; exitModal.style.pointerEvents = 'all'; exitOverlay.style.opacity = '1'; exitOverlay.style.pointerEvents = 'all'; }
-        function closeExitModal() { exitModal.style.opacity = '0'; exitModal.style.transform = 'translate(-50%, -50%) scale(0.9)'; exitModal.style.pointerEvents = 'none'; exitOverlay.style.opacity = '0'; exitOverlay.style.pointerEvents = 'none'; }
-        function confirmExit() { window.onpopstate = null; closeExitModal(); history.back(); }
-    </script>
-</body>
-</html>
+            currentX = e.changedTouches[0].clientX; let diffX = currentX
