@@ -381,4 +381,24 @@
         let startX = 0, currentX = 0;
         document.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, {passive: true});
         document.addEventListener('touchend', (e) => {
-            currentX = e.changedTouches[0].clientX; let diffX = currentX
+            currentX = e.changedTouches[0].clientX; let diffX = currentX - startX;
+            if (startX < 50 && diffX > 70) openSidebar(); 
+            else if (sidebar.classList.contains('open') && diffX < -50) closeSidebar(); 
+        }, {passive: true});
+
+        // --- JEBAKAN TOMBOL KEMBALI ---
+        history.pushState(null, null, location.href);
+        window.onpopstate = function(event) {
+            if (sidebar.classList.contains('open')) { closeSidebar(); history.pushState(null, null, location.href); } 
+            else if (appFrame.classList.contains('active')) { goHome(); history.pushState(null, null, location.href); } 
+            else if (document.getElementById('exitModal').style.opacity === '1') { closeExitModal(); history.pushState(null, null, location.href); }
+            else { openExitModal(); history.pushState(null, null, location.href); }
+        };
+
+        const exitModal = document.getElementById('exitModal'); const exitOverlay = document.getElementById('exitOverlay');
+        function openExitModal() { exitModal.style.opacity = '1'; exitModal.style.transform = 'translate(-50%, -50%) scale(1)'; exitModal.style.pointerEvents = 'all'; exitOverlay.style.opacity = '1'; exitOverlay.style.pointerEvents = 'all'; }
+        function closeExitModal() { exitModal.style.opacity = '0'; exitModal.style.transform = 'translate(-50%, -50%) scale(0.9)'; exitModal.style.pointerEvents = 'none'; exitOverlay.style.opacity = '0'; exitOverlay.style.pointerEvents = 'none'; }
+        function confirmExit() { window.onpopstate = null; closeExitModal(); history.back(); }
+    </script>
+</body>
+</html>
