@@ -371,17 +371,28 @@
         function closePasswordModal() {
             passwordOverlay.classList.remove('show');
             passwordModal.classList.remove('show');
-            pendingAppLoad = null;
+            pendingAppLoad = null; // Menghapus status tunggu jika dibatalkan
         }
 
         function submitPassword() {
             const pwd = passwordInput.value;
             if (pwd === "...") { // KATA SANDI: Tiga Titik
-                closePasswordModal();
-                if (pendingAppLoad) {
-                    loadApp(pendingAppLoad.url, pendingAppLoad.name, pendingAppLoad.icon, pendingAppLoad.bg, pendingAppLoad.color);
-                    pendingAppLoad = null;
-                }
+                
+                // Ekstrak data sebelum modal ditutup (dan state dihapus)
+                const urlToLoad = pendingAppLoad.url;
+                const nameToLoad = pendingAppLoad.name;
+                const iconToLoad = pendingAppLoad.icon;
+                const bgToLoad = pendingAppLoad.bg;
+                const colorToLoad = pendingAppLoad.color;
+                
+                // Tutup Modal dan bersihkan pending state
+                passwordOverlay.classList.remove('show');
+                passwordModal.classList.remove('show');
+                pendingAppLoad = null;
+                
+                // Buka Aplikasi
+                loadApp(urlToLoad, nameToLoad, iconToLoad, bgToLoad, colorToLoad);
+                
             } else {
                 passwordError.style.display = 'block';
                 passwordInput.value = '';
