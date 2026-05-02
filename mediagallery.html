@@ -1,0 +1,407 @@
+```html
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>A S E A Media Gallery</title>
+    
+    <style>
+        :root {
+            --bg-main: #000000;
+            --card-glass: rgba(20, 20, 20, 0.85); 
+            --primary: #ffcc00; 
+            --border-glow: rgba(255, 204, 0, 0.4);
+            --radius: 12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent !important; }
+
+        html, body {
+            height: 100%; width: 100%; font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-main); color: #fff; overflow: hidden; display: flex; flex-direction: column;
+        }
+
+        /* ANIMASI LANGIT KUNING */
+        #skyCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: linear-gradient(180deg, #050505 0%, #1a1a1a 100%); }
+        .star { position: absolute; background: #ffcc00; border-radius: 50%; opacity: 0.5; }
+
+        header {
+            background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(10px); color: var(--primary);
+            padding: 12px 15px; text-align: center; border-bottom: 2px solid var(--primary);
+            z-index: 20; flex-shrink: 0; position: relative;
+        }
+        header h1 { font-size: 16px; font-weight: 900; letter-spacing: 2px; }
+        header span { font-size: 9px; color: #fff; font-weight: bold; opacity: 0.8; letter-spacing: 1px;}
+
+        main { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 12px; z-index: 10; gap: 12px; }
+
+        /* INPUT AREA */
+        .input-card {
+            background: var(--card-glass); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            padding: 15px; border-radius: var(--radius); border: 1px solid var(--border-glow);
+            display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; position: relative; z-index: 15;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+        }
+
+        .input-title { font-size: 13px; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        input {
+            width: 100%; padding: 12px 15px; background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,204,0,0.5); border-radius: 8px;
+            color: #fff; font-size: 13px; position: relative; z-index: 20;
+        }
+        input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 10px rgba(255,204,0,0.3); background: #000; }
+        ::placeholder { color: #888; }
+
+        .btn-add {
+            background: var(--primary); color: #000; padding: 14px;
+            border: none; border-radius: 8px; font-weight: 800; font-size: 13px;
+            cursor: pointer; transition: 0.2s; position: relative; z-index: 20;
+        }
+        .btn-add:active { transform: scale(0.96); }
+        .btn-add:disabled { background: #555; color: #888; cursor: not-allowed; transform: none; }
+
+        /* GALLERY GRID (3 KOLOM) */
+        .gallery-grid {
+            flex: 1; overflow-y: auto; display: grid;
+            grid-template-columns: repeat(3, 1fr); gap: 3px;
+            background: rgba(10,10,10,0.5); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
+            align-content: start;
+        }
+        .grid-item {
+            aspect-ratio: 1 / 1; background: #111; position: relative;
+            overflow: hidden; cursor: pointer;
+        }
+        .grid-item img, .grid-item video {
+            width: 100%; height: 100%; object-fit: cover;
+            transition: transform 0.3s; pointer-events: none;
+        }
+        .grid-item:active img, .grid-item:active video { transform: scale(0.95); opacity: 0.7; }
+        
+        .play-icon {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 36px; height: 36px; background: rgba(0,0,0,0.6); border: 2px solid #fff;
+            border-radius: 50%; display: flex; justify-content: center; align-items: center;
+            color: #fff; font-size: 16px; pointer-events: none; padding-left: 3px;
+        }
+
+        /* SCROLLBAR KUSTOM */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.5); }
+        ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 4px; }
+
+        /* ========================================= */
+        /* LIGHTBOX / FULLSCREEN MODE (DIPERBAIKI)   */
+        /* ========================================= */
+        #lightbox {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.95); z-index: 1000;
+            display: none; flex-direction: column; backdrop-filter: blur(5px);
+            animation: fadeIn 0.2s ease;
+        }
+        #lightbox.active { display: flex; }
+        
+        .lb-header {
+            display: flex; justify-content: flex-end; padding: 15px 20px; flex-shrink: 0;
+        }
+        .lb-close {
+            font-size: 40px; font-weight: 300; color: #fff; cursor: pointer; line-height: 1;
+            text-shadow: 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        .lb-body {
+            flex: 1; display: flex; justify-content: center; align-items: center; 
+            position: relative; overflow: hidden; padding: 0 10px;
+        }
+        
+        /* Kontainer Media agar gambar/video tidak terpotong */
+        .lb-content {
+            width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;
+        }
+        .lb-content img, .lb-content video {
+            max-width: 100%; max-height: 100%; object-fit: contain; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); border-radius: 8px;
+        }
+        
+        .lb-nav {
+            position: absolute; width: 100%; display: flex; justify-content: space-between;
+            padding: 0 15px; pointer-events: none; z-index: 1005; top: 50%; transform: translateY(-50%); left: 0;
+        }
+        .nav-btn {
+            width: 45px; height: 45px; background: rgba(255,204,0,0.2); border: 1px solid var(--primary);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            color: var(--primary); font-size: 18px; pointer-events: all; cursor: pointer;
+        }
+        .nav-btn:active { background: var(--primary); color: #000; }
+        
+        .lb-footer {
+            padding: 20px; display: flex; justify-content: center; flex-shrink: 0;
+        }
+        .btn-delete-permanent {
+            background: #dc2626; color: #fff; padding: 12px 25px; border-radius: 25px;
+            font-size: 13px; font-weight: bold; border: none; box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
+            cursor: pointer;
+        }
+
+        /* TOAST NOTIFIKASI */
+        .toast {
+            position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+            background: var(--primary); color: #000; padding: 12px 24px; border-radius: 30px;
+            font-size: 13px; font-weight: 800; box-shadow: 0 4px 20px rgba(0,0,0,0.5); z-index: 2000;
+            transition: bottom 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55); text-align: center; white-space: nowrap;
+        }
+        .toast.show { bottom: 40px; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .empty-text { grid-column: 1/-1; text-align: center; padding: 60px 20px; color: #777; font-size: 13px; font-weight: 600; line-height: 1.6;}
+    </style>
+</head>
+<body>
+
+    <div id="skyCanvas"></div>
+
+    <header>
+        <h1>A S E A</h1>
+        <span>PREMIUM GALLERY</span>
+    </header>
+
+    <main>
+        <div class="input-card">
+            <div class="input-title">Auto-Extract System</div>
+            <input type="text" id="urlInput" placeholder="Tempel link postingan FB/IG (Foto/Video)..." autocomplete="off">
+            <button class="btn-add" id="addBtn" onclick="processLink()">Ekstrak & Simpan</button>
+        </div>
+
+        <div class="gallery-grid" id="grid">
+            <!-- Gambar / Video muncul di sini -->
+        </div>
+    </main>
+
+    <!-- LIGHTBOX MODAL (DIPERBAIKI) -->
+    <div id="lightbox">
+        <div class="lb-header">
+            <div class="lb-close" onclick="closeLightbox()">×</div>
+        </div>
+        <div class="lb-body">
+            <div class="lb-nav">
+                <div class="nav-btn" onclick="changeMedia(-1)">❮</div>
+                <div class="nav-btn" onclick="changeMedia(1)">❯</div>
+            </div>
+            <div class="lb-content" id="lb-content">
+                <!-- Media disuntikkan di sini via JS -->
+            </div>
+        </div>
+        <div class="lb-footer">
+            <button class="btn-delete-permanent" onclick="deleteCurrent()">🗑️ Hapus File</button>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFIKASI -->
+    <div id="globalToast" class="toast">Notifikasi</div>
+
+    <script>
+        // --- Sistem Memori (Mendukung Objek Tipe Media) ---
+        let galleryData = JSON.parse(localStorage.getItem('asea_clean_gallery')) || [];
+        let currentIndex = 0;
+
+        // --- Efek Bintang ---
+        const sky = document.getElementById('skyCanvas');
+        for(let i=0; i<40; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.style.width = star.style.height = Math.random()*3 + 'px';
+            star.style.top = Math.random()*100 + '%';
+            star.style.left = Math.random()*100 + '%';
+            sky.appendChild(star);
+        }
+
+        // --- Toast Notifikasi ---
+        const toastEl = document.getElementById('globalToast');
+        let toastTimer;
+        function showToast(msg) {
+            clearTimeout(toastTimer);
+            toastEl.textContent = msg;
+            toastEl.classList.add('show');
+            toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3000);
+        }
+
+        // --- Tampilkan Galeri (Grid) ---
+        function render() {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            
+            if(galleryData.length === 0) {
+                grid.innerHTML = '<div class="empty-text">Galeri Kosong.<br><br>Tempel link postingan Foto atau Video (Instagram/Facebook) di atas. Sistem akan otomatis mengekstraknya!</div>';
+                return;
+            }
+
+            galleryData.forEach((item, index) => {
+                // Konversi data lama (string URL) ke format objek baru agar kompatibel
+                let mediaObj = typeof item === 'string' ? { type: 'image', url: item } : item;
+                
+                // Deteksi ulang format video jika tipe data lama tapi url berupa video
+                if (typeof item === 'string' && /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(item)) {
+                    mediaObj.type = 'video';
+                }
+
+                const div = document.createElement('div');
+                div.className = 'grid-item';
+                div.onclick = () => openLightbox(index);
+                
+                if (mediaObj.type === 'video') {
+                    div.innerHTML = `
+                        <video src="${mediaObj.url}" preload="metadata" muted playsinline></video>
+                        <div class="play-icon">▶</div>
+                    `;
+                } else {
+                    div.innerHTML = `<img src="${mediaObj.url}" onerror="this.src='https://placehold.co/400x400/111/ffcc00?text=Gambar+Rusak'">`;
+                }
+                
+                grid.appendChild(div);
+            });
+        }
+
+        // --- LOGIKA UTAMA: AUTO-EXTRACT API (SUPPORT VIDEO) ---
+        async function processLink() {
+            const input = document.getElementById('urlInput');
+            const btn = document.getElementById('addBtn');
+            let url = input.value.trim();
+
+            if(!url) { showToast("Tempelkan link terlebih dahulu!"); return; }
+            if(!url.startsWith('http')) url = 'https://' + url;
+
+            // CEK: Apakah URL direct video atau image?
+            const isVideoUrl = /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(url);
+            const isImageUrl = /\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i.test(url);
+            
+            if (isVideoUrl) {
+                saveToGallery({ type: 'video', url: url });
+                input.value = ''; return;
+            } else if (isImageUrl) {
+                saveToGallery({ type: 'image', url: url });
+                input.value = ''; return;
+            }
+
+            // JIKA URL WEB (FB/IG): Gunakan API Microlink
+            btn.innerHTML = '⏳ Mengekstrak File...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}`);
+                const json = await response.json();
+
+                if (json.status === 'success' && json.data) {
+                    let extractedUrl = null;
+                    let mediaType = 'image';
+
+                    // Cek ketersediaan video terlebih dahulu (Prioritas)
+                    if (json.data.video && json.data.video.url) {
+                        extractedUrl = json.data.video.url;
+                        mediaType = 'video';
+                    } 
+                    // Jika tidak ada video, cari gambar resolusi tinggi
+                    else if (json.data.image && json.data.image.url) {
+                        extractedUrl = json.data.image.url;
+                        mediaType = 'image';
+                    }
+
+                    if (extractedUrl) {
+                        saveToGallery({ type: mediaType, url: extractedUrl });
+                        input.value = '';
+                        showToast(mediaType === 'video' ? "Video berhasil ditarik!" : "Gambar berhasil ditarik!");
+                    } else {
+                        showToast("Gagal menyedot file. Pastikan akun tidak di-private.");
+                    }
+                } else {
+                    showToast("Gagal mengambil data dari tautan tersebut.");
+                }
+            } catch (error) {
+                showToast("Gagal terhubung ke server pengekstrak.");
+            } finally {
+                btn.innerHTML = 'Ekstrak & Simpan';
+                btn.disabled = false;
+            }
+        }
+
+        // --- Simpan ke Memori ---
+        function saveToGallery(mediaObj) {
+            galleryData.unshift(mediaObj); // Taruh di urutan paling atas
+            localStorage.setItem('asea_clean_gallery', JSON.stringify(galleryData));
+            render();
+        }
+
+        // --- FUNGSI LIGHTBOX (FOTO & VIDEO FULLSCREEN ANTI TERPOTONG) ---
+        const lb = document.getElementById('lightbox');
+        const lbContent = document.getElementById('lb-content');
+
+        function openLightbox(index) {
+            currentIndex = index;
+            renderMediaInLightbox();
+            lb.classList.add('active');
+        }
+
+        function closeLightbox() {
+            lb.classList.remove('active');
+            lbContent.innerHTML = ''; // Hentikan video saat ditutup
+        }
+
+        function changeMedia(step) {
+            currentIndex += step;
+            if(currentIndex < 0) currentIndex = galleryData.length - 1;
+            if(currentIndex >= galleryData.length) currentIndex = 0;
+            renderMediaInLightbox();
+        }
+
+        function renderMediaInLightbox() {
+            let item = galleryData[currentIndex];
+            let mediaObj = typeof item === 'string' ? { type: 'image', url: item } : item;
+            
+            // Konversi legacy string video URL jika ada
+            if (typeof item === 'string' && /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(item)) {
+                mediaObj.type = 'video';
+            }
+
+            if (mediaObj.type === 'video') {
+                // Tampilkan sebagai video dengan kontrol play/pause
+                lbContent.innerHTML = `<video src="${mediaObj.url}" controls autoplay playsinline loop></video>`;
+            } else {
+                // Tampilkan sebagai gambar
+                lbContent.innerHTML = `<img src="${mediaObj.url}" onerror="this.src='https://placehold.co/400x400/111/ffcc00?text=Gambar+Rusak'">`;
+            }
+        }
+
+        function deleteCurrent() {
+            if(confirm("Anda yakin ingin menghapus file ini secara permanen?")) {
+                galleryData.splice(currentIndex, 1);
+                localStorage.setItem('asea_clean_gallery', JSON.stringify(galleryData));
+                closeLightbox();
+                render();
+                showToast("File terhapus.");
+            }
+        }
+
+        // --- SWIPE GESTURE UNTUK MOBILE (DIPERBAIKI AGAR TIDAK TERGANGGU VIDEO) ---
+        let touchStartX = 0;
+        lb.addEventListener('touchstart', e => {
+            if(e.target.tagName.toLowerCase() !== 'video') {
+                touchStartX = e.changedTouches[0].screenX;
+            }
+        }, {passive: true});
+        
+        lb.addEventListener('touchend', e => {
+            if(e.target.tagName.toLowerCase() !== 'video') {
+                let touchEndX = e.changedTouches[0].screenX;
+                if (touchStartX - touchEndX > 50) changeMedia(1);  // Geser kiri -> Next
+                if (touchEndX - touchStartX > 50) changeMedia(-1); // Geser kanan -> Prev
+            }
+        }, {passive: true});
+
+        // Muat galeri saat pertama kali dibuka
+        render();
+    </script>
+</body>
+</html>
+
+
+```
