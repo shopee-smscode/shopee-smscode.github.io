@@ -1,6 +1,6 @@
 const BASE_URL = "https://shopee-otp-proxy.masreno6pro.workers.dev"; 
 
-// 0. KONFIGURASI FIREBASE & SOUND
+// KONFIGURASI FIREBASE & SOUND
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
@@ -8,26 +8,35 @@ const db = firebase.database(); const DB_PATH = 'notes/public';
 
 let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null;
 
+let orderHistory = [];
+let usedNumbersDB = new Set(); 
+let hiddenBadOrders = []; 
+let isUsedNumbersLoaded = false; 
+
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
 
-// --- FUNGSI FORMATTING & UI TAMBAHAN ---
-function formatPhoneNumber(phone) {
+// --- FUNGSI FORMATTING & UI ---
+function normalizePhone(phone) {
     if (!phone) return "";
-    let p = String(phone);
-    if (p.startsWith("62")) { p = "0" + p.substring(2); } // Ubah 62 jadi 0
-    return p.replace(/(.{4})/g, '$1 ').trim(); // Spasi setiap 4 digit
+    let p = String(phone).replace(/\D/g, "");
+    if (p.startsWith("0")) { p = "62" + p.substring(1); }
+    return p;
+}
+
+function formatPhoneNumber(phone) {
+    if (!phone) return ""; let p = String(phone);
+    if (p.startsWith("62")) { p = "0" + p.substring(2); } 
+    return p.replace(/(.{4})/g, '$1 ').trim(); 
 }
 
 function formatOTP(otp) {
-    if (!otp) return "";
-    const otpStr = String(otp);
+    if (!otp) return ""; const otpStr = String(otp);
     if (otpStr.length >= 6) { return otpStr.slice(0, 3) + "&nbsp;&nbsp;" + otpStr.slice(3); }
     return otpStr;
 }
 
 function getProviderName(phone) {
-    let p = String(phone);
-    if (p.startsWith("62")) p = "0" + p.substring(2);
+    let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2);
     const prefix = p.substring(0, 4);
     if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel";
     if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat";
@@ -38,34 +47,24 @@ function getProviderName(phone) {
 }
 
 function relocateBalanceUI() {
-    const headerContainer = document.querySelector('.app-header-container');
-    const balanceContainer = document.querySelector('.balance-container');
+    const headerContainer = document.querySelector('.app-header-container'); const balanceContainer = document.querySelector('.balance-container');
     if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) {
-        balanceContainer.style.display = 'none'; // Sembunyikan blok saldo lama
-        
-        const newBalanceDiv = document.createElement('div');
-        newBalanceDiv.style.textAlign = 'right';
-        newBalanceDiv.innerHTML = `
-            <span style="font-size: 11px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span>
-            <span id="newBalanceDisplay" style="font-size: 18px; font-weight: 900; color: var(--primary-color);">...</span>
-        `;
-        
-        headerContainer.style.display = 'flex';
-        headerContainer.style.justifyContent = 'space-between';
-        headerContainer.style.alignItems = 'center';
-        
-        const oldBalance = document.getElementById('balanceDisplay');
-        if(oldBalance) oldBalance.removeAttribute('id');
-        newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay';
-        
-        headerContainer.appendChild(newBalanceDiv);
+        balanceContainer.style.display = 'none'; 
+        const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right';
+        newBalanceDiv.innerHTML = `<span style="font-size: 11px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 18px; font-weight: 900; color: var(--primary-color);">...</span>`;
+        headerContainer.style.display = 'flex'; headerContainer.style.justifyContent = 'space-between'; headerContainer.style.alignItems = 'center';
+        const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id');
+        newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay'; headerContainer.appendChild(newBalanceDiv);
     }
 }
-// ----------------------------------------
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
-    if (!noteFormModal.classList.contains('hidden')) { handleCancelNoteForm(); history.pushState(null, null, window.location.href); }
+    const blM = document.getElementById('blacklistModal'); const histM = document.getElementById('historyModal'); const statsM = document.getElementById('statsModal');
+    if (blM && !blM.classList.contains('hidden')) { window.closeBlacklistModal(); history.pushState(null, null, window.location.href); }
+    else if (histM && !histM.classList.contains('hidden')) { window.closeHistoryModal(); history.pushState(null, null, window.location.href); }
+    else if (statsM && !statsM.classList.contains('hidden')) { window.closeStatsModal(); history.pushState(null, null, window.location.href); }
+    else if (!noteFormModal.classList.contains('hidden')) { handleCancelNoteForm(); history.pushState(null, null, window.location.href); }
     else if (!noteDetailModal.classList.contains('hidden')) { closeNoteDetailModal(); history.pushState(null, null, window.location.href); }
     else if (!notesListModal.classList.contains('hidden')) { closeNotesListModal(); history.pushState(null, null, window.location.href); }
     else if (isExitModalOpen) { closeExitModal(); history.pushState(null, null, window.location.href); }
@@ -78,30 +77,156 @@ function confirmExit() { setAccountViewingStatus(false); window.close(); if (nav
 function setAccountViewingStatus(isViewing) { if (!activeAccountName) return; if (isViewing) { const connectedRef = db.ref('.info/connected'); viewingPresenceRef = db.ref(`presence/${activeAccountName}/is_viewing`); connectedRef.on('value', (snap) => { if (snap.val() === true) { viewingPresenceRef.onDisconnect().set(false); viewingPresenceRef.set(true); } }); } else { if (viewingPresenceRef) { viewingPresenceRef.set(false); viewingPresenceRef.onDisconnect().cancel(); } } }
 function updateAccountOrdersStatus() { if (!activeAccountName) return; db.ref(`presence/${activeAccountName}/has_orders`).set(activeOrders.length > 0); }
 
+// --- LOGIKA MENGINGAT NOMOR BEKAS & RINCIAN OPERATOR ---
+function initUsedNumbersSync() {
+    db.ref('used_numbers/smscode').on('value', snapshot => {
+        usedNumbersDB.clear(); let operatorCounts = {}; let totalBlacklist = 0;
+        if (snapshot.exists()) {
+            snapshot.forEach(child => {
+                if (child.val().phone) {
+                    let normalPhone = normalizePhone(child.val().phone);
+                    usedNumbersDB.add(normalPhone); totalBlacklist++;
+                    let op = getProviderName(normalPhone); operatorCounts[op] = (operatorCounts[op] || 0) + 1;
+                }
+            });
+        }
+        isUsedNumbersLoaded = true;
+        if(document.getElementById('blacklistBadge')) document.getElementById('blacklistBadge').innerText = totalBlacklist;
+        if(document.getElementById('blacklistDetailCount')) document.getElementById('blacklistDetailCount').innerText = totalBlacklist;
+        
+        let breakdownText = "";
+        for (let op in operatorCounts) { breakdownText += `<span style="display:inline-block; background:rgba(255,255,255,0.05); padding:3px 10px; border-radius:12px; margin:3px; font-size:11px; font-weight:bold; color:var(--text-primary); border: 1px solid var(--border-color);">${op}: ${operatorCounts[op]}</span>`; }
+        let breakdownDiv = document.getElementById('operatorBreakdown');
+        if(!breakdownDiv) { breakdownDiv = document.createElement('div'); breakdownDiv.id = 'operatorBreakdown'; breakdownDiv.style.marginTop = "15px"; breakdownDiv.style.textAlign = "center"; const targetParent = document.querySelector('#blacklistModal .modal-content div[style*="text-align: center"]'); if(targetParent) targetParent.appendChild(breakdownDiv); }
+        breakdownDiv.innerHTML = breakdownText;
+    });
+}
+
+// --- LOGIKA STATISTIK HARIAN ---
+function recordStat(type) {
+    const today = new Date().toLocaleDateString('en-CA'); 
+    const statRef = db.ref(`stats/smscode/${today}/${type}`);
+    statRef.transaction(currentCount => (currentCount || 0) + 1);
+}
+
+window.openStatsModal = function() {
+    document.getElementById('statsModal').classList.remove('hidden'); const dateInput = document.getElementById('statDate');
+    if(!dateInput.value) dateInput.value = new Date().toLocaleDateString('en-CA');
+    loadStatsData(); history.pushState(null, null, "#stats");
+}
+window.closeStatsModal = function() { document.getElementById('statsModal').classList.add('hidden'); }
+function loadStatsData() {
+    const selectedDate = document.getElementById('statDate').value; const sSuccess = document.getElementById('statSuccess'); const sFailed = document.getElementById('statFailed');
+    if(sSuccess) sSuccess.innerText = "..."; if(sFailed) sFailed.innerText = "...";
+    db.ref(`stats/smscode/${selectedDate}`).once('value', snap => { const data = snap.val(); if(sSuccess) sSuccess.innerText = data?.success || 0; if(sFailed) sFailed.innerText = data?.failed || 0; });
+}
+document.getElementById('statDate').addEventListener('change', loadStatsData);
+
+// --- MODAL BLACKLIST CONTROL ---
+window.openBlacklistModal = function() { document.getElementById('blacklistModal').classList.remove('hidden'); history.pushState(null, null, "#blacklist"); }
+window.closeBlacklistModal = function() { document.getElementById('blacklistModal').classList.add('hidden'); }
+
+// --- LOGIKA RIWAYAT (HISTORY) ---
+function loadHistory() { orderHistory = JSON.parse(localStorage.getItem(`smscode_history_${activeAccountName}`)) || []; renderHistory(); }
+function saveToHistory(order, status) {
+    if (!order) return;
+    const historyItem = { id: order.id, phone: order.phone, op: order.productId, price: order.price, otp: order.otp || "-", status: status, date: Date.now() };
+    orderHistory.unshift(historyItem); if (orderHistory.length > 50) orderHistory.pop(); 
+    localStorage.setItem(`smscode_history_${activeAccountName}`, JSON.stringify(orderHistory)); renderHistory();
+}
+function renderHistory() {
+    const list = document.getElementById('history-list'); if (!list) return;
+    if (orderHistory.length === 0) { list.innerHTML = '<div class="status-text">Belum ada riwayat pesanan.</div>'; return; }
+    list.innerHTML = "";
+    orderHistory.forEach(item => {
+        const card = document.createElement('div'); card.style.background = "var(--bg-card)"; card.style.padding = "12px"; card.style.borderRadius = "10px"; card.style.border = "1px solid var(--border-color)"; card.style.fontSize = "13px";
+        let statusColor = "var(--text-secondary)"; let icon = "fa-clock";
+        if (item.status === "SUKSES") { statusColor = "var(--success-color)"; icon = "fa-check-circle"; }
+        if (item.status === "BATAL") { statusColor = "var(--danger-color)"; icon = "fa-times-circle"; }
+        if (item.status === "GANTI") { statusColor = "var(--warning-color)"; icon = "fa-sync-alt"; }
+        if (item.status === "MINTA ULANG") { statusColor = "var(--info-color)"; icon = "fa-envelope"; }
+        const opTag = getProviderName(item.phone); const dt = new Date(item.date); const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <strong style="color: var(--text-primary); font-size: 15px; letter-spacing: 1px;">${formatPhoneNumber(item.phone)} <span style="font-size:11px; font-weight:normal; color:var(--text-secondary);">(${opTag})</span></strong>
+                <span style="color: ${statusColor}; font-weight: 800;"><i class="fas ${icon}"></i> ${item.status}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 12px; margin-bottom: ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? '8px' : '0'};">
+                <span>ID: #${item.id}</span><span>${timeStr}</span>
+            </div>
+            ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 6px; text-align: center; border-radius: 6px; font-weight: 900; letter-spacing: 4px; font-size: 18px; text-shadow: 0 0 10px rgba(34,197,94,0.3);">${item.otp}</div>` : ''}
+        `;
+        list.appendChild(card);
+    });
+}
+window.openHistoryModal = function() { document.getElementById('historyModal').classList.remove('hidden'); history.pushState(null, null, "#history"); }
+window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
+window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`smscode_history_${activeAccountName}`); renderHistory(); } }
+
+
 async function fetchAccounts() {
     try {
         const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json();
         const accountSwitcher = document.getElementById('accountSwitcher');
+        
         if (data.accounts && data.accounts.length > 0) {
             if (accountSwitcher) {
-                accountSwitcher.innerHTML = ''; let hasNomor01 = false;
-                data.accounts.forEach(acc => { const opt = document.createElement('option'); opt.value = acc; opt.innerText = `👤 ${acc}`; if (acc === 'nomor_01') hasNomor01 = true; accountSwitcher.appendChild(opt); });
-                let defaultAcc = hasNomor01 ? 'nomor_01' : data.accounts[0]; accountSwitcher.value = defaultAcc; loginAccount(defaultAcc);
-            } else { loginAccount(data.accounts[0]); }
-        } else { if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; showToast("Tidak ada akun di Server", "error"); }
-    } catch (error) { if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; showToast("Gagal terhubung ke Server", "error"); }
+                accountSwitcher.innerHTML = ''; 
+                data.accounts.forEach(acc => { 
+                    const opt = document.createElement('option'); 
+                    opt.value = acc; 
+                    opt.innerText = `👤 ${acc}`; 
+                    accountSwitcher.appendChild(opt); 
+                });
+                
+                let savedAccount = localStorage.getItem('smscode_last_account');
+                let defaultAcc = (savedAccount && data.accounts.includes(savedAccount)) ? savedAccount : data.accounts[0];
+                
+                accountSwitcher.value = defaultAcc; 
+                loginAccount(defaultAcc);
+            } else { 
+                loginAccount(data.accounts[0]); 
+            }
+        } else { 
+            if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; 
+            showToast("Tidak ada akun di Server", "error"); 
+        }
+    } catch (error) { 
+        if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; 
+        showToast("Gagal terhubung ke Server", "error"); 
+    }
 }
 
 window.switchAccount = function(accountName) {
     if (activeAccountName === accountName) return;
-    if (timerInterval) clearInterval(timerInterval); if (pollingInterval) clearInterval(pollingInterval);
+    
+    localStorage.setItem('smscode_last_account', accountName);
+    
+    if (timerInterval) clearInterval(timerInterval); 
+    if (pollingInterval) clearInterval(pollingInterval);
+    
     setAccountViewingStatus(false);
     if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Memuat pesanan...</div>';
+    
     const bDisplay = document.getElementById('balanceDisplay');
-    if (bDisplay) bDisplay.innerText = "..."; loginAccount(accountName);
+    if (bDisplay) bDisplay.innerText = "..."; 
+    
+    loginAccount(accountName);
 };
 
-function loginAccount(accountName) { activeAccountName = accountName; if (currentAccountName) currentAccountName.innerText = accountName; setAccountViewingStatus(true); const now = Date.now(); const rawOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || []; activeOrders = rawOrders.filter(o => o.expiresAt > now); if (rawOrders.length !== activeOrders.length) saveToStorage(); initMainApp(); }
+function loginAccount(accountName) { 
+    activeAccountName = accountName; 
+    if (currentAccountName) currentAccountName.innerText = accountName; 
+    setAccountViewingStatus(true); 
+    const now = Date.now(); 
+    const rawOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || []; 
+    activeOrders = rawOrders.filter(o => o.expiresAt > now); 
+    if (rawOrders.length !== activeOrders.length) saveToStorage(); 
+    
+    loadHistory();
+    initMainApp(); 
+}
+
 async function apiCall(endpoint, method = "GET", body = null) { const options = { method: method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; if (body) options.body = JSON.stringify(body); const response = await fetch(`${BASE_URL}${endpoint}`, options); return await response.json(); }
 function saveToStorage() { localStorage.setItem(`orders_${activeAccountName}`, JSON.stringify(activeOrders)); updateAccountOrdersStatus(); renderOrders(); }
 function showToast(pesan, type = "success") { const toast = document.getElementById("toast"); if (!toast) return; toast.innerHTML = pesan; if (type === "error") { toast.style.backgroundColor = "var(--danger-color)"; toast.style.color = "#ffffff"; } else { toast.style.backgroundColor = "var(--success-color)"; toast.style.color = "#ffffff"; } toast.classList.add("show"); setTimeout(() => { toast.classList.remove("show"); }, 3000); }
@@ -125,6 +250,7 @@ function confirmDeleteNote() { if(confirm("Hapus catatan ini?")) { db.ref(`${DB_
 function copyNoteContent() { copyToClipboard(currentNoteRawContent); }
 
 async function fetchBalance() { try { const res = await apiCall('/balance'); if (res.success) { const bDisplay = document.getElementById('balanceDisplay'); const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); if (bDisplay) bDisplay.innerText = formatter.format(res.data.balance); } } catch (error) { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "Error"; } }
+
 async function loadShopeeIndonesia() {
     try {
         if (productList) productList.innerHTML = '<div class="status-text">Mencari Server...</div>';
@@ -133,16 +259,37 @@ async function loadShopeeIndonesia() {
         const productsRes = await apiCall(`/catalog/products?country_id=${indo.id}&platform_id=${shopee.id}`);
         
         if (productsRes.success && productsRes.data.length > 0) {
-            availableProducts = productsRes.data.sort((a, b) => parseFloat(a.price) - parseFloat(b.price)).slice(0, 3);
-            if (productList) productList.innerHTML = ""; if (availableProducts.length > 0) { selectedProductId = availableProducts[0].id; if (btnOrder) btnOrder.disabled = false; }
+            availableProducts = productsRes.data.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+            
+            if (productList) productList.innerHTML = ""; 
+            if (availableProducts.length > 0) { 
+                selectedProductId = availableProducts[0].id; 
+                if (btnOrder) btnOrder.disabled = false; 
+            }
+            
             availableProducts.forEach(product => {
-                const card = document.createElement("div"); card.className = "product-card"; if (selectedProductId === product.id) { card.classList.add('selected'); }
-                card.innerHTML = `<div class="product-info"><h4>Server ID: ${product.id}</h4><p>Stok: ${product.available}</p></div><div class="product-price">Rp ${product.price}</div>`;
-                card.onclick = () => { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); selectedProductId = product.id; if (btnOrder) btnOrder.disabled = false; };
+                const card = document.createElement("div"); 
+                card.className = "product-card"; 
+                if (selectedProductId === product.id) { card.classList.add('selected'); }
+                
+                const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+                const displayPrice = formatter.format(product.price);
+                
+                card.innerHTML = `<div class="product-info"><h4>Server ID: ${product.id}</h4><p>Stok: ${product.available}</p></div><div class="product-price">${displayPrice}</div>`;
+                card.onclick = () => { 
+                    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
+                    card.classList.add('selected'); 
+                    selectedProductId = product.id; 
+                    if (btnOrder) btnOrder.disabled = false; 
+                };
                 if (productList) productList.appendChild(card);
             });
+        } else {
+            if (productList) productList.innerHTML = '<div class="status-text">Server sedang kosong.</div>';
         }
-    } catch (error) { if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error: ${error.message}</div>`; }
+    } catch (error) { 
+        if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error: ${error.message}</div>`; 
+    }
 }
 
 if (btnOrder) {
@@ -152,6 +299,7 @@ if (btnOrder) {
     btnOrder.parentNode.insertBefore(btnCopyPassword, btnOrder.nextSibling);
 
     btnOrder.onclick = async () => {
+        if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
         if (!selectedProductId) return; btnOrder.disabled = true; const originalText = btnOrder.innerText; btnOrder.innerText = "Memproses...";
         try {
             const res = await apiCall('/orders/create', 'POST', { product_id: parseInt(selectedProductId), quantity: 1 });
@@ -183,17 +331,19 @@ function renderOrders() {
             `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
             
         const passProductId = order.productId ? `'${order.productId}'` : 'null';
-        
-        // Deteksi provider
         const providerName = getProviderName(order.phone);
         
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
 
         if (isSuccess) { 
             finishBtnAttr = ""; 
-            resendBtnAttr = "disabled"; 
+            resendBtnAttr = ""; 
+            cancelBtnAttr = "disabled";
+            replaceBtnAttr = "disabled";
         } else if (wait <= 0 && !order.isAutoCanceling) { 
-            cancelBtnAttr = ""; replaceBtnAttr = ""; 
+            cancelBtnAttr = ""; 
+            replaceBtnAttr = ""; 
+            resendBtnAttr = "disabled";
         } else if (order.isAutoCanceling) { 
             cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; 
         }
@@ -263,6 +413,12 @@ function startPollingAndTimer() {
                     if (res.data.status === "OTP_RECEIVED") { 
                         notifSound.play().catch(e => console.log("Sound error:", e));
                         activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; saveToStorage(); fetchBalance();
+                        
+                        const phoneStr = normalizePhone(activeOrders[i].phone);
+                        if (!usedNumbersDB.has(phoneStr)) {
+                            db.ref('used_numbers/smscode').push({ phone: phoneStr, timestamp: Date.now() });
+                            usedNumbersDB.add(phoneStr);
+                        }
                     } else if (res.data.status !== "ACTIVE" && res.data.status !== "PENDING") { activeOrders = activeOrders.filter(o => o.id !== order.id); saveToStorage(); fetchBalance(); }
                 }
             } catch (e) {}
@@ -291,7 +447,9 @@ async function syncServerOrders() {
 }
 
 window.replaceSpecificOrder = async function(orderId, productId) {
+    if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
     const btn = document.getElementById(`btn-replace-${orderId}`); if (!productId || productId === 'null') return showToast("Pilih server manual.", "error"); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
+    const oldOrder = activeOrders.find(o => String(o.id) === String(orderId)); if (oldOrder) saveToHistory(oldOrder, "GANTI");
     try {
         const c = await apiCall('/orders/cancel', 'POST', { id: orderId });
         if (c.success || (c.error && c.error.code === 'NOT_FOUND')) {
@@ -314,7 +472,12 @@ window.resendSpecificOrder = async function(orderId) {
         if (res.success) { 
             showToast("Meminta kode baru..."); 
             let idx = activeOrders.findIndex(o => String(o.id) === idStr);
-            if (idx !== -1) { activeOrders[idx].status = "ACTIVE"; activeOrders[idx].otp = null; saveToStorage(); }
+            if (idx !== -1) { 
+                saveToHistory(activeOrders[idx], "MINTA ULANG");
+                activeOrders[idx].status = "ACTIVE"; 
+                activeOrders[idx].otp = null; 
+                saveToStorage(); 
+            }
         } 
         else { showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
     } catch (e) { showToast("Kesalahan jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
@@ -322,14 +485,26 @@ window.resendSpecificOrder = async function(orderId) {
 
 window.cancelSpecificOrder = async function(id, auto = false) {
     const btnCancel = document.getElementById(`btn-cancel-${id}`); if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
+    const oldOrder = activeOrders.find(o => String(o.id) === String(id)); if (oldOrder) saveToHistory(oldOrder, "BATAL");
+    recordStat('failed');
     try { const res = await apiCall('/orders/cancel', 'POST', { id: id }); if (res.success || (res.error && res.error.code === 'NOT_FOUND')) { activeOrders = activeOrders.filter(o => o.id !== id); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis dibatalkan (Waktu Sisa 10 Menit)", "error"); } else { showToast("Gagal dibatalkan.", "error"); if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } } } catch (e) { if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
 };
 
 window.finishSpecificOrder = async function(id) {
     const btnFinish = document.getElementById(`btn-finish-${id}`); if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
+    const oldOrder = activeOrders.find(o => String(o.id) === String(id)); if (oldOrder) saveToHistory(oldOrder, "SUKSES");
     copyToClipboard("Aku123..");
+    recordStat('success');
     try { await apiCall('/orders/finish', 'POST', { id: id }); } catch (e) {} activeOrders = activeOrders.filter(o => o.id !== id); saveToStorage();
 };
 
 async function initMainApp() { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "..."; await loadShopeeIndonesia(); renderOrders(); if (activeOrders.length > 0) startPollingAndTimer(); syncServerOrders(); }
-window.onload = () => { relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initNotesSync(); fetchAccounts(); };
+
+window.onload = () => { 
+    relocateBalanceUI(); 
+    setAccountViewingStatus(false); 
+    history.pushState(null, null, window.location.href); 
+    initNotesSync(); 
+    initUsedNumbersSync();
+    fetchAccounts(); 
+};
