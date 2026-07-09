@@ -5,7 +5,6 @@ const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", auth
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); const DB_PATH = 'notes/public';
 
-// GLOBAL VARIABLES
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
 let cachedAccounts = [];
 
@@ -14,7 +13,6 @@ let orderHistory = []; let usedNumbersDB = new Set(); let hiddenBadOrders = []; 
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
 
-// --- PENGATURAN & TOMBOL BAWAH ---
 function openSettingsModal() {
     document.getElementById('settingsPassword').value = appSettings.password;
     document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy;
@@ -32,13 +30,12 @@ function renderMainButtons() {
     const extraBtnWrapper = document.getElementById('extraBtnWrapper');
     if (!extraBtnWrapper) return;
     if (appSettings.autoCopy) {
-        extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 12px; width: 100%; border-radius: 14px;"><i class="fas fa-copy"></i> Salin Sandi</button>`;
+        extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 12px; width: 100%; border-radius: 12px;"><i class="fas fa-copy"></i> Salin Sandi</button>`;
     } else {
-        extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 12px; width: 100%; border-radius: 14px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`;
+        extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 12px; width: 100%; border-radius: 12px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`;
     }
 }
 
-// --- FUNGSI FORMATTING & UI ---
 function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("0")) { p = "62" + p.substring(1); } return p; }
 function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
 function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + "&nbsp;&nbsp;" + otpStr.slice(3); } return otpStr; }
@@ -56,7 +53,7 @@ function relocateBalanceUI() {
     if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) {
         balanceContainer.style.display = 'none'; 
         const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right';
-        newBalanceDiv.innerHTML = `<span style="font-size: 11px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 20px; font-weight: 900; color: var(--primary-color);">...</span>`;
+        newBalanceDiv.innerHTML = `<span style="font-size: 11px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 18px; font-weight: 900; color: var(--primary-color);">...</span>`;
         headerContainer.appendChild(newBalanceDiv);
         const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id');
         newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay';
@@ -92,7 +89,7 @@ function initUsedNumbersSync() {
         if(document.getElementById('blacklistBadge')) document.getElementById('blacklistBadge').innerText = totalBlacklist;
         if(document.getElementById('blacklistDetailCount')) document.getElementById('blacklistDetailCount').innerText = totalBlacklist;
         let breakdownText = "";
-        for (let op in operatorCounts) { breakdownText += `<span style="display:inline-block; background:var(--bg-card); padding:4px 10px; border-radius:12px; margin:4px; font-size:11px; font-weight:bold; color:var(--text-primary); border: 1px solid var(--border-color);">${op}: ${operatorCounts[op]}</span>`; }
+        for (let op in operatorCounts) { breakdownText += `<span style="display:inline-block; background:var(--bg-card); padding:4px 10px; border-radius:10px; margin:4px; font-size:11px; font-weight:bold; color:var(--text-primary); border: 1px solid var(--border-color);">${op}: ${operatorCounts[op]}</span>`; }
         let breakdownDiv = document.getElementById('operatorBreakdown');
         if(!breakdownDiv) { breakdownDiv = document.createElement('div'); breakdownDiv.id = 'operatorBreakdown'; breakdownDiv.style.marginTop = "15px"; breakdownDiv.style.textAlign = "center"; const targetParent = document.querySelector('#blacklistModal .modal-content p:last-of-type').parentNode; if(targetParent) targetParent.appendChild(breakdownDiv); }
         breakdownDiv.innerHTML = breakdownText;
@@ -120,7 +117,7 @@ function renderHistory() {
     if (orderHistory.length === 0) { list.innerHTML = '<div class="status-text">Belum ada riwayat pesanan.</div>'; return; }
     list.innerHTML = "";
     orderHistory.forEach(item => {
-        const card = document.createElement('div'); card.style.background = "var(--bg-card)"; card.style.padding = "14px"; card.style.borderRadius = "12px"; card.style.border = "1px solid var(--border-color)"; card.style.fontSize = "13px";
+        const card = document.createElement('div'); card.style.background = "var(--bg-card)"; card.style.padding = "12px"; card.style.borderRadius = "10px"; card.style.border = "1px solid var(--border-color)"; card.style.fontSize = "12px";
         let statusColor = "var(--text-secondary)"; let icon = "fa-clock";
         if (item.status === "SUKSES") { statusColor = "var(--success-color)"; icon = "fa-check-circle"; }
         if (item.status === "BATAL") { statusColor = "var(--danger-color)"; icon = "fa-times-circle"; }
@@ -128,14 +125,14 @@ function renderHistory() {
         if (item.status === "MINTA ULANG") { statusColor = "var(--info-color)"; icon = "fa-envelope"; }
         const opTag = getProviderName(item.phone); const dt = new Date(item.date); const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
         card.innerHTML = `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                <strong style="color: var(--text-primary); font-size: 15px; letter-spacing: 1px;">${formatPhoneNumber(item.phone)} <span style="font-size:11px; font-weight:normal; color:var(--text-secondary);">(${opTag})</span></strong>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <strong style="color: var(--text-primary); font-size: 14px; letter-spacing: 1px;">${formatPhoneNumber(item.phone)} <span style="font-size:10px; font-weight:normal; color:var(--text-secondary);">(${opTag})</span></strong>
                 <span style="color: ${statusColor}; font-weight: 800;"><i class="fas ${icon}"></i> ${item.status}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 12px; margin-bottom: ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? '10px' : '0'};">
+            <div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 11px; margin-bottom: ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? '8px' : '0'};">
                 <span>ID: #${item.id}</span><span>${timeStr}</span>
             </div>
-            ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 8px; text-align: center; border-radius: 8px; font-weight: 900; letter-spacing: 4px; font-size: 18px; text-shadow: 0 0 10px rgba(249, 115, 22, 0.3);">${item.otp}</div>` : ''}
+            ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 6px; text-align: center; border-radius: 8px; font-weight: 900; letter-spacing: 4px; font-size: 16px; text-shadow: 0 0 10px rgba(249, 115, 22, 0.3);">${item.otp}</div>` : ''}
         `;
         list.appendChild(card);
     });
@@ -174,21 +171,17 @@ window.openAccountModal = function() {
         const isActive = (acc === activeAccountName);
         
         btn.id = `btn-acc-${acc}`;
-        btn.style = `width: 100%; padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: bold; text-align: left; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);`;
+        btn.style = `width: 100%; padding: 12px 14px; border-radius: 12px; font-size: 13px; font-weight: bold; text-align: left; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15);`;
         
-        // Buat struktur dengan saldo kosong di sisi kanan (spinner loader sementara)
-        btn.innerHTML = `<div style="display:flex; align-items:center; gap:8px;"><span>👤 ${acc}</span> ${isActive ? '<i class="fas fa-check-circle"></i>' : ''}</div> <span id="bal-${acc}" style="font-size:13px; color:var(--text-secondary);"><i class="fas fa-spinner fa-spin"></i></span>`;
+        btn.innerHTML = `<div style="display:flex; align-items:center; gap:6px;"><span>👤 ${acc}</span> ${isActive ? '<i class="fas fa-check-circle"></i>' : ''}</div> <span id="bal-${acc}" style="font-size:14px; font-weight: 900; color:var(--text-secondary);"><i class="fas fa-spinner fa-spin"></i></span>`;
         
         btn.onclick = () => { switchAccount(acc); closeAccountModal(); };
         container.appendChild(btn);
-        
-        // Panggil fungsi tarik saldo (fetch balance) per akun secara asinkron
         fetchBalanceForAccount(acc);
     });
 }
 window.closeAccountModal = function() { document.getElementById('accountModal').classList.add('hidden'); }
 
-// Fungsi baru untuk menarik saldo berdasarkan masing-masing akun untuk Modal
 async function fetchBalanceForAccount(accName) {
     try {
         const options = { method: "GET", headers: { "Content-Type": "application/json", "X-Account-Name": accName } };
