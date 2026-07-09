@@ -1,49 +1,56 @@
 const BASE_URL = "https://shopee-otp-proxy.masreno6pro.workers.dev"; 
 
-// KONFIGURASI FIREBASE & SOUND
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); const DB_PATH = 'notes/public';
 
-let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null;
+// GLOBAL VARIABLES
+let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
+let cachedAccounts = [];
 
-let orderHistory = [];
-let usedNumbersDB = new Set(); 
-let hiddenBadOrders = []; 
-let isUsedNumbersLoaded = false; 
+let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null;
+let orderHistory = []; let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
 
+// --- PENGATURAN & TOMBOL BAWAH ---
+function openSettingsModal() {
+    document.getElementById('settingsPassword').value = appSettings.password;
+    document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy;
+    document.getElementById('settingsModal').classList.remove('hidden');
+    history.pushState(null, null, "#settings");
+}
+function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
+window.saveSettings = function() {
+    appSettings.password = document.getElementById('settingsPassword').value;
+    appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked;
+    localStorage.setItem('app_settings', JSON.stringify(appSettings));
+    closeSettingsModal();
+    showToast("Pengaturan disimpan!");
+    renderMainButtons(); 
+}
+function renderMainButtons() {
+    const extraBtnWrapper = document.getElementById('extraBtnWrapper');
+    if (!extraBtnWrapper) return;
+    if (appSettings.autoCopy) {
+        extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 10px; width: 100%; border-radius: 14px;"><i class="fas fa-copy"></i> Salin Sandi</button>`;
+    } else {
+        extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 10px; width: 100%; border-radius: 14px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`;
+    }
+}
+
 // --- FUNGSI FORMATTING & UI ---
-function normalizePhone(phone) {
-    if (!phone) return "";
-    let p = String(phone).replace(/\D/g, "");
-    if (p.startsWith("0")) { p = "62" + p.substring(1); }
-    return p;
-}
-
-function formatPhoneNumber(phone) {
-    if (!phone) return ""; let p = String(phone);
-    if (p.startsWith("62")) { p = "0" + p.substring(2); } 
-    return p.replace(/(.{4})/g, '$1 ').trim(); 
-}
-
-function formatOTP(otp) {
-    if (!otp) return ""; const otpStr = String(otp);
-    if (otpStr.length >= 6) { return otpStr.slice(0, 3) + "&nbsp;&nbsp;" + otpStr.slice(3); }
-    return otpStr;
-}
-
+function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("0")) { p = "62" + p.substring(1); } return p; }
+function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
+function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + "&nbsp;&nbsp;" + otpStr.slice(3); } return otpStr; }
 function getProviderName(phone) {
-    let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2);
-    const prefix = p.substring(0, 4);
+    let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2); const prefix = p.substring(0, 4);
     if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel";
     if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat";
     if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL/Axis";
     if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Tri";
-    if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren";
-    return "Acak"; 
+    if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren"; return "Acak"; 
 }
 
 function relocateBalanceUI() {
@@ -60,10 +67,13 @@ function relocateBalanceUI() {
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
-    const blM = document.getElementById('blacklistModal'); const histM = document.getElementById('historyModal'); const statsM = document.getElementById('statsModal');
+    const blM = document.getElementById('blacklistModal'); const histM = document.getElementById('historyModal'); const statsM = document.getElementById('statsModal'); 
+    const setM = document.getElementById('settingsModal'); const accM = document.getElementById('accountModal');
     if (blM && !blM.classList.contains('hidden')) { window.closeBlacklistModal(); history.pushState(null, null, window.location.href); }
     else if (histM && !histM.classList.contains('hidden')) { window.closeHistoryModal(); history.pushState(null, null, window.location.href); }
     else if (statsM && !statsM.classList.contains('hidden')) { window.closeStatsModal(); history.pushState(null, null, window.location.href); }
+    else if (setM && !setM.classList.contains('hidden')) { window.closeSettingsModal(); history.pushState(null, null, window.location.href); }
+    else if (accM && !accM.classList.contains('hidden')) { window.closeAccountModal(); history.pushState(null, null, window.location.href); }
     else if (!noteFormModal.classList.contains('hidden')) { handleCancelNoteForm(); history.pushState(null, null, window.location.href); }
     else if (!noteDetailModal.classList.contains('hidden')) { closeNoteDetailModal(); history.pushState(null, null, window.location.href); }
     else if (!notesListModal.classList.contains('hidden')) { closeNotesListModal(); history.pushState(null, null, window.location.href); }
@@ -77,23 +87,13 @@ function confirmExit() { setAccountViewingStatus(false); window.close(); if (nav
 function setAccountViewingStatus(isViewing) { if (!activeAccountName) return; if (isViewing) { const connectedRef = db.ref('.info/connected'); viewingPresenceRef = db.ref(`presence/${activeAccountName}/is_viewing`); connectedRef.on('value', (snap) => { if (snap.val() === true) { viewingPresenceRef.onDisconnect().set(false); viewingPresenceRef.set(true); } }); } else { if (viewingPresenceRef) { viewingPresenceRef.set(false); viewingPresenceRef.onDisconnect().cancel(); } } }
 function updateAccountOrdersStatus() { if (!activeAccountName) return; db.ref(`presence/${activeAccountName}/has_orders`).set(activeOrders.length > 0); }
 
-// --- LOGIKA MENGINGAT NOMOR BEKAS & RINCIAN OPERATOR ---
 function initUsedNumbersSync() {
     db.ref('used_numbers/smscode').on('value', snapshot => {
         usedNumbersDB.clear(); let operatorCounts = {}; let totalBlacklist = 0;
-        if (snapshot.exists()) {
-            snapshot.forEach(child => {
-                if (child.val().phone) {
-                    let normalPhone = normalizePhone(child.val().phone);
-                    usedNumbersDB.add(normalPhone); totalBlacklist++;
-                    let op = getProviderName(normalPhone); operatorCounts[op] = (operatorCounts[op] || 0) + 1;
-                }
-            });
-        }
+        if (snapshot.exists()) { snapshot.forEach(child => { if (child.val().phone) { let normalPhone = normalizePhone(child.val().phone); usedNumbersDB.add(normalPhone); totalBlacklist++; let op = getProviderName(normalPhone); operatorCounts[op] = (operatorCounts[op] || 0) + 1; } }); }
         isUsedNumbersLoaded = true;
         if(document.getElementById('blacklistBadge')) document.getElementById('blacklistBadge').innerText = totalBlacklist;
         if(document.getElementById('blacklistDetailCount')) document.getElementById('blacklistDetailCount').innerText = totalBlacklist;
-        
         let breakdownText = "";
         for (let op in operatorCounts) { breakdownText += `<span style="display:inline-block; background:rgba(255,255,255,0.05); padding:3px 10px; border-radius:12px; margin:3px; font-size:11px; font-weight:bold; color:var(--text-primary); border: 1px solid var(--border-color);">${op}: ${operatorCounts[op]}</span>`; }
         let breakdownDiv = document.getElementById('operatorBreakdown');
@@ -102,31 +102,15 @@ function initUsedNumbersSync() {
     });
 }
 
-// --- LOGIKA STATISTIK HARIAN ---
-function recordStat(type) {
-    const today = new Date().toLocaleDateString('en-CA'); 
-    const statRef = db.ref(`stats/smscode/${today}/${type}`);
-    statRef.transaction(currentCount => (currentCount || 0) + 1);
-}
-
-window.openStatsModal = function() {
-    document.getElementById('statsModal').classList.remove('hidden'); const dateInput = document.getElementById('statDate');
-    if(!dateInput.value) dateInput.value = new Date().toLocaleDateString('en-CA');
-    loadStatsData(); history.pushState(null, null, "#stats");
-}
+function recordStat(type) { const today = new Date().toLocaleDateString('en-CA'); const statRef = db.ref(`stats/smscode/${today}/${type}`); statRef.transaction(currentCount => (currentCount || 0) + 1); }
+window.openStatsModal = function() { document.getElementById('statsModal').classList.remove('hidden'); const dateInput = document.getElementById('statDate'); if(!dateInput.value) dateInput.value = new Date().toLocaleDateString('en-CA'); loadStatsData(); history.pushState(null, null, "#stats"); }
 window.closeStatsModal = function() { document.getElementById('statsModal').classList.add('hidden'); }
-function loadStatsData() {
-    const selectedDate = document.getElementById('statDate').value; const sSuccess = document.getElementById('statSuccess'); const sFailed = document.getElementById('statFailed');
-    if(sSuccess) sSuccess.innerText = "..."; if(sFailed) sFailed.innerText = "...";
-    db.ref(`stats/smscode/${selectedDate}`).once('value', snap => { const data = snap.val(); if(sSuccess) sSuccess.innerText = data?.success || 0; if(sFailed) sFailed.innerText = data?.failed || 0; });
-}
+function loadStatsData() { const selectedDate = document.getElementById('statDate').value; const sSuccess = document.getElementById('statSuccess'); const sFailed = document.getElementById('statFailed'); if(sSuccess) sSuccess.innerText = "..."; if(sFailed) sFailed.innerText = "..."; db.ref(`stats/smscode/${selectedDate}`).once('value', snap => { const data = snap.val(); if(sSuccess) sSuccess.innerText = data?.success || 0; if(sFailed) sFailed.innerText = data?.failed || 0; }); }
 document.getElementById('statDate').addEventListener('change', loadStatsData);
 
-// --- MODAL BLACKLIST CONTROL ---
 window.openBlacklistModal = function() { document.getElementById('blacklistModal').classList.remove('hidden'); history.pushState(null, null, "#blacklist"); }
 window.closeBlacklistModal = function() { document.getElementById('blacklistModal').classList.add('hidden'); }
 
-// --- LOGIKA RIWAYAT (HISTORY) ---
 function loadHistory() { orderHistory = JSON.parse(localStorage.getItem(`smscode_history_${activeAccountName}`)) || []; renderHistory(); }
 function saveToHistory(order, status) {
     if (!order) return;
@@ -154,7 +138,7 @@ function renderHistory() {
             <div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 12px; margin-bottom: ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? '8px' : '0'};">
                 <span>ID: #${item.id}</span><span>${timeStr}</span>
             </div>
-            ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 6px; text-align: center; border-radius: 6px; font-weight: 900; letter-spacing: 4px; font-size: 18px; text-shadow: 0 0 10px rgba(34,197,94,0.3);">${item.otp}</div>` : ''}
+            ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 6px; text-align: center; border-radius: 6px; font-weight: 900; letter-spacing: 4px; font-size: 18px; text-shadow: 0 0 10px rgba(249, 115, 22, 0.3);">${item.otp}</div>` : ''}
         `;
         list.appendChild(card);
     });
@@ -163,68 +147,55 @@ window.openHistoryModal = function() { document.getElementById('historyModal').c
 window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
 window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`smscode_history_${activeAccountName}`); renderHistory(); } }
 
-
 async function fetchAccounts() {
     try {
         const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json();
-        const accountSwitcher = document.getElementById('accountSwitcher');
-        
         if (data.accounts && data.accounts.length > 0) {
-            if (accountSwitcher) {
-                accountSwitcher.innerHTML = ''; 
-                data.accounts.forEach(acc => { 
-                    const opt = document.createElement('option'); 
-                    opt.value = acc; 
-                    opt.innerText = `👤 ${acc}`; 
-                    accountSwitcher.appendChild(opt); 
-                });
-                
-                let savedAccount = localStorage.getItem('smscode_last_account');
-                let defaultAcc = (savedAccount && data.accounts.includes(savedAccount)) ? savedAccount : data.accounts[0];
-                
-                accountSwitcher.value = defaultAcc; 
-                loginAccount(defaultAcc);
-            } else { 
-                loginAccount(data.accounts[0]); 
-            }
+            cachedAccounts = data.accounts;
+            let savedAccount = localStorage.getItem('smscode_last_account');
+            let defaultAcc = (savedAccount && cachedAccounts.includes(savedAccount)) ? savedAccount : cachedAccounts[0];
+            loginAccount(defaultAcc);
         } else { 
-            if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; 
+            if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = "Tidak ada"; 
             showToast("Tidak ada akun di Server", "error"); 
         }
     } catch (error) { 
-        if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; 
+        if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = "Error"; 
         showToast("Gagal terhubung ke Server", "error"); 
     }
 }
 
+window.openAccountModal = function() {
+    const container = document.getElementById('accountListContainer'); container.innerHTML = "";
+    cachedAccounts.forEach(acc => {
+        const btn = document.createElement('button'); const isActive = (acc === activeAccountName);
+        btn.style = `width: 100%; padding: 12px 15px; border-radius: 10px; font-size: 14px; font-weight: bold; text-align: left; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; transition: 0.2s;`;
+        btn.innerHTML = `<span>👤 ${acc}</span> ${isActive ? '<i class="fas fa-check-circle"></i>' : ''}`;
+        btn.onclick = () => { switchAccount(acc); closeAccountModal(); };
+        container.appendChild(btn);
+    });
+    document.getElementById('accountModal').classList.remove('hidden'); history.pushState(null, null, "#account");
+}
+window.closeAccountModal = function() { document.getElementById('accountModal').classList.add('hidden'); }
+
 window.switchAccount = function(accountName) {
     if (activeAccountName === accountName) return;
-    
     localStorage.setItem('smscode_last_account', accountName);
-    
-    if (timerInterval) clearInterval(timerInterval); 
-    if (pollingInterval) clearInterval(pollingInterval);
-    
+    if (timerInterval) clearInterval(timerInterval); if (pollingInterval) clearInterval(pollingInterval);
     setAccountViewingStatus(false);
     if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Memuat pesanan...</div>';
-    
-    const bDisplay = document.getElementById('balanceDisplay');
-    if (bDisplay) bDisplay.innerText = "..."; 
-    
+    const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "..."; 
     loginAccount(accountName);
 };
 
 function loginAccount(accountName) { 
     activeAccountName = accountName; 
+    if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = accountName;
     if (currentAccountName) currentAccountName.innerText = accountName; 
     setAccountViewingStatus(true); 
-    const now = Date.now(); 
-    const rawOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || []; 
-    activeOrders = rawOrders.filter(o => o.expiresAt > now); 
+    const now = Date.now(); const rawOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || []; activeOrders = rawOrders.filter(o => o.expiresAt > now); 
     if (rawOrders.length !== activeOrders.length) saveToStorage(); 
-    
-    loadHistory();
-    initMainApp(); 
+    loadHistory(); initMainApp(); 
 }
 
 async function apiCall(endpoint, method = "GET", body = null) { const options = { method: method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; if (body) options.body = JSON.stringify(body); const response = await fetch(`${BASE_URL}${endpoint}`, options); return await response.json(); }
@@ -257,47 +228,21 @@ async function loadShopeeIndonesia() {
         const countriesRes = await apiCall('/catalog/countries'); const indo = countriesRes.data.find(c => c.name.toLowerCase() === 'indonesia');
         const servicesRes = await apiCall(`/catalog/services?country_id=${indo.id}`); const shopee = servicesRes.data.find(s => s.name.toLowerCase().includes('shopee'));
         const productsRes = await apiCall(`/catalog/products?country_id=${indo.id}&platform_id=${shopee.id}`);
-        
         if (productsRes.success && productsRes.data.length > 0) {
             availableProducts = productsRes.data.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-            
-            if (productList) productList.innerHTML = ""; 
-            if (availableProducts.length > 0) { 
-                selectedProductId = availableProducts[0].id; 
-                if (btnOrder) btnOrder.disabled = false; 
-            }
-            
+            if (productList) productList.innerHTML = ""; if (availableProducts.length > 0) { selectedProductId = availableProducts[0].id; if (btnOrder) btnOrder.disabled = false; }
             availableProducts.forEach(product => {
-                const card = document.createElement("div"); 
-                card.className = "product-card"; 
-                if (selectedProductId === product.id) { card.classList.add('selected'); }
-                
-                const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
-                const displayPrice = formatter.format(product.price);
-                
+                const card = document.createElement("div"); card.className = "product-card"; if (selectedProductId === product.id) { card.classList.add('selected'); }
+                const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); const displayPrice = formatter.format(product.price);
                 card.innerHTML = `<div class="product-info"><h4>Server ID: ${product.id}</h4><p>Stok: ${product.available}</p></div><div class="product-price">${displayPrice}</div>`;
-                card.onclick = () => { 
-                    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
-                    card.classList.add('selected'); 
-                    selectedProductId = product.id; 
-                    if (btnOrder) btnOrder.disabled = false; 
-                };
+                card.onclick = () => { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); selectedProductId = product.id; if (btnOrder) btnOrder.disabled = false; };
                 if (productList) productList.appendChild(card);
             });
-        } else {
-            if (productList) productList.innerHTML = '<div class="status-text">Server sedang kosong.</div>';
-        }
-    } catch (error) { 
-        if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error: ${error.message}</div>`; 
-    }
+        } else { if (productList) productList.innerHTML = '<div class="status-text">Server sedang kosong.</div>'; }
+    } catch (error) { if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error: ${error.message}</div>`; }
 }
 
 if (btnOrder) {
-    const btnCopyPassword = document.createElement('button'); btnCopyPassword.id = 'btnCopyPassword'; btnCopyPassword.innerHTML = '<i class="fas fa-copy"></i> Salin Sandi';
-    btnCopyPassword.className = "btn-primary"; btnCopyPassword.style.backgroundColor = "var(--info-color)";
-    btnCopyPassword.onclick = () => { copyToClipboard("Aku123.."); };
-    btnOrder.parentNode.insertBefore(btnCopyPassword, btnOrder.nextSibling);
-
     btnOrder.onclick = async () => {
         if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
         if (!selectedProductId) return; btnOrder.disabled = true; const originalText = btnOrder.innerText; btnOrder.innerText = "Memproses...";
@@ -320,30 +265,20 @@ function renderOrders() {
     if (activeOrders.length === 0) { if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Belum ada pesanan aktif.</div>'; return; }
     if (activeOrdersContainer) activeOrdersContainer.innerHTML = "";
     const now = Date.now();
-
     activeOrders.forEach(order => {
         const card = document.createElement("div"); card.className = "order-card"; card.id = `order-card-${order.id}`; 
         let isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
         const wait = order.cancelUnlockTime - now;
-        
-        let otpHtml = isSuccess ? 
-            `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : 
-            `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
-            
+        let otpHtml = isSuccess ? `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
         const passProductId = order.productId ? `'${order.productId}'` : 'null';
         const providerName = getProviderName(order.phone);
         
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
-
+        
         if (isSuccess) { 
-            finishBtnAttr = ""; 
-            resendBtnAttr = ""; 
-            cancelBtnAttr = "disabled";
-            replaceBtnAttr = "disabled";
+            finishBtnAttr = ""; resendBtnAttr = ""; cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled";
         } else if (wait <= 0 && !order.isAutoCanceling) { 
-            cancelBtnAttr = ""; 
-            replaceBtnAttr = ""; 
-            resendBtnAttr = "disabled";
+            cancelBtnAttr = ""; replaceBtnAttr = ""; resendBtnAttr = "disabled";
         } else if (order.isAutoCanceling) { 
             cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; 
         }
@@ -376,33 +311,20 @@ function renderOrders() {
 
 function startPollingAndTimer() {
     if (timerInterval) clearInterval(timerInterval); if (pollingInterval) clearInterval(pollingInterval);
-    
     timerInterval = setInterval(() => {
         const now = Date.now();
         activeOrders.forEach((order, index) => {
             const timeLeft = order.expiresAt - now; const timerElement = document.getElementById(`timer-${order.id}`);
             if (timeLeft <= 0) { activeOrders.splice(index, 1); saveToStorage(); fetchBalance(); return; }
             if (timerElement) { const m = Math.floor((timeLeft / 1000 / 60) % 60); const s = Math.floor((timeLeft / 1000) % 60); timerElement.innerText = `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`; }
-
             if (timeLeft <= 600000 && order.status !== "OTP_RECEIVED" && !order.isAutoCanceling) { order.isAutoCanceling = true; cancelSpecificOrder(order.id, true); }
-
-            const wait = order.cancelUnlockTime - now;
-            const btnCancel = document.getElementById(`btn-cancel-${order.id}`); const btnReplace = document.getElementById(`btn-replace-${order.id}`); const btnResend = document.getElementById(`btn-resend-${order.id}`); 
-            
+            const wait = order.cancelUnlockTime - now; const btnCancel = document.getElementById(`btn-cancel-${order.id}`); const btnReplace = document.getElementById(`btn-replace-${order.id}`); const btnResend = document.getElementById(`btn-resend-${order.id}`); 
             if (order.status !== "OTP_RECEIVED" && !order.isAutoCanceling) {
-                if (wait <= 0) {
-                    if (btnCancel && btnCancel.disabled) btnCancel.disabled = false;
-                    if (btnReplace && btnReplace.disabled && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false;
-                    if (btnResend && !btnResend.disabled) btnResend.disabled = true;
-                } else {
-                    if (btnCancel && !btnCancel.disabled) btnCancel.disabled = true;
-                    if (btnReplace && !btnReplace.disabled) btnReplace.disabled = true;
-                    if (btnResend && !btnResend.disabled) btnResend.disabled = true;
-                }
+                if (wait <= 0) { if (btnCancel && btnCancel.disabled) btnCancel.disabled = false; if (btnReplace && btnReplace.disabled && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false; if (btnResend && !btnResend.disabled) btnResend.disabled = true; } 
+                else { if (btnCancel && !btnCancel.disabled) btnCancel.disabled = true; if (btnReplace && !btnReplace.disabled) btnReplace.disabled = true; if (btnResend && !btnResend.disabled) btnResend.disabled = true; }
             }
         });
     }, 1000);
-
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for (let i = 0; i < activeOrders.length; i++) {
@@ -413,12 +335,8 @@ function startPollingAndTimer() {
                     if (res.data.status === "OTP_RECEIVED") { 
                         notifSound.play().catch(e => console.log("Sound error:", e));
                         activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; saveToStorage(); fetchBalance();
-                        
                         const phoneStr = normalizePhone(activeOrders[i].phone);
-                        if (!usedNumbersDB.has(phoneStr)) {
-                            db.ref('used_numbers/smscode').push({ phone: phoneStr, timestamp: Date.now() });
-                            usedNumbersDB.add(phoneStr);
-                        }
+                        if (!usedNumbersDB.has(phoneStr)) { db.ref('used_numbers/smscode').push({ phone: phoneStr, timestamp: Date.now() }); usedNumbersDB.add(phoneStr); }
                     } else if (res.data.status !== "ACTIVE" && res.data.status !== "PENDING") { activeOrders = activeOrders.filter(o => o.id !== order.id); saveToStorage(); fetchBalance(); }
                 }
             } catch (e) {}
@@ -472,14 +390,8 @@ window.resendSpecificOrder = async function(orderId) {
         if (res.success) { 
             showToast("Meminta kode baru..."); 
             let idx = activeOrders.findIndex(o => String(o.id) === idStr);
-            if (idx !== -1) { 
-                saveToHistory(activeOrders[idx], "MINTA ULANG");
-                activeOrders[idx].status = "ACTIVE"; 
-                activeOrders[idx].otp = null; 
-                saveToStorage(); 
-            }
-        } 
-        else { showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
+            if (idx !== -1) { saveToHistory(activeOrders[idx], "MINTA ULANG"); activeOrders[idx].status = "ACTIVE"; activeOrders[idx].otp = null; saveToStorage(); }
+        } else { showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
     } catch (e) { showToast("Kesalahan jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
 };
 
@@ -493,18 +405,13 @@ window.cancelSpecificOrder = async function(id, auto = false) {
 window.finishSpecificOrder = async function(id) {
     const btnFinish = document.getElementById(`btn-finish-${id}`); if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
     const oldOrder = activeOrders.find(o => String(o.id) === String(id)); if (oldOrder) saveToHistory(oldOrder, "SUKSES");
-    copyToClipboard("Aku123..");
+    
+    if (appSettings.autoCopy) { copyToClipboard(appSettings.password); }
+    
     recordStat('success');
     try { await apiCall('/orders/finish', 'POST', { id: id }); } catch (e) {} activeOrders = activeOrders.filter(o => o.id !== id); saveToStorage();
 };
 
 async function initMainApp() { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "..."; await loadShopeeIndonesia(); renderOrders(); if (activeOrders.length > 0) startPollingAndTimer(); syncServerOrders(); }
 
-window.onload = () => { 
-    relocateBalanceUI(); 
-    setAccountViewingStatus(false); 
-    history.pushState(null, null, window.location.href); 
-    initNotesSync(); 
-    initUsedNumbersSync();
-    fetchAccounts(); 
-};
+window.onload = () => { relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initNotesSync(); initUsedNumbersSync(); fetchAccounts(); renderMainButtons(); };
