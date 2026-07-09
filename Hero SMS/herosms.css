@@ -4,14 +4,11 @@
     --danger-color: #ef4444;
     --warning-color: #f59e0b;
     --info-color: #3b82f6;
-    
-    /* Fluid Typography untuk Floating Window */
     --base-font-size: clamp(14px, 4vw, 18px); 
     --safe-gap: 16px; 
     --touch-target: 60px; 
 }
 
-/* TEMA HERO-SMS (Pure Black & Monster Energy Green) */
 body.theme-hero {
     --bg-body: #000000;         
     --bg-container: #0a0a0a;    
@@ -23,58 +20,44 @@ body.theme-hero {
     --border-hover: #96D400;    
     --primary-color: #96D400;   
     --primary-color-hover: #A8ED00; 
-    
     --otp-bg: #051000;          
     --otp-border: #4D6B00;      
     --otp-text: #A8ED00;        
-    
     --btn-bg: #121212;
     --btn-text: #ffffff;
     --shadow-color: rgba(150, 212, 0, 0.4); 
-    --modal-overlay: rgba(0,0,0,0.8); /* Transparansi untuk efek blur */
+    --modal-overlay: rgba(0,0,0,0.8);
 }
 
 /* --- RESET & BASE --- */
 * { box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-body); padding: 10px; margin: 0; color: var(--text-primary); font-size: var(--base-font-size); line-height: 1.5; }
+.container { width: 100%; max-width: 600px; margin: 0 auto; background: var(--bg-container); padding: 10px; border-radius: 16px; box-shadow: 0 8px 32px var(--shadow-color); border: 1px solid var(--border-color); }
 
-body { 
-    font-family: system-ui, -apple-system, sans-serif;
-    background: var(--bg-body);
-    padding: 10px; 
-    margin: 0; 
-    color: var(--text-primary); 
-    font-size: var(--base-font-size);
-    line-height: 1.5;
-}
+/* --- MODERN HEADER & SWITCHER --- */
+.top-bar-modern { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 15px; }
+.app-tabs { display: flex; background: var(--bg-card); padding: 4px; border-radius: 10px; border: 1px solid var(--border-color); }
+.app-tab { text-decoration: none; padding: 6px 12px; font-size: 13px; font-weight: 800; border-radius: 8px; color: var(--text-secondary); transition: 0.2s; }
+.app-tab.active { background: var(--bg-body); color: var(--primary-color); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+.action-icons { display: flex; gap: 6px; }
+.btn-switch-sm { background-color: var(--bg-card); color: var(--primary-color); border: 1px solid var(--border-color); width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; padding: 0; transition: 0.2s; }
+.btn-switch-sm:hover { background-color: var(--bg-card-hover); }
+.badge { position: absolute; top: -5px; right: -5px; background: var(--danger-color); color: white; font-size: 9px; padding: 2px 5px; border-radius: 10px; font-weight: 800; border: 1px solid var(--bg-container); }
+.account-selector-btn { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 800; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: 0.2s; }
+.account-selector-btn:active { transform: scale(0.95); }
 
-.container { 
-    width: 100%; 
-    max-width: 600px;
-    margin: 0 auto; 
-    background: var(--bg-container); 
-    padding: 10px; 
-    border-radius: 16px; 
-    box-shadow: 0 8px 32px var(--shadow-color);
-    border: 1px solid var(--border-color);
-}
+/* --- TOGGLE SWITCH (CHECKBOX) --- */
+.switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border-color); transition: .4s; border-radius: 24px; }
+.slider-knob { position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+.switch input:checked + .slider { background-color: var(--success-color); }
+.switch input:checked + .slider .slider-knob { transform: translateX(20px); }
 
-/* --- HEADER & SWITCHER --- */
-.app-header-container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 35px !important; 
-    margin-bottom: 10px !important;
-    padding-bottom: 8px !important;
-    border-bottom: 2px solid var(--border-color);
-}
-
+/* --- HEADER --- */
+.app-header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid var(--border-color); }
 h1 { font-size: clamp(22px, 6vw, 28px); font-weight: 900; color: var(--primary-color); margin: 0 0 4px 0; letter-spacing: -0.5px; }
 .subtitle { font-size: 14px; color: var(--text-secondary); margin: 0; }
-
-.top-switchers { display: flex; gap: 10px; margin-bottom: 15px; position: absolute; top: 15px; left: 15px; right: 100px; z-index: 10; height: 32px; }
-.server-select { height: 45px; font-size: 15px; font-weight: 800; border-radius: 12px; padding: 0 15px; width: auto; background-color: var(--bg-card); color: var(--text-primary); border: 2px solid var(--border-color); appearance: none; cursor: pointer; }
-.server-select-sm { padding: 4px 10px !important; font-size: 13px !important; border-radius: 8px !important; height: 32px !important; max-width: 140px; }
 
 /* --- ORDER CARD --- */
 #activeOrdersContainer { margin-bottom: 15px; }
@@ -83,7 +66,6 @@ h1 { font-size: clamp(22px, 6vw, 28px); font-weight: 900; color: var(--primary-c
 .order-id-label { color: var(--text-secondary); font-size: 12px; font-weight: 700; background: var(--bg-card); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color); }
 .order-price { color: var(--primary-color); font-weight: 800; font-size: 14px; }
 .timer { color: var(--danger-color); font-weight: 800; font-size: 16px; background: var(--bg-card); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color); }
-
 .phone-row { display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 10px 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid var(--border-color); }
 .phone-number { font-size: clamp(22px, 7vw, 28px); font-weight: 900; color: var(--text-primary); letter-spacing: 2px; }
 .btn-copy { height: 44px; padding: 0 16px; font-size: 14px; font-weight: 800; background: var(--primary-color); color: var(--bg-body); border: none; border-radius: 8px; text-transform: uppercase; cursor: pointer; }
@@ -99,13 +81,11 @@ h1 { font-size: clamp(22px, 6vw, 28px); font-weight: 900; color: var(--primary-c
 .btn-replace, .btn-resend, .btn-danger, .btn-success, .btn-primary { height: var(--touch-target); font-size: 16px; font-weight: 800; border-radius: 14px; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 8px; border: none; cursor: pointer; transition: transform 0.1s, filter 0.2s, opacity 0.2s; }
 .btn-replace:active:not(:disabled), .btn-resend:active:not(:disabled), .btn-danger:active:not(:disabled), .btn-success:active:not(:disabled) { transform: scale(0.96); }
 .btn-replace:disabled, .btn-resend:disabled, .btn-danger:disabled, .btn-success:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(1); }
-
 .btn-replace { background-color: var(--warning-color); color: #000; }
 .btn-resend { background-color: var(--info-color); color: #fff; }
 .btn-danger { background-color: var(--danger-color); color: #fff; }
 .btn-success { background-color: var(--success-color); color: #fff; }
 .btn-primary { width: 100%; background: var(--primary-color); color: var(--bg-body); font-size: 18px; margin-top: 10px; }
-.btn-switch { background-color: var(--btn-bg); color: var(--btn-text); border: 1px solid var(--border-color); padding: 10px; font-size: 13px; font-weight: 700; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;}
 
 /* --- SALDO WIDGET --- */
 .balance-container { margin-bottom: 15px; }
@@ -113,7 +93,7 @@ h1 { font-size: clamp(22px, 6vw, 28px); font-weight: 900; color: var(--primary-c
 .balance-label { font-size: 13px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; }
 .balance-value { font-size: 18px; font-weight: 900; color: var(--primary-color); }
 
-/* --- DAFTAR PRODUK DENGAN LOGO --- */
+/* --- DAFTAR PRODUK --- */
 .product-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; max-height: 250px; overflow-y: auto; padding-right: 4px; }
 .product-card { padding: 10px 12px; border-width: 2px; border-style: solid; border-color: var(--border-color); border-radius: 12px; display: flex; align-items: center; gap: 12px; background-color: var(--bg-card); cursor: pointer; transition: all 0.2s; }
 .product-card:hover { background-color: var(--bg-card-hover); }
@@ -125,28 +105,21 @@ h1 { font-size: clamp(22px, 6vw, 28px); font-weight: 900; color: var(--primary-c
 .product-info p { font-size: 12px; margin: 0; color: var(--text-secondary); }
 .product-price { font-size: 14px; font-weight: 800; color: var(--primary-color); padding: 6px 10px; background: var(--bg-body); border-radius: 8px; flex-shrink: 0; }
 
-/* =======================================================
-   UI CATATAN & MODAL ASLI (ORIGINAL DESIGN)
-   ======================================================= */
-
+/* --- NOTES & MODALS --- */
 .notes-list { display: flex; flex-direction: column; gap: 8px; }
 .note-card { background: var(--bg-card); padding: 12px 15px; border-radius: 8px; border: 1px solid var(--border-color); border-left: 4px solid var(--primary-color); cursor: pointer; transition: transform 0.2s; text-align: left; }
 .note-card:hover { transform: translateY(-2px); border-color: var(--border-hover); background: var(--bg-card-hover); }
 .note-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .note-preview { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
 .note-date { font-size: 10px; color: var(--text-secondary); font-weight: 700; text-align: right; }
-
 .form-input { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; box-sizing: border-box; font-family: inherit; transition: border-color 0.2s; background: var(--bg-card); color: var(--text-primary); }
 .form-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px var(--shadow-color); }
-
-/* --- MODAL EFFECT DENGAN BLUR --- */
 .modal { position: fixed; inset: 0; background: var(--modal-overlay); z-index: 99999; display: flex; justify-content: center; align-items: center; opacity: 1; transition: opacity 0.2s; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 .modal-content { background: var(--bg-container); padding: 20px; border-radius: 16px; text-align: center; width: 85%; max-width: 320px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); border: 1px solid var(--border-color); }
 .modal-title { margin: 0 0 10px 0; color: var(--primary-color); font-size: 18px; font-weight: 800; }
 .modal-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; }
 .modal-actions { display: flex; justify-content: space-between; gap: 10px; }
 @keyframes popUp { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-
 #view-content { flex:1; overflow-y: auto; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; white-space: pre-wrap; word-wrap: break-word; text-align: left; font-size: 13px; margin-bottom: 15px; min-height: 150px; color: var(--text-primary); }
 
 /* --- ANIMASI & UTILITIES --- */
@@ -161,6 +134,5 @@ h1 { font-size: clamp(22px, 6vw, 28px); font-weight: 900; color: var(--primary-c
 @keyframes textPulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
 .loader { border: 3px solid var(--border-color); border-top: 3px solid var(--primary-color); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
 .toast { visibility: hidden; min-width: 250px; background-color: var(--primary-color); color: var(--bg-body); text-align: center; border-radius: 30px; padding: 12px 20px; position: fixed; z-index: 99999; left: 50%; transform: translateX(-50%); bottom: 20px; font-size: 15px; font-weight: 800; opacity: 0; transition: opacity 0.3s, bottom 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
 .toast.show { visibility: visible; opacity: 1; bottom: 40px; }
