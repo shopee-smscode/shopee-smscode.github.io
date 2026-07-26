@@ -212,21 +212,26 @@ async function loadShopeeIndonesia() {
                 specificOps = [ { id: 'telkomsel', price: realPrice, available: realStock }, { id: 'indosat', price: realPrice, available: realStock }, { id: 'xl', price: realPrice, available: realStock }, { id: 'axis', price: realPrice, available: realStock }, { id: 'three', price: realPrice, available: realStock }, { id: 'smartfren', price: realPrice, available: realStock } ];
             } else { specificOps.sort((a, b) => parseFloat(a.price) - parseFloat(b.price)); }
             availableProducts = [anyOp, ...specificOps]; 
-            if (productList) productList.innerHTML = '<div style="font-size: 11px; font-weight: 800; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; position: sticky; top: 0; background: var(--bg-container); z-index: 2; padding-bottom: 5px;">Pilih Operator:</div>'; 
+            
+            // Label section diubah letaknya sesuai kebutuhan
+            if (productList) productList.innerHTML = '<div style="grid-column: span 3; font-size: 11px; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; z-index: 2;">Pilih Operator:</div>'; 
+            
             let savedOp = localStorage.getItem('hero_selected_operator');
             if (savedOp && availableProducts.find(p => p.id === savedOp)) { selectedProductId = savedOp; } else { selectedProductId = 'any'; }
             if (btnOrder) btnOrder.disabled = false;
             availableProducts.forEach(product => {
                 const card = document.createElement("div"); card.className = "product-card"; 
                 if (selectedProductId === product.id) card.classList.add('selected');
-                let opName = product.id === 'any' ? 'Pilih Acak / Bebas' : product.id.toUpperCase();
+                
+                // Menyingkat nama Any menjadi "Acak" agar muat dengan rapih di tampilan grid
+                let opName = product.id === 'any' ? 'Acak' : product.id.toUpperCase();
                 let stockLabel = (product.available === 'Acak' || product.available === 'Cek Server') ? product.available : (product.available > 1000 ? "1000+" : product.available);
                 let logoImg = getOperatorLogo(product.id); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
+                
                 card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4><p>Stok: <span style="font-weight:700; color:var(--text-primary);">${stockLabel}</span></p></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
                 card.onclick = () => { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); selectedProductId = product.id; localStorage.setItem('hero_selected_operator', product.id); if (btnOrder) btnOrder.disabled = false; };
                 if (productList) productList.appendChild(card);
             });
-            setTimeout(() => { const selectedEl = document.querySelector('.product-card.selected'); if(selectedEl && productList) selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 300);
         } else { if (productList) productList.innerHTML = '<div class="status-text">Stok sedang kosong.</div>'; }
     } catch (error) { if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error muat data.</div>`; }
 }
