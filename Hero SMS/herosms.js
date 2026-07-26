@@ -29,9 +29,9 @@ function renderMainButtons() {
     const extraBtnWrapper = document.getElementById('extraBtnWrapper');
     if (!extraBtnWrapper) return;
     if (appSettings.autoCopy) {
-        extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 12px; width: 100%; border-radius: 12px;"><i class="fas fa-copy"></i> Salin Sandi</button>`;
+        extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 8px;"><i class="fas fa-copy"></i> Salin Sandi</button>`;
     } else {
-        extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 12px; width: 100%; border-radius: 12px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`;
+        extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 8px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`;
     }
 }
 
@@ -62,7 +62,7 @@ function relocateBalanceUI() {
     if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) {
         balanceContainer.style.display = 'none'; 
         const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right';
-        newBalanceDiv.innerHTML = `<span style="font-size: 11px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 18px; font-weight: 900; color: var(--primary-color);">...</span>`;
+        newBalanceDiv.innerHTML = `<span style="font-size: 10px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 16px; font-weight: 900; color: var(--primary-color);">...</span>`;
         headerContainer.appendChild(newBalanceDiv);
         const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id');
         newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay';
@@ -213,8 +213,7 @@ async function loadShopeeIndonesia() {
             } else { specificOps.sort((a, b) => parseFloat(a.price) - parseFloat(b.price)); }
             availableProducts = [anyOp, ...specificOps]; 
             
-            // Label section diubah letaknya sesuai kebutuhan
-            if (productList) productList.innerHTML = '<div style="grid-column: span 3; font-size: 11px; font-weight: 800; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; z-index: 2;">Pilih Operator:</div>'; 
+            if (productList) productList.innerHTML = '<div style="grid-column: span 3; font-size: 10px; font-weight: 800; color: var(--text-secondary); margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px; z-index: 2;">Pilih Operator:</div>'; 
             
             let savedOp = localStorage.getItem('hero_selected_operator');
             if (savedOp && availableProducts.find(p => p.id === savedOp)) { selectedProductId = savedOp; } else { selectedProductId = 'any'; }
@@ -223,12 +222,12 @@ async function loadShopeeIndonesia() {
                 const card = document.createElement("div"); card.className = "product-card"; 
                 if (selectedProductId === product.id) card.classList.add('selected');
                 
-                // Menyingkat nama Any menjadi "Acak" agar muat dengan rapih di tampilan grid
                 let opName = product.id === 'any' ? 'Acak' : product.id.toUpperCase();
-                let stockLabel = (product.available === 'Acak' || product.available === 'Cek Server') ? product.available : (product.available > 1000 ? "1000+" : product.available);
                 let logoImg = getOperatorLogo(product.id); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
                 
-                card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4><p>Stok: <span style="font-weight:700; color:var(--text-primary);">${stockLabel}</span></p></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
+                // HAPUS ELEMEN STOK DARI JS
+                card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
+                
                 card.onclick = () => { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); selectedProductId = product.id; localStorage.setItem('hero_selected_operator', product.id); if (btnOrder) btnOrder.disabled = false; };
                 if (productList) productList.appendChild(card);
             });
