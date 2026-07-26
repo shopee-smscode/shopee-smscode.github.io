@@ -6,7 +6,7 @@
     --info-color: #3b82f6;
     --base-font-size: clamp(12px, 3.5vw, 16px); 
     --safe-gap: 6px; 
-    --touch-target: 40px; /* Ukuran pas dan balance */
+    --touch-target: 40px; /* Ukuran standar untuk tombol-tombol kecil */
 }
 
 body.theme-hero {
@@ -76,7 +76,17 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .btn-resend { background-color: var(--info-color); color: #fff; }
 .btn-danger { background-color: var(--danger-color); color: #fff; }
 .btn-success { background-color: var(--success-color); color: #fff; }
-.btn-primary { width: 100%; background: var(--primary-color); color: var(--bg-body); font-size: 14px; margin-top: 6px; }
+
+/* --- TOMBOL UTAMA DIPERBESAR (PESAN NOMOR & SELESAI) --- */
+.btn-primary { 
+    width: 100%; 
+    height: 56px !important; /* Diperbesar signifikan untuk menutupi ruang */
+    background: var(--primary-color); 
+    color: var(--bg-body); 
+    font-size: 15px !important; 
+    margin-top: 10px !important; 
+    border-radius: 12px !important;
+}
 
 /* --- SALDO WIDGET --- */
 .balance-container { margin-bottom: 8px; }
