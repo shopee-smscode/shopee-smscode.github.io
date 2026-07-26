@@ -206,11 +206,16 @@ async function loadShopeeIndonesia() {
         if (productsRes.success && productsRes.data.length > 0) {
             let ops = productsRes.data; let anyOp = ops.find(o => o.id === 'any'); 
             if (!anyOp) anyOp = { id: 'any', price: ops[0]?.price || 0, available: 'Cek Server' };
-            let specificOps = ops.filter(o => o.id !== 'any' && o.id !== '');
+            
+            // FILTERING XL DARI DAFTAR OPERATOR
+            let specificOps = ops.filter(o => o.id !== 'any' && o.id !== '' && o.id.toLowerCase() !== 'xl');
+            
             if (specificOps.length === 0) {
                 const realPrice = anyOp.price; const realStock = anyOp.available; 
-                specificOps = [ { id: 'telkomsel', price: realPrice, available: realStock }, { id: 'indosat', price: realPrice, available: realStock }, { id: 'xl', price: realPrice, available: realStock }, { id: 'axis', price: realPrice, available: realStock }, { id: 'three', price: realPrice, available: realStock }, { id: 'smartfren', price: realPrice, available: realStock } ];
+                // XL juga dihapus dari array cadangan (fallback)
+                specificOps = [ { id: 'telkomsel', price: realPrice, available: realStock }, { id: 'indosat', price: realPrice, available: realStock }, { id: 'axis', price: realPrice, available: realStock }, { id: 'three', price: realPrice, available: realStock }, { id: 'smartfren', price: realPrice, available: realStock } ];
             } else { specificOps.sort((a, b) => parseFloat(a.price) - parseFloat(b.price)); }
+            
             availableProducts = [anyOp, ...specificOps]; 
             
             if (productList) productList.innerHTML = '<div style="grid-column: span 3; font-size: 10px; font-weight: 800; color: var(--text-secondary); margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px; z-index: 2;">Pilih Operator:</div>'; 
@@ -225,7 +230,6 @@ async function loadShopeeIndonesia() {
                 let opName = product.id === 'any' ? 'Acak' : product.id.toUpperCase();
                 let logoImg = getOperatorLogo(product.id); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
                 
-                // HAPUS ELEMEN STOK DARI JS
                 card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
                 
                 card.onclick = () => { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); selectedProductId = product.id; localStorage.setItem('hero_selected_operator', product.id); if (btnOrder) btnOrder.disabled = false; };
