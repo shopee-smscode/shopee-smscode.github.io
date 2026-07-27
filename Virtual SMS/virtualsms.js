@@ -1,6 +1,7 @@
 const BASE_URL = "https://virtual-sms-proxy.masreno6pro.workers.dev"; 
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
+// Mengunci Negara ke Indonesia (ID: 1)
 const COUNTRY_ID = 1; 
 
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
@@ -25,7 +26,7 @@ const noteFormModal = document.getElementById('noteFormModal');
 const noteDetailModal = document.getElementById('noteDetailModal'); 
 const notesCountDisplay = document.getElementById('notesCount');
 
-// Fungsi API Universal
+// Fungsi API universal sesuai spesifikasi smsvirtual.co
 async function apiCall(endpoint, method = "GET", body = null) { 
     try {
         const options = { 
@@ -41,22 +42,15 @@ async function apiCall(endpoint, method = "GET", body = null) {
     }
 }
 
-// 1. CEK SALDO (Endpoint: /v1/profile/)[span_1](start_span)[span_1](end_span)
+// 1. CEK SALDO (Endpoint: /v1/profile/)[span_6](start_span)[span_6](end_span)
 async function fetchBalance() { 
     const bDisplay = document.getElementById('balanceDisplay');
     try { 
         if (bDisplay) bDisplay.innerText = "Menghitung..."; 
         const res = await apiCall('/v1/profile/'); 
         
-        let balanceVal = null;
-        if (res && res.data && typeof res.data.balance !== 'undefined') {
-            balanceVal = res.data.balance;
-        } else if (res && typeof res.balance !== 'undefined') {
-            balanceVal = res.balance;
-        }
-
-        if (balanceVal !== null) {
-            if (bDisplay) bDisplay.innerText = usdFormatter.format(balanceVal);
+        if (res && res.status === true && res.data && typeof res.data.balance !== 'undefined') {
+            if (bDisplay) bDisplay.innerText = usdFormatter.format(res.data.balance);
         } else {
             if (bDisplay) bDisplay.innerText = "$0.00";
         }
@@ -65,21 +59,18 @@ async function fetchBalance() {
     } 
 }
 
-// 2. MUAT SEMUA LAYANAN (Endpoint: /v1/services/)[span_2](start_span)[span_2](end_span)
+// 2. MUAT SEMUA LAYANAN (Endpoint: /v1/services/)[span_7](start_span)[span_7](end_span)
 async function loadServices() {
     const serviceSelect = document.getElementById('serviceSelect');
     if (!serviceSelect) return;
     try {
+        serviceSelect.innerHTML = '<option value="">Memuat layanan...</option>';
         const res = await apiCall('/v1/services/');
         
-        // Ambil data terlepas dari status boolean/string
-        let rawData = res.data || res;
+        // Memastikan pembacaan sesuai struktur JSON: { status: true, data: [ { id, serviceName } ] }[span_8](start_span)[span_8](end_span)
         let services = [];
-
-        if (Array.isArray(rawData)) {
-            services = rawData;
-        } else if (rawData && Array.isArray(rawData.data)) {
-            services = rawData.data;
+        if (res && res.status === true && Array.isArray(res.data)) {
+            services = res.data;
         }
 
         if (services.length > 0) {
@@ -91,9 +82,10 @@ async function loadServices() {
             services.forEach(svc => {
                 const opt = document.createElement('option');
                 opt.value = svc.id;
-                opt.textContent = svc.serviceName || `Service #${svc.id}`;
+                opt.textContent = svc.serviceName;
                 serviceSelect.appendChild(opt);
 
+                // Mencari layanan Shopee secara otomatis sebagai default
                 if (svc.serviceName && svc.serviceName.toLowerCase().includes('shopee')) {
                     shopeeId = svc.id;
                 }
@@ -109,7 +101,7 @@ async function loadServices() {
 
             loadVirtualSMSProducts(currentServiceId);
         } else {
-            serviceSelect.innerHTML = '<option value="">Layanan kosong / Format tidak dikenal</option>';
+            serviceSelect.innerHTML = '<option value="">Data Layanan Kosong</option>';
         }
     } catch (e) {
         serviceSelect.innerHTML = '<option value="">Gagal memuat layanan</option>';
@@ -122,19 +114,24 @@ window.changeService = function() {
     loadVirtualSMSProducts(currentServiceId);
 }
 
-// 3. MUAT OPERATOR & HARGA (Endpoint: /v1/price/{serviceId})[span_3](start_span)[span_3](end_span)
+// 3. MUAT OPERATOR & HARGA (Endpoint: /v1/price/{serviceId})[span_9](start_span)[span_9](end_span)
 async function loadVirtualSMSProducts(serviceId) {
     try {
         productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
         if (btnOrder) btnOrder.disabled = true;
         
         const res = await apiCall(`/v1/price/${serviceId}`);
-        let rawData = res.data || res;
-        let priceList = Array.isArray(rawData) ? rawData : (rawData.data || [rawData]);
         
-        if (priceList.length > 0) {
-            let countryData = priceList.find(c => Number(c.country) === COUNTRY_ID || (c.countryName && c.countryName.toLowerCase().includes("indonesia")));
-            if (!countryData) countryData = priceList[0];
+        if (res && res.status === true && Array.isArray(res.data)) {
+            let countryData = res.data.find(c => Number(c.country) === COUNTRY_ID);
+            if (!countryData) countryData = res.data[0];
+
+            if (!countryData) {
+                productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Layanan tidak tersedia di Indonesia.</div>`;
+                document.getElementById('randomPriceBadge').innerText = "---";
+                if (btnOrder) btnOrder.disabled = true;
+                return;
+            }
 
             let ops = countryData.operators || [];
             let priceUsd = countryData.priceUsd || 0;
@@ -143,7 +140,7 @@ async function loadVirtualSMSProducts(serviceId) {
             
             availableProducts = [{ id: 'any', code: 'any', name: 'Acak', price: priceUsd }];
             ops.forEach(op => {
-                availableProducts.push({ id: op.code || op.id, code: op.code || op.id, name: op.name || op.operatorName, price: priceUsd });
+                availableProducts.push({ id: op.code, code: op.code, name: op.name, price: priceUsd });
             });
 
             productList.innerHTML = ''; 
@@ -160,8 +157,8 @@ async function loadVirtualSMSProducts(serviceId) {
             }
 
             ops.forEach(op => {
-                let opCode = op.code || op.id;
-                let opName = (op.name || op.operatorName || "").toUpperCase();
+                let opCode = op.code;
+                let opName = (op.name || "").toUpperCase();
                 
                 const card = document.createElement("div"); 
                 card.className = "product-card"; 
@@ -191,24 +188,24 @@ async function loadVirtualSMSProducts(serviceId) {
     }
 }
 
-// 4. PESAN NOMOR (Endpoint: /v1/order/)[span_4](start_span)[span_4](end_span)
+// 4. PESAN NOMOR (Endpoint: /v1/order/)[span_10](start_span)[span_10](end_span)
 async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas. Silakan coba lagi.", "error"); return null; }
     
     const payload = {
         country: COUNTRY_ID,
         service: Number(currentServiceId),
-        operator: operatorCode === 'any' ? 'any' : operatorCode
+        operator: operatorCode === 'any' ? 'any' : operatorCode,
+        type: 1
     };
 
     const res = await apiCall('/v1/order/', 'POST', payload);
-    let orderContainer = res.data || res;
     
-    if (orderContainer) {
-        let orderData = Array.isArray(orderContainer) ? orderContainer[0] : orderContainer;
+    if (res && res.status === true && res.data) {
+        let orderData = Array.isArray(res.data) ? res.data[0] : res.data;
         let o = {
-            id: orderData.orderId || orderData.id,
-            phone_number: orderData.number || orderData.phone,
+            id: orderData.orderId,
+            phone_number: orderData.number,
             price: orderData.price || 0
         };
 
@@ -274,19 +271,18 @@ function startPollingAndTimer() {
         });
     }, 1000);
     
-    // Polling Status OTP (Endpoint: /v1/order/status/{orderId})[span_5](start_span)[span_5](end_span)
+    // Polling Status OTP (Endpoint: /v1/order/status/{orderId})[span_11](start_span)[span_11](end_span)
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
             let o = activeOrders[i]; if (o.status === "OTP_RECEIVED") continue;
             try {
                 const res = await apiCall(`/v1/order/status/${o.id}`);
-                let statusData = res.data || res;
-                if (statusData) {
-                    if (statusData.orderStatus === "SUCCESS" && statusData.Sms && statusData.Sms.length > 0) { 
+                if (res && res.status === true && res.data) {
+                    if (res.data.orderStatus === "SUCCESS" && res.data.Sms && res.data.Sms.length > 0) { 
                         notifSound.play().catch(e => console.log("Sound error:", e));
                         activeOrders[i].status = "OTP_RECEIVED"; 
-                        activeOrders[i].otp = statusData.Sms[0].sms; 
+                        activeOrders[i].otp = res.data.Sms[0].sms; 
                         saveToStorage(); fetchBalance();
                         
                         const phoneStr = normalizePhone(activeOrders[i].phone);
@@ -294,7 +290,7 @@ function startPollingAndTimer() {
                             db.ref('used_numbers/hero_sms').push({ phone: phoneStr, timestamp: Date.now() }); 
                             usedNumbersDB.add(phoneStr); 
                         }
-                    } else if (statusData.orderStatus === "CANCEL" || statusData.orderStatus === "REFUND") { 
+                    } else if (res.data.orderStatus === "CANCEL" || res.data.orderStatus === "REFUND") { 
                         activeOrders = activeOrders.filter(ord => String(ord.id) !== String(o.id)); 
                         saveToStorage(); fetchBalance(); 
                     }
@@ -332,6 +328,7 @@ if (btnOrder) {
     };
 }
 
+// Ubah Status (Endpoint: /v1/order/{orderId}/{status} -> 1=Cancel, 2=More Sms, 3=Complete)[span_12](start_span)[span_12](end_span)
 window.cancelSpecificOrder = async function(id, auto = false) {
     const idStr = String(id); const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
@@ -362,7 +359,7 @@ window.resendSpecificOrder = async function(orderId) {
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         const res = await apiCall(`/v1/order/${idStr}/2`, 'PATCH');
-        if (res) { 
+        if (res && res.status === true) { 
             showToast("Meminta kode baru..."); 
             let idx = activeOrders.findIndex(o => String(o.id) === idStr); 
             if (idx !== -1) { 
@@ -494,7 +491,7 @@ window.openNotesFromAnywhere = function() { if(notesListModal) notesListModal.cl
 function closeNotesListModal() { notesListModal.classList.add('hidden'); }
 function initNotesSync() { const grid = document.getElementById('notes-grid'); if (!grid) return; db.ref(DB_PATH).orderByChild('timestamp').on('value', snapshot => { grid.innerHTML = ''; let items = []; snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); }); if(notesCountDisplay) notesCountDisplay.innerText = `(${items.length})`; if(items.length === 0) { grid.innerHTML = '<div class="status-text">Belum ada catatan.</div>'; return; } items.reverse().forEach((d) => { const card = document.createElement('div'); card.className = 'note-card'; card.onclick = () => openNoteDetailModal(d.key, d); const previewText = escapeHTML(d.content).replace(/\n/g, ' '); card.innerHTML = `<div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div><div class="note-preview">${previewText}</div><div class="note-date">${formatDate(d.timestamp)}</div>`; grid.appendChild(card); }); }); }
 function formatDate(ts) { if(!ts) return "---"; const d = new Date(ts); const date = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`; const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; return `${date} - ${time}`; }
-function escapeHTML(str) { if(!str) return ""; return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])); }
+function escapeHTML(str) { if(!str) return ""; return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
 function openAddNoteModal() { isEditingNote = false; document.getElementById('form-modal-title').innerText = "Catatan Baru"; document.getElementById('note-title').value = ""; document.getElementById('note-content').value = ""; notesListModal.classList.add('hidden'); noteFormModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); }
 function openNoteDetailModal(key, data) { selectedNoteKey = key; currentNoteRawContent = data.content; document.getElementById('view-tag').innerText = `Dibuat: ${formatDate(data.timestamp)}`; document.getElementById('view-title').value = data.title || "Tanpa Judul"; document.getElementById('view-content').innerText = data.content; notesListModal.classList.add('hidden'); noteDetailModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); }
 function closeNoteDetailModal() { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); }
@@ -538,7 +535,7 @@ window.onload = async () => {
     loadHistory(); 
     renderMainButtons(); 
     
-    // Ambil Saldo & Muat Daftar Layanan (Default Shopee)
+    // Inisialisasi Saldo & Layanan Utama
     fetchBalance(); 
     await loadServices(); 
     renderOrders(); 
