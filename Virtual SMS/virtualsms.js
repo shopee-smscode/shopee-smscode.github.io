@@ -25,7 +25,7 @@ const noteFormModal = document.getElementById('noteFormModal');
 const noteDetailModal = document.getElementById('noteDetailModal'); 
 const notesCountDisplay = document.getElementById('notesCount');
 
-// Fungsi API yang disesuaikan dengan standar JSON smsvirtual.co
+// Fungsi API Universal
 async function apiCall(endpoint, method = "GET", body = null) { 
     try {
         const options = { 
@@ -35,50 +35,54 @@ async function apiCall(endpoint, method = "GET", body = null) {
         if (body) options.body = JSON.stringify(body); 
         const response = await fetch(`${BASE_URL}${endpoint}`, options); 
         const json = await response.json();
-        console.log(`API Res [${endpoint}]:`, json);
         return json;
     } catch (err) {
-        console.error(`API Err [${endpoint}]:`, err);
         return { status: false, message: err.message, data: null };
     }
 }
 
-// 1. CEK SALDO (Endpoint: /v1/profile/)[span_3](start_span)[span_3](end_span)
+// 1. CEK SALDO (Endpoint: /v1/profile/)[span_1](start_span)[span_1](end_span)
 async function fetchBalance() { 
     const bDisplay = document.getElementById('balanceDisplay');
     try { 
         if (bDisplay) bDisplay.innerText = "Menghitung..."; 
         const res = await apiCall('/v1/profile/'); 
-        // Mendukung res.status berupa boolean (true/false) atau string ("true")
-        if ((res.status === true || res.status === "true") && res.data) {
-            let balanceVal = typeof res.data === 'object' ? res.data.balance : res.balance;
-            if (balanceVal !== undefined) {
-                if (bDisplay) bDisplay.innerText = usdFormatter.format(balanceVal);
-                return;
-            }
+        
+        let balanceVal = null;
+        if (res && res.data && typeof res.data.balance !== 'undefined') {
+            balanceVal = res.data.balance;
+        } else if (res && typeof res.balance !== 'undefined') {
+            balanceVal = res.balance;
         }
-        if (bDisplay) bDisplay.innerText = "Gagal"; 
+
+        if (balanceVal !== null) {
+            if (bDisplay) bDisplay.innerText = usdFormatter.format(balanceVal);
+        } else {
+            if (bDisplay) bDisplay.innerText = "$0.00";
+        }
     } catch (error) { 
         if (bDisplay) bDisplay.innerText = "Error"; 
     } 
 }
 
-// 2. MUAT SEMUA LAYANAN (Endpoint: /v1/services/)[span_4](start_span)[span_4](end_span)
+// 2. MUAT SEMUA LAYANAN (Endpoint: /v1/services/)[span_2](start_span)[span_2](end_span)
 async function loadServices() {
     const serviceSelect = document.getElementById('serviceSelect');
     if (!serviceSelect) return;
     try {
         const res = await apiCall('/v1/services/');
-        if ((res.status === true || res.status === "true") && res.data) {
-            let rawData = res.data;
-            // Pastikan data berupa array
-            let services = Array.isArray(rawData) ? rawData : (rawData.services || []);
-            
-            if (services.length === 0) {
-                serviceSelect.innerHTML = '<option value="">Layanan kosong</option>';
-                return;
-            }
+        
+        // Ambil data terlepas dari status boolean/string
+        let rawData = res.data || res;
+        let services = [];
 
+        if (Array.isArray(rawData)) {
+            services = rawData;
+        } else if (rawData && Array.isArray(rawData.data)) {
+            services = rawData.data;
+        }
+
+        if (services.length > 0) {
             services.sort((a, b) => (a.serviceName || "").localeCompare(b.serviceName || ""));
             
             serviceSelect.innerHTML = '';
@@ -105,7 +109,7 @@ async function loadServices() {
 
             loadVirtualSMSProducts(currentServiceId);
         } else {
-            serviceSelect.innerHTML = '<option value="">Gagal memuat layanan (Format Data)</option>';
+            serviceSelect.innerHTML = '<option value="">Layanan kosong / Format tidak dikenal</option>';
         }
     } catch (e) {
         serviceSelect.innerHTML = '<option value="">Gagal memuat layanan</option>';
@@ -118,30 +122,19 @@ window.changeService = function() {
     loadVirtualSMSProducts(currentServiceId);
 }
 
-// 3. MUAT OPERATOR & HARGA (Endpoint: /v1/price/{serviceId})[span_5](start_span)[span_5](end_span)
+// 3. MUAT OPERATOR & HARGA (Endpoint: /v1/price/{serviceId})[span_3](start_span)[span_3](end_span)
 async function loadVirtualSMSProducts(serviceId) {
     try {
         productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
         if (btnOrder) btnOrder.disabled = true;
         
         const res = await apiCall(`/v1/price/${serviceId}`);
+        let rawData = res.data || res;
+        let priceList = Array.isArray(rawData) ? rawData : (rawData.data || [rawData]);
         
-        if ((res.status === true || res.status === "true") && res.data) {
-            let rawData = res.data;
-            let priceList = Array.isArray(rawData) ? rawData : [rawData];
-            
+        if (priceList.length > 0) {
             let countryData = priceList.find(c => Number(c.country) === COUNTRY_ID || (c.countryName && c.countryName.toLowerCase().includes("indonesia")));
-            
-            if (!countryData && priceList.length > 0) {
-                countryData = priceList[0]; // Fallback ke data pertama jika Indonesia tidak spesifik tercantum
-            }
-
-            if (!countryData) {
-                productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Layanan tidak tersedia.</div>`;
-                document.getElementById('randomPriceBadge').innerText = "---";
-                if (btnOrder) btnOrder.disabled = true;
-                return;
-            }
+            if (!countryData) countryData = priceList[0];
 
             let ops = countryData.operators || [];
             let priceUsd = countryData.priceUsd || 0;
@@ -198,7 +191,7 @@ async function loadVirtualSMSProducts(serviceId) {
     }
 }
 
-// 4. PESAN NOMOR (Endpoint: /v1/order/)[span_6](start_span)[span_6](end_span)
+// 4. PESAN NOMOR (Endpoint: /v1/order/)[span_4](start_span)[span_4](end_span)
 async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas. Silakan coba lagi.", "error"); return null; }
     
@@ -209,9 +202,10 @@ async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
     };
 
     const res = await apiCall('/v1/order/', 'POST', payload);
+    let orderContainer = res.data || res;
     
-    if ((res.status === true || res.status === "true") && res.data) {
-        let orderData = Array.isArray(res.data) ? res.data[0] : res.data;
+    if (orderContainer) {
+        let orderData = Array.isArray(orderContainer) ? orderContainer[0] : orderContainer;
         let o = {
             id: orderData.orderId || orderData.id,
             phone_number: orderData.number || orderData.phone,
@@ -280,18 +274,19 @@ function startPollingAndTimer() {
         });
     }, 1000);
     
-    // Polling Status OTP (Endpoint: /v1/order/status/{orderId})[span_7](start_span)[span_7](end_span)
+    // Polling Status OTP (Endpoint: /v1/order/status/{orderId})[span_5](start_span)[span_5](end_span)
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
             let o = activeOrders[i]; if (o.status === "OTP_RECEIVED") continue;
             try {
                 const res = await apiCall(`/v1/order/status/${o.id}`);
-                if ((res.status === true || res.status === "true") && res.data) {
-                    if (res.data.orderStatus === "SUCCESS" && res.data.Sms && res.data.Sms.length > 0) { 
+                let statusData = res.data || res;
+                if (statusData) {
+                    if (statusData.orderStatus === "SUCCESS" && statusData.Sms && statusData.Sms.length > 0) { 
                         notifSound.play().catch(e => console.log("Sound error:", e));
                         activeOrders[i].status = "OTP_RECEIVED"; 
-                        activeOrders[i].otp = res.data.Sms[0].sms; 
+                        activeOrders[i].otp = statusData.Sms[0].sms; 
                         saveToStorage(); fetchBalance();
                         
                         const phoneStr = normalizePhone(activeOrders[i].phone);
@@ -299,7 +294,7 @@ function startPollingAndTimer() {
                             db.ref('used_numbers/hero_sms').push({ phone: phoneStr, timestamp: Date.now() }); 
                             usedNumbersDB.add(phoneStr); 
                         }
-                    } else if (res.data.orderStatus === "CANCEL" || res.data.orderStatus === "REFUND") { 
+                    } else if (statusData.orderStatus === "CANCEL" || statusData.orderStatus === "REFUND") { 
                         activeOrders = activeOrders.filter(ord => String(ord.id) !== String(o.id)); 
                         saveToStorage(); fetchBalance(); 
                     }
@@ -337,7 +332,6 @@ if (btnOrder) {
     };
 }
 
-// Ubah Status (Endpoint: /v1/order/{orderId}/{status} -> 1=Cancel, 2=More Sms, 3=Complete)[span_8](start_span)[span_8](end_span)
 window.cancelSpecificOrder = async function(id, auto = false) {
     const idStr = String(id); const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
@@ -368,7 +362,7 @@ window.resendSpecificOrder = async function(orderId) {
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         const res = await apiCall(`/v1/order/${idStr}/2`, 'PATCH');
-        if (res.status === true || res.status === "true") { 
+        if (res) { 
             showToast("Meminta kode baru..."); 
             let idx = activeOrders.findIndex(o => String(o.id) === idStr); 
             if (idx !== -1) { 
@@ -378,7 +372,7 @@ window.resendSpecificOrder = async function(orderId) {
                 saveToStorage(); 
             }
         } else { 
-            showToast(res.message || "Gagal meminta ulang.", "error"); 
+            showToast("Gagal meminta ulang.", "error"); 
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } 
         }
     } catch (e) { 
