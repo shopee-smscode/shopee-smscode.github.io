@@ -2,10 +2,10 @@
 const BASE_URL = "https://virtual-sms-proxy.masreno6pro.workers.dev"; 
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-// Mengunci Negara ke Indonesia
+// Mengunci Negara ke Indonesia (ID: 1)
 const COUNTRY_ID = 1; 
 
-// Konfigurasi Firebase
+// Konfigurasi Firebase untuk Catatan, Statistik, dan Blacklist
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
@@ -14,7 +14,7 @@ const DB_PATH = 'notes/public';
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
 let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; 
 let activeAccountName = "VirtualUser"; 
-let currentServiceId = null; // Menyimpan ID Layanan yang sedang dipilih
+let currentServiceId = null; 
 let activeOrders = []; let availableProducts = []; let selectedProductId = 'any'; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
@@ -39,7 +39,7 @@ async function apiCall(endpoint, method = "GET", body = null) {
     return await response.json(); 
 }
 
-// 1. CEK SALDO 
+// 1. CEK SALDO (Endpoint: /v1/profile/)[span_1](start_span)[span_1](end_span)
 async function fetchBalance() { 
     const bDisplay = document.getElementById('balanceDisplay');
     try { 
@@ -55,13 +55,12 @@ async function fetchBalance() {
     } 
 }
 
-// 2. MUAT SEMUA LAYANAN (DENGAN DEFAULT SHOPEE)
+// 2. MUAT SEMUA LAYANAN (Endpoint: /v1/services/)[span_2](start_span)[span_2](end_span)
 async function loadServices() {
     const serviceSelect = document.getElementById('serviceSelect');
     try {
         const res = await apiCall('/v1/services/');
         if (res.status && res.data) {
-            // Urutkan layanan berdasarkan abjad
             let services = res.data.sort((a, b) => a.serviceName.localeCompare(b.serviceName));
             
             serviceSelect.innerHTML = '';
@@ -73,13 +72,11 @@ async function loadServices() {
                 opt.textContent = svc.serviceName;
                 serviceSelect.appendChild(opt);
 
-                // Mencari ID layanan Shopee
                 if (svc.serviceName.toLowerCase().includes('shopee')) {
                     shopeeId = svc.id;
                 }
             });
 
-            // Set default ke Shopee (jika ada), jika tidak gunakan layanan urutan pertama
             if (shopeeId) {
                 serviceSelect.value = shopeeId;
                 currentServiceId = shopeeId;
@@ -87,7 +84,6 @@ async function loadServices() {
                 currentServiceId = services[0].id;
             }
 
-            // Memuat harga dan operator berdasarkan layanan yang terpilih
             loadVirtualSMSProducts(currentServiceId);
         } else {
             serviceSelect.innerHTML = '<option value="">Gagal memuat layanan</option>';
@@ -97,14 +93,13 @@ async function loadServices() {
     }
 }
 
-// Pemicu saat dropdown layanan diubah
 window.changeService = function() {
     const serviceSelect = document.getElementById('serviceSelect');
     currentServiceId = serviceSelect.value;
     loadVirtualSMSProducts(currentServiceId);
 }
 
-// 3. MUAT OPERATOR (Dikhususkan untuk Indonesia)
+// 3. MUAT OPERATOR & HARGA (Endpoint: /v1/price/{serviceId})[span_3](start_span)[span_3](end_span)
 async function loadVirtualSMSProducts(serviceId) {
     try {
         productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
@@ -113,8 +108,7 @@ async function loadVirtualSMSProducts(serviceId) {
         const res = await apiCall(`/v1/price/${serviceId}`);
         
         if (res.status && res.data && res.data.length > 0) {
-            // Filter mencari negara Indonesia berdasarkan ID 1 atau nama
-            let countryData = res.data.find(c => String(c.country) === "1" || (c.countryName && c.countryName.toLowerCase().includes("indonesia")));
+            let countryData = res.data.find(c => Number(c.country) === COUNTRY_ID || (c.countryName && c.countryName.toLowerCase().includes("indonesia")));
             
             if (!countryData) {
                 productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Layanan ini tidak tersedia di Indonesia.</div>`;
@@ -171,14 +165,14 @@ async function loadVirtualSMSProducts(serviceId) {
     }
 }
 
-// 4. PESAN NOMOR 
+// 4. PESAN NOMOR (Endpoint: /v1/order/)[span_4](start_span)[span_4](end_span)
 async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas. Silakan coba lagi.", "error"); return null; }
     
     const payload = {
         country: COUNTRY_ID,
         service: Number(currentServiceId),
-        operator: operatorCode
+        operator: operatorCode === 'any' ? 'any' : operatorCode
     };
 
     const res = await apiCall('/v1/order/', 'POST', payload);
@@ -253,6 +247,7 @@ function startPollingAndTimer() {
         });
     }, 1000);
     
+    // Polling Status OTP (Endpoint: /v1/order/status/{orderId})[span_5](start_span)[span_5](end_span)
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
@@ -309,6 +304,7 @@ if (btnOrder) {
     };
 }
 
+// Ubah Status (Endpoint: /v1/order/{orderId}/{status} -> 1=Cancel, 2=More Sms, 3=Complete)[span_6](start_span)[span_6](end_span)
 window.cancelSpecificOrder = async function(id, auto = false) {
     const idStr = String(id); const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
@@ -439,7 +435,7 @@ function relocateBalanceUI() {
     }
 }
 
-// Modal History, Catatan & Blacklist Utilities
+// Utilities (Settings, Modal, History, Catatan)
 window.openSettingsModal = function() { document.getElementById('settingsPassword').value = appSettings.password; document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; document.getElementById('settingsModal').classList.remove('hidden'); history.pushState(null, null, "#settings"); }
 window.closeSettingsModal = function() { document.getElementById('settingsModal').classList.add('hidden'); }
 window.saveSettings = function() { appSettings.password = document.getElementById('settingsPassword').value; appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; localStorage.setItem('app_settings', JSON.stringify(appSettings)); closeSettingsModal(); showToast("Pengaturan disimpan!"); renderMainButtons(); }
@@ -503,7 +499,7 @@ window.onload = async () => {
     relocateBalanceUI(); 
     history.pushState(null, null, window.location.href); 
     
-    if(currentAccountName) currentAccountName.innerText = "Terhubung";
+    if(document.getElementById('currentAccountName')) document.getElementById('currentAccountName').innerText = "Terhubung";
 
     initNotesSync(); 
     initUsedNumbersSync(); 
@@ -515,7 +511,7 @@ window.onload = async () => {
     loadHistory(); 
     renderMainButtons(); 
     
-    // Mulai alur muat data API
+    // Ambil Saldo & Muat Daftar Layanan (Default Shopee)
     fetchBalance(); 
     await loadServices(); 
     renderOrders(); 
