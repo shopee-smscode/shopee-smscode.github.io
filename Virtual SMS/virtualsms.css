@@ -107,7 +107,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .form-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 10px; font-size: 13px; box-sizing: border-box; font-family: inherit; transition: border-color 0.2s; background: var(--bg-card); color: var(--text-primary); }
 .form-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px var(--shadow-color); }
 
-/* --- SISTEM MODAL (Penting Agar Tampilan Tidak Bocor) --- */
+/* --- SISTEM MODAL --- */
 .modal { position: fixed; inset: 0; background: var(--modal-overlay); z-index: 99999; display: flex; justify-content: center; align-items: center; opacity: 1; transition: opacity 0.2s; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
 .modal-content { background: var(--bg-container); padding: 20px 15px; border-radius: 16px; text-align: center; width: 92%; max-width: 340px; box-shadow: 0 8px 30px rgba(0,0,0,0.6); animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); border: 1px solid var(--border-color); }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
@@ -124,7 +124,6 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .switch input:checked + .slider { background-color: var(--success-color); }
 .switch input:checked + .slider .slider-knob { transform: translateX(18px); }
 
-/* CLASS INI SANGAT PENTING UTK MENYEMBUNYIKAN MODAL */
 .hidden { display: none !important; } 
 
 .status-text { font-size: 12px; padding: 12px; font-weight: 600; text-align: center; color: var(--text-secondary); }
