@@ -12,7 +12,7 @@
 <body class="theme-virtual">
     <div id="appView" class="container">
         
-        <!-- TOP ACTIONS BAR (1 BARIS PENUH) -->
+        <!-- TOP ACTIONS BAR -->
         <div class="top-bar-modern">
             <div class="app-tabs">
                 <a href="#" class="app-tab"><i class="fas fa-bolt"></i> Hero</a>
@@ -50,7 +50,7 @@
         </div>
 
         <div class="section">
-            <!-- HEADER OPERATOR DAN CHECKLIST ACAK -->
+            <!-- HEADER OPERATOR & CHECKLIST ACAK -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">Pilih Operator:</div>
                 <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--primary-color); cursor: pointer; background: var(--bg-card); padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border-color);">
@@ -59,7 +59,7 @@
                 </label>
             </div>
 
-            <!-- GRID OPERATOR (Tanpa Acak) -->
+            <!-- GRID OPERATOR -->
             <div id="productList" class="product-list">
                 <div class="status-text">Memuat data Server...</div>
             </div>
@@ -69,7 +69,7 @@
         </div>
     </div>
 
-    <!-- MODAL SETTINGS (Ditambahkan API Key) -->
+    <!-- MODAL SETTINGS -->
     <div id="settingsModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -95,7 +95,7 @@
         </div>
     </div>
 
-    <!-- MODAL STATISTIK (Sama persis, digabung logikanya) -->
+    <!-- MODAL STATISTIK -->
     <div id="statsModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -116,8 +116,95 @@
         </div>
     </div>
 
-    <!-- Sisa Modal (Blacklist, History, Notes, Form Notes) persis sama strukturnya, logika di JS yang mengatur integrasi. -->
-    <!-- (Untuk menjaga performa dan efisiensi diskusi, sisa modal HTML dari HeroSMS diletakkan identik di sini. Struktur mengikuti kode Anda sebelumnya.) -->
+    <!-- MODAL BLACKLIST -->
+    <div id="blacklistModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title">Database Blacklist</h3>
+                <button onclick="closeBlacklistModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="text-align: center; padding: 10px 0;">
+                <div style="font-size: 48px; font-weight: 900; color: var(--primary-color); margin-bottom: 10px; text-shadow: 0 0 15px rgba(56, 189, 248, 0.3);" id="blacklistDetailCount">0</div>
+                <p style="color: var(--text-primary); font-weight: 700; margin-bottom: 5px; font-size: 14px;">Nomor Terblokir</p>
+                <p style="color: var(--text-secondary); font-size: 12px; line-height: 1.4; margin: 0 5px;">Nomor yang sudah sukses tidak akan diberikan lagi.</p>
+                <div id="operatorBreakdown" style="margin-top: 15px; text-align: center;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL HISTORY -->
+    <div id="historyModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title">Riwayat Pesanan</h3>
+                <button onclick="closeHistoryModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="history-list" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
+                <div class="status-text">Belum ada riwayat.</div>
+            </div>
+            <button onclick="clearHistory()" class="btn-danger" style="margin-top: 15px; width: 100%; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: bold;"><i class="fas fa-trash"></i> Hapus Riwayat</button>
+        </div>
+    </div>
+
+    <!-- MODAL CATATAN LIST -->
+    <div id="notesListModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header" style="margin-bottom: 15px;">
+                <div style="text-align: left;"><h3 class="modal-title" style="margin:0;">Catatanku <span id="notesCount" style="font-size:14px; font-weight:600; color:var(--text-secondary);">(0)</span></h3></div>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="openAddNoteModal()" class="btn-success" style="padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: bold;"><i class="fas fa-plus"></i> Baru</button>
+                    <button onclick="closeNotesListModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div id="notes-grid" class="notes-list" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left;"><div class="status-text">Memuat catatan...</div></div>
+        </div>
+    </div>
+
+    <!-- MODAL FORM CATATAN -->
+    <div id="noteFormModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="form-modal-title" class="modal-title">Catatan Baru</h3>
+                <button onclick="handleCancelNoteForm()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <input type="text" id="note-title" class="form-input" placeholder="Judul (Kosong = Auto Number)" style="margin-bottom:12px; font-weight:700;">
+            <textarea id="note-content" class="form-input" placeholder="Tulis catatan Anda di sini..." style="min-height: 180px; resize: vertical; margin-bottom: 15px; font-size: 13px;"></textarea>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-primary" style="flex:1; padding: 12px; border-radius: 12px; background-color: var(--bg-card); color: var(--text-primary);" onclick="handleCancelNoteForm()">Batal</button>
+                <button class="btn-success" style="flex:2; padding: 12px; border-radius: 12px; font-size: 14px;" onclick="handleSaveNote()"><i class="fas fa-check"></i> Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DETAIL CATATAN -->
+    <div id="noteDetailModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header" style="margin-bottom: 10px;">
+                <span id="view-tag" style="font-size: 11px; font-weight: bold; color: var(--text-secondary);"></span>
+                <button onclick="closeNoteDetailModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <input type="text" id="view-title" readonly style="width:100%; border:none; padding:0; font-size:20px; font-weight:900; margin-bottom:15px; background:transparent; color: var(--text-primary); outline: none;">
+            <div id="view-content"></div>
+            <div style="display: flex; gap: 10px; align-items: stretch;">
+                <button class="btn-primary" style="flex: 0 0 auto; width: 44px; padding: 0; border-radius: 10px; display: flex; align-items: center; justify-content: center;" onclick="editFromDetail()"><i class="fas fa-edit" style="font-size: 14px;"></i></button>
+                <button class="btn-success" style="flex: 1; border-radius: 10px; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="copyNoteContent()"><i class="fas fa-copy"></i> Salin</button>
+                <button class="btn-danger" style="flex: 0 0 auto; width: 44px; padding: 0; border-radius: 10px; display: flex; align-items: center; justify-content: center;" onclick="confirmDeleteNote()"><i class="fas fa-trash" style="font-size: 14px;"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL KELUAR -->
+    <div id="exitModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 class="modal-title">Keluar Aplikasi?</h3>
+            <p class="modal-desc">Apakah Anda yakin ingin menutup dan keluar dari aplikasi ini?</p>
+            <div class="modal-actions" style="display:flex; justify-content:space-between; gap:10px;">
+                <button onclick="closeExitModal()" class="btn-primary" style="flex:1; padding:12px; background-color: var(--bg-card); color: var(--text-primary); border-radius: 12px;">Batal</button>
+                <button onclick="confirmExit()" class="btn-danger" style="flex:1; padding:12px; border-radius: 12px;">Keluar</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast" class="toast">Notifikasi!</div>
 
     <script src="script.js"></script>
