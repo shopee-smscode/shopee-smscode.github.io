@@ -61,7 +61,7 @@
 
             <!-- GRID OPERATOR -->
             <div id="productList" class="product-list">
-                <div class="status-text">Memuat data Server...</div>
+                <div class="status-text">Silakan sambungkan API Key...</div>
             </div>
             
             <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
@@ -76,10 +76,14 @@
                 <h3 class="modal-title">⚙️ Pengaturan</h3>
                 <button onclick="closeSettingsModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
-            <div style="text-align: left; margin-bottom: 12px;">
+            
+            <!-- FORM API KEY DENGAN TOMBOL SAMBUNGKAN -->
+            <div style="text-align: left; margin-bottom: 12px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 12px; border: 1px solid var(--border-color);">
                 <label style="font-size: 13px; font-weight: bold; color: var(--text-secondary); margin-bottom: 8px; display: block;">API Key (Manual)</label>
-                <input type="text" id="settingsApiKey" class="form-input" placeholder="Masukkan API Key...">
+                <input type="text" id="settingsApiKey" class="form-input" placeholder="Masukkan API Key..." style="margin-bottom: 10px;">
+                <button onclick="testApiConnection()" class="btn-primary" style="width: 100%; height: 38px !important; margin-top: 0 !important; font-size: 14px !important; border-radius: 10px !important; background-color: var(--info-color);"><i class="fas fa-plug"></i> Sambungkan</button>
             </div>
+
             <div style="text-align: left; margin-bottom: 15px;">
                 <label style="font-size: 13px; font-weight: bold; color: var(--text-secondary); margin-bottom: 8px; display: block;">Sandi Default (Salin Otomatis)</label>
                 <input type="text" id="settingsPassword" class="form-input" placeholder="Masukkan sandi...">

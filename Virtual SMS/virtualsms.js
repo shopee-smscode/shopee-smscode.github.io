@@ -15,19 +15,66 @@ const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currenc
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
 
-// === PENGATURAN MODAL ===
+// === PENGATURAN MODAL & KONEKSI API ===
 window.openSettingsModal = function() {
     document.getElementById('settingsPassword').value = appSettings.password;
     document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy;
-    document.getElementById('settingsApiKey').value = appSettings.apiKey || ""; // Mengisi Input API Key
+    document.getElementById('settingsApiKey').value = appSettings.apiKey || ""; 
     document.getElementById('settingsModal').classList.remove('hidden');
     history.pushState(null, null, "#settings");
 }
 window.closeSettingsModal = function() { document.getElementById('settingsModal').classList.add('hidden'); }
+
+// FUNGSI BARU: Tombol Sambungkan
+window.testApiConnection = async function() {
+    const testKey = document.getElementById('settingsApiKey').value.trim();
+    if (!testKey) {
+        showToast("Masukkan API Key terlebih dahulu!", "warning");
+        return;
+    }
+
+    const btn = document.querySelector('button[onclick="testApiConnection()"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<div class="loader" style="width:14px; height:14px; border-width:2px; display:inline-block; margin-right:5px; margin-bottom:-2px;"></div> Menyambungkan...';
+    btn.disabled = true;
+
+    // Set sementara untuk pengetesan koneksi
+    appSettings.apiKey = testKey;
+    
+    try {
+        const res = await apiCall('/api/accounts');
+        if (res.accounts && res.accounts.length > 0) {
+            showToast("Tersambung!", "success");
+            
+            // Simpan API Key yang sukses ke local storage
+            localStorage.setItem('app_settings', JSON.stringify(appSettings));
+            
+            // Render ulang data real ke UI
+            loginAccount(res.accounts[0]);
+            fetchBalance();
+            loadVirtualSMSProducts();
+            
+        } else {
+            showToast("API Key tidak valid.", "error");
+            appSettings.apiKey = ""; // Reset jika gagal
+        }
+    } catch (error) {
+        showToast("Gagal menyambungkan.", "error");
+        appSettings.apiKey = ""; // Reset jika gagal
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
 window.saveSettings = function() {
     appSettings.password = document.getElementById('settingsPassword').value;
     appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked;
-    appSettings.apiKey = document.getElementById('settingsApiKey').value; // Menyimpan API Key
+    
+    // Hanya simpan API key jika kotak tidak kosong
+    const inputtedKey = document.getElementById('settingsApiKey').value;
+    if (inputtedKey) appSettings.apiKey = inputtedKey; 
+
     localStorage.setItem('app_settings', JSON.stringify(appSettings));
     closeSettingsModal(); 
     showToast("Pengaturan disimpan!"); 
@@ -204,7 +251,13 @@ window.openHistoryModal = function() { document.getElementById('historyModal').c
 window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
 window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`virtual_history_${activeAccountName}`); renderHistory(); } }
 
+// MODIFIKASI: Tunggu API Key ada sebelum fetch otomatis
 async function fetchAccounts() { 
+    if (!appSettings.apiKey) {
+        if(currentAccountName) currentAccountName.innerText = "Menunggu API Key..."; 
+        return;
+    }
+    
     try { 
         const res = await apiCall('/api/accounts'); 
         if (res.accounts && res.accounts.length > 0) { 
@@ -247,7 +300,26 @@ function executeSaveNote(title, content) { const data = { title: title, content:
 function confirmDeleteNote() { if(confirm("Hapus catatan ini?")) { db.ref(`${DB_PATH}/${selectedNoteKey}`).remove().then(() => { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); showToast("Catatan dihapus."); }); } }
 function copyNoteContent() { copyToClipboard(currentNoteRawContent); }
 
-async function fetchBalance() { try { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "Menghitung..."; const res = await apiCall('/balance'); if (res.success) { if (bDisplay) bDisplay.innerText = usdFormatter.format(res.data.balance); } else { if (bDisplay) bDisplay.innerText = "Gagal"; } } catch (error) { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "Error"; } }
+// MODIFIKASI: Tunggu API Key ada
+async function fetchBalance() { 
+    const bDisplay = document.getElementById('balanceDisplay');
+    if (!appSettings.apiKey) {
+        if (bDisplay) bDisplay.innerText = "---";
+        return;
+    }
+
+    try { 
+        if (bDisplay) bDisplay.innerText = "Menghitung..."; 
+        const res = await apiCall('/balance'); 
+        if (res.success) { 
+            if (bDisplay) bDisplay.innerText = usdFormatter.format(res.data.balance); 
+        } else { 
+            if (bDisplay) bDisplay.innerText = "Gagal"; 
+        } 
+    } catch (error) { 
+        if (bDisplay) bDisplay.innerText = "Error"; 
+    } 
+}
 
 // === LOGIKA CHECKLIST ACAK & GRID OPERATOR ===
 window.toggleRandomOperator = function() {
@@ -269,9 +341,16 @@ window.toggleRandomOperator = function() {
     if (btnOrder) btnOrder.disabled = false;
 }
 
+// MODIFIKASI: Tunggu API Key ada
 async function loadVirtualSMSProducts() {
+    const productList = document.getElementById('productList');
+    
+    if (!appSettings.apiKey) {
+        productList.innerHTML = '<div class="status-text">Silakan sambungkan API Key di Pengaturan.</div>';
+        return;
+    }
+
     try {
-        const productList = document.getElementById('productList');
         productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
         
         const productsRes = await apiCall(`/catalog/products`);
@@ -321,7 +400,9 @@ async function loadVirtualSMSProducts() {
                 productList.appendChild(card);
             });
         }
-    } catch (error) { document.getElementById('productList').innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error muat data.</div>`; }
+    } catch (error) { 
+        document.getElementById('productList').innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error muat data.</div>`; 
+    }
 }
 
 function renderOrders() {
@@ -461,4 +542,4 @@ window.resendSpecificOrder = async function(orderId) {
 
 async function initMainApp() { fetchBalance(); await loadVirtualSMSProducts(); renderOrders(); startPollingAndTimer(); }
 
-window.onload = () => { relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initNotesSync(); initUsedNumbersSync(); fetchAccounts(); renderMainButtons(); };
+window.onload = () => { relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initNotesSync(); initUsedNumbersSync(); fetchAccounts(); renderMainButtons(); loadVirtualSMSProducts(); fetchBalance(); };
