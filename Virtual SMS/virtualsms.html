@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virtual SMS 🌐</title>
+    <title>SMS Virtual</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="virtualsms.css"> 
+    <!-- Cache buster dinaikkan ke v=4 agar CSS/JS baru langsung terbaca -->
+    <link rel="stylesheet" href="virtualsms.css?v=4"> 
 </head>
 <body class="theme-virtual">
     <div id="appView" class="container">
@@ -50,6 +51,15 @@
         </div>
 
         <div class="section">
+            
+            <!-- HEADER LAYANAN -->
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Pilih Layanan:</div>
+                <select id="serviceSelect" class="form-input" style="width: 100%; font-weight: bold; font-size: 14px; cursor: pointer;" onchange="changeService()">
+                    <option value="">Memuat layanan...</option>
+                </select>
+            </div>
+
             <!-- HEADER OPERATOR & CHECKLIST ACAK -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <div style="font-size: 10px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">Pilih Operator:</div>
@@ -204,7 +214,6 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <!-- PANGGILAN FILE JAVASCRIPT -->
-    <script src="virtualsms.js"></script>
+    <script src="virtualsms.js?v=4"></script>
 </body>
 </html>
