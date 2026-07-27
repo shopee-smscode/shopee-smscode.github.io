@@ -25,6 +25,7 @@ const noteFormModal = document.getElementById('noteFormModal');
 const noteDetailModal = document.getElementById('noteDetailModal'); 
 const notesCountDisplay = document.getElementById('notesCount');
 
+// Fungsi API yang disesuaikan dengan standar JSON smsvirtual.co
 async function apiCall(endpoint, method = "GET", body = null) { 
     try {
         const options = { 
@@ -32,39 +33,53 @@ async function apiCall(endpoint, method = "GET", body = null) {
             headers: { "Content-Type": "application/json" } 
         }; 
         if (body) options.body = JSON.stringify(body); 
-        const response = await fetch(`${BASE_URL}${endpoint}`, options);
+        const response = await fetch(`${BASE_URL}${endpoint}`, options); 
         const json = await response.json();
-        console.log(`API Success [${endpoint}]:`, json);
+        console.log(`API Res [${endpoint}]:`, json);
         return json;
     } catch (err) {
-        console.error(`API Error [${endpoint}]:`, err);
-        return { status: false, message: err.message };
+        console.error(`API Err [${endpoint}]:`, err);
+        return { status: false, message: err.message, data: null };
     }
 }
 
-// 1. CEK SALDO (Endpoint: /v1/profile/)[span_1](start_span)[span_1](end_span)
+// 1. CEK SALDO (Endpoint: /v1/profile/)[span_3](start_span)[span_3](end_span)
 async function fetchBalance() { 
     const bDisplay = document.getElementById('balanceDisplay');
     try { 
         if (bDisplay) bDisplay.innerText = "Menghitung..."; 
         const res = await apiCall('/v1/profile/'); 
-        if (res.status && res.data) { 
-            if (bDisplay) bDisplay.innerText = usdFormatter.format(res.data.balance); 
-        } else { 
-            if (bDisplay) bDisplay.innerText = "Gagal"; 
-        } 
+        // Mendukung res.status berupa boolean (true/false) atau string ("true")
+        if ((res.status === true || res.status === "true") && res.data) {
+            let balanceVal = typeof res.data === 'object' ? res.data.balance : res.balance;
+            if (balanceVal !== undefined) {
+                if (bDisplay) bDisplay.innerText = usdFormatter.format(balanceVal);
+                return;
+            }
+        }
+        if (bDisplay) bDisplay.innerText = "Gagal"; 
     } catch (error) { 
         if (bDisplay) bDisplay.innerText = "Error"; 
     } 
 }
 
-// 2. MUAT SEMUA LAYANAN (Endpoint: /v1/services/)[span_2](start_span)[span_2](end_span)
+// 2. MUAT SEMUA LAYANAN (Endpoint: /v1/services/)[span_4](start_span)[span_4](end_span)
 async function loadServices() {
     const serviceSelect = document.getElementById('serviceSelect');
+    if (!serviceSelect) return;
     try {
         const res = await apiCall('/v1/services/');
-        if (res.status && res.data && Array.isArray(res.data)) {
-            let services = res.data.sort((a, b) => a.serviceName.localeCompare(b.serviceName));
+        if ((res.status === true || res.status === "true") && res.data) {
+            let rawData = res.data;
+            // Pastikan data berupa array
+            let services = Array.isArray(rawData) ? rawData : (rawData.services || []);
+            
+            if (services.length === 0) {
+                serviceSelect.innerHTML = '<option value="">Layanan kosong</option>';
+                return;
+            }
+
+            services.sort((a, b) => (a.serviceName || "").localeCompare(b.serviceName || ""));
             
             serviceSelect.innerHTML = '';
             let shopeeId = null;
@@ -72,10 +87,10 @@ async function loadServices() {
             services.forEach(svc => {
                 const opt = document.createElement('option');
                 opt.value = svc.id;
-                opt.textContent = svc.serviceName;
+                opt.textContent = svc.serviceName || `Service #${svc.id}`;
                 serviceSelect.appendChild(opt);
 
-                if (svc.serviceName.toLowerCase().includes('shopee')) {
+                if (svc.serviceName && svc.serviceName.toLowerCase().includes('shopee')) {
                     shopeeId = svc.id;
                 }
             });
@@ -85,6 +100,7 @@ async function loadServices() {
                 currentServiceId = shopeeId;
             } else {
                 currentServiceId = services[0].id;
+                serviceSelect.value = currentServiceId;
             }
 
             loadVirtualSMSProducts(currentServiceId);
@@ -102,7 +118,7 @@ window.changeService = function() {
     loadVirtualSMSProducts(currentServiceId);
 }
 
-// 3. MUAT OPERATOR & HARGA (Endpoint: /v1/price/{serviceId})[span_3](start_span)[span_3](end_span)
+// 3. MUAT OPERATOR & HARGA (Endpoint: /v1/price/{serviceId})[span_5](start_span)[span_5](end_span)
 async function loadVirtualSMSProducts(serviceId) {
     try {
         productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
@@ -110,16 +126,18 @@ async function loadVirtualSMSProducts(serviceId) {
         
         const res = await apiCall(`/v1/price/${serviceId}`);
         
-        if (res.status && res.data) {
-            let countryData = null;
-            if (Array.isArray(res.data)) {
-                countryData = res.data.find(c => Number(c.country) === COUNTRY_ID || (c.countryName && c.countryName.toLowerCase().includes("indonesia")));
-            } else {
-                countryData = res.data;
-            }
+        if ((res.status === true || res.status === "true") && res.data) {
+            let rawData = res.data;
+            let priceList = Array.isArray(rawData) ? rawData : [rawData];
             
+            let countryData = priceList.find(c => Number(c.country) === COUNTRY_ID || (c.countryName && c.countryName.toLowerCase().includes("indonesia")));
+            
+            if (!countryData && priceList.length > 0) {
+                countryData = priceList[0]; // Fallback ke data pertama jika Indonesia tidak spesifik tercantum
+            }
+
             if (!countryData) {
-                productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Layanan ini tidak tersedia di Indonesia.</div>`;
+                productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Layanan tidak tersedia.</div>`;
                 document.getElementById('randomPriceBadge').innerText = "---";
                 if (btnOrder) btnOrder.disabled = true;
                 return;
@@ -132,7 +150,7 @@ async function loadVirtualSMSProducts(serviceId) {
             
             availableProducts = [{ id: 'any', code: 'any', name: 'Acak', price: priceUsd }];
             ops.forEach(op => {
-                availableProducts.push({ id: op.code, code: op.code, name: op.name, price: priceUsd });
+                availableProducts.push({ id: op.code || op.id, code: op.code || op.id, name: op.name || op.operatorName, price: priceUsd });
             });
 
             productList.innerHTML = ''; 
@@ -143,14 +161,21 @@ async function loadVirtualSMSProducts(serviceId) {
             if (selectedProductId === 'any') { chkRandom.checked = true; } else { chkRandom.checked = false; }
             if (btnOrder) btnOrder.disabled = false;
             
+            if (ops.length === 0) {
+                productList.innerHTML = `<div class="status-text">Operator otomatis (Acak) tersedia.</div>`;
+                return;
+            }
+
             ops.forEach(op => {
+                let opCode = op.code || op.id;
+                let opName = (op.name || op.operatorName || "").toUpperCase();
+                
                 const card = document.createElement("div"); 
                 card.className = "product-card"; 
-                card.id = `op-card-${op.code}`;
-                if (selectedProductId === op.code) card.classList.add('selected');
+                card.id = `op-card-${opCode}`;
+                if (selectedProductId === String(opCode)) card.classList.add('selected');
                 
-                let opName = op.name.toUpperCase();
-                let logoImg = getOperatorLogo(op.code); 
+                let logoImg = getOperatorLogo(opName); 
                 
                 card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${usdFormatter.format(priceUsd)}</div>`;
                 
@@ -158,8 +183,8 @@ async function loadVirtualSMSProducts(serviceId) {
                     document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
                     card.classList.add('selected'); 
                     document.getElementById('chkRandomOp').checked = false;
-                    selectedProductId = op.code; 
-                    localStorage.setItem('virtual_selected_operator', op.code); 
+                    selectedProductId = String(opCode); 
+                    localStorage.setItem('virtual_selected_operator', selectedProductId); 
                 };
                 productList.appendChild(card);
             });
@@ -173,7 +198,7 @@ async function loadVirtualSMSProducts(serviceId) {
     }
 }
 
-// 4. PESAN NOMOR (Endpoint: /v1/order/)[span_4](start_span)[span_4](end_span)
+// 4. PESAN NOMOR (Endpoint: /v1/order/)[span_6](start_span)[span_6](end_span)
 async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas. Silakan coba lagi.", "error"); return null; }
     
@@ -185,7 +210,7 @@ async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
 
     const res = await apiCall('/v1/order/', 'POST', payload);
     
-    if (res.status && res.data) {
+    if ((res.status === true || res.status === "true") && res.data) {
         let orderData = Array.isArray(res.data) ? res.data[0] : res.data;
         let o = {
             id: orderData.orderId || orderData.id,
@@ -255,14 +280,14 @@ function startPollingAndTimer() {
         });
     }, 1000);
     
-    // Polling Status OTP (Endpoint: /v1/order/status/{orderId})[span_5](start_span)[span_5](end_span)
+    // Polling Status OTP (Endpoint: /v1/order/status/{orderId})[span_7](start_span)[span_7](end_span)
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
             let o = activeOrders[i]; if (o.status === "OTP_RECEIVED") continue;
             try {
                 const res = await apiCall(`/v1/order/status/${o.id}`);
-                if (res.status && res.data) {
+                if ((res.status === true || res.status === "true") && res.data) {
                     if (res.data.orderStatus === "SUCCESS" && res.data.Sms && res.data.Sms.length > 0) { 
                         notifSound.play().catch(e => console.log("Sound error:", e));
                         activeOrders[i].status = "OTP_RECEIVED"; 
@@ -312,7 +337,7 @@ if (btnOrder) {
     };
 }
 
-// Ubah Status (Endpoint: /v1/order/{orderId}/{status} -> 1=Cancel, 2=More Sms, 3=Complete)[span_6](start_span)[span_6](end_span)
+// Ubah Status (Endpoint: /v1/order/{orderId}/{status} -> 1=Cancel, 2=More Sms, 3=Complete)[span_8](start_span)[span_8](end_span)
 window.cancelSpecificOrder = async function(id, auto = false) {
     const idStr = String(id); const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
@@ -343,7 +368,7 @@ window.resendSpecificOrder = async function(orderId) {
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         const res = await apiCall(`/v1/order/${idStr}/2`, 'PATCH');
-        if (res.status) { 
+        if (res.status === true || res.status === "true") { 
             showToast("Meminta kode baru..."); 
             let idx = activeOrders.findIndex(o => String(o.id) === idStr); 
             if (idx !== -1) { 
@@ -479,7 +504,7 @@ function escapeHTML(str) { if(!str) return ""; return str.replace(/[&<>"']/g, m 
 function openAddNoteModal() { isEditingNote = false; document.getElementById('form-modal-title').innerText = "Catatan Baru"; document.getElementById('note-title').value = ""; document.getElementById('note-content').value = ""; notesListModal.classList.add('hidden'); noteFormModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); }
 function openNoteDetailModal(key, data) { selectedNoteKey = key; currentNoteRawContent = data.content; document.getElementById('view-tag').innerText = `Dibuat: ${formatDate(data.timestamp)}`; document.getElementById('view-title').value = data.title || "Tanpa Judul"; document.getElementById('view-content').innerText = data.content; notesListModal.classList.add('hidden'); noteDetailModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); }
 function closeNoteDetailModal() { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); }
-function handleCancelNoteForm() { noteFormModal.classList.add('hidden'); if (isEditingNote) { noteDetailModal.classList.remove('hidden'); } else { notesListModal.classList.add('hidden'); } }
+function handleCancelNoteForm() { noteFormModal.classList.add('hidden'); if (isEditingNote) { noteDetailModal.classList.remove('hidden'); } else { notesListModal.classList.remove('hidden'); } }
 function editFromDetail() { const t = document.getElementById('view-title').value; const c = currentNoteRawContent; noteDetailModal.classList.add('hidden'); isEditingNote = true; document.getElementById('form-modal-title').innerText = "Edit Catatan"; document.getElementById('note-title').value = (t === "Tanpa Judul") ? "" : t; document.getElementById('note-content').value = c; noteFormModal.classList.remove('hidden'); }
 function handleSaveNote() { let t = document.getElementById('note-title').value.trim(); const c = document.getElementById('note-content').value.trim(); if(!c || c === "") return showToast("⚠️ Konten tidak boleh kosong!", "error"); db.ref(DB_PATH).once('value').then(snapshot => { let isDuplicate = false; let usedNumbers = new Set(); snapshot.forEach(child => { let exTitle = child.val().title; let exContent = child.val().content; if (exTitle && /^\d+$/.test(exTitle.toString().trim())) { usedNumbers.add(parseInt(exTitle.toString().trim())); } if (exContent && exContent.trim() === c) { if (!isEditingNote || selectedNoteKey !== child.key) { isDuplicate = true; } } }); if (isDuplicate) return showToast("⚠️ Gagal: Catatan sama sudah ada!", "error"); if (!t) { let nextNum = 1; while (usedNumbers.has(nextNum)) { nextNum++; } executeSaveNote(nextNum.toString(), c); } else { executeSaveNote(t, c); } }); }
 function executeSaveNote(title, content) { const data = { title: title, content: content, timestamp: Date.now() }; const promise = (isEditingNote && selectedNoteKey) ? db.ref(`${DB_PATH}/${selectedNoteKey}`).update(data) : db.ref(DB_PATH).push(data); promise.then(() => { noteFormModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); isEditingNote = false; showToast("Catatan tersimpan!"); }); }
