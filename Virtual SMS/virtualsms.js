@@ -1,16 +1,18 @@
-// Arahkan ke Worker Cloudflare Anda yang baru
+// Arahkan ke Worker Cloudflare Anda
 const BASE_URL = "https://virtual-sms-proxy.masreno6pro.workers.dev"; 
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-// Konfigurasi Firebase (Tetap sama)
+// Konfigurasi Firebase
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
 const DB_PATH = 'notes/public';
 
-// Karena API key diurus backend (Cloudflare), kita tidak perlu menyimpannya di sini. Namun kita simpan password & autoCopy.
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
-let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = 'any'; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
+let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; 
+// Set akun default agar riwayat tetap bisa tersimpan di memori perangkat
+let activeAccountName = "VirtualUser"; 
+let activeOrders = []; let availableProducts = []; let selectedProductId = 'any'; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
@@ -93,30 +95,25 @@ window.addEventListener('popstate', (e) => {
 });
 
 function closeExitModal() { exitModal.classList.add('hidden'); isExitModalOpen = false; }
-function confirmExit() { setAccountViewingStatus(false); window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
+function confirmExit() { window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
 
-// Interceptor API (Cukup sertakan X-Account-Name, Authorization akan ditangani Cloudflare)
+// Interceptor API (Sangat Bersih)
 async function apiCall(endpoint, method = "GET", body = null) { 
     const options = { 
         method, 
-        headers: { 
-            "Content-Type": "application/json", 
-            "X-Account-Name": activeAccountName
-        } 
+        headers: { "Content-Type": "application/json" } 
     }; 
     if (body) options.body = JSON.stringify(body); 
     const response = await fetch(`${BASE_URL}${endpoint}`, options); 
     return await response.json(); 
 }
 
-function saveToStorage() { localStorage.setItem(`virtual_orders_${activeAccountName}`, JSON.stringify(activeOrders)); updateAccountOrdersStatus(); renderOrders(); }
+function saveToStorage() { localStorage.setItem(`virtual_orders_${activeAccountName}`, JSON.stringify(activeOrders)); renderOrders(); }
 function showToast(pesan, type = "success") { const t = document.getElementById("toast"); if(!t) return; t.innerHTML = pesan; if (type === "error") { t.style.backgroundColor = "var(--danger-color)"; t.style.color = "#ffffff"; } else if (type === "warning") { t.style.backgroundColor = "var(--warning-color)"; t.style.color = "#000000"; } else { t.style.backgroundColor = "var(--success-color)"; t.style.color = "#ffffff"; } t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 4000); }
 function copyToClipboard(t) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(t).then(() => { showToast("Berhasil disalin!"); }).catch(err => { copyFallback(t); }); } else { copyFallback(t); } }
 function copyFallback(t) { const ta = document.createElement("textarea"); ta.value = t; ta.setAttribute('readonly', ''); ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999); try { document.execCommand('copy'); showToast("Berhasil disalin!"); } catch (err) { showToast("Gagal menyalin.", "error"); } document.body.removeChild(ta); }
-function setAccountViewingStatus(isViewing) { if (!activeAccountName) return; if (isViewing) { const connectedRef = db.ref('.info/connected'); viewingPresenceRef = db.ref(`presence/${activeAccountName}/is_viewing`); connectedRef.on('value', (snap) => { if (snap.val() === true) { viewingPresenceRef.onDisconnect().set(false); viewingPresenceRef.set(true); } }); } else { if (viewingPresenceRef) { viewingPresenceRef.set(false); viewingPresenceRef.onDisconnect().cancel(); } } }
-function updateAccountOrdersStatus() { if (!activeAccountName) return; db.ref(`presence/${activeAccountName}/has_orders`).set(activeOrders.length > 0); }
 
-// Integrasi Blacklist ke Jalur yang sama ("hero_sms")
+// Integrasi Blacklist
 function initUsedNumbersSync() {
     db.ref('used_numbers/hero_sms').on('value', snapshot => {
         usedNumbersDB.clear(); let operatorCounts = {}; let totalBlacklist = 0;
@@ -202,34 +199,6 @@ window.openHistoryModal = function() { document.getElementById('historyModal').c
 window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
 window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`virtual_history_${activeAccountName}`); renderHistory(); } }
 
-// Memanggil data secara otomatis tanpa tombol
-async function fetchAccounts() { 
-    try { 
-        const res = await apiCall('/api/accounts'); 
-        if (res.accounts && res.accounts.length > 0) { 
-            loginAccount(res.accounts[0]); 
-        } else { 
-            if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; 
-            showToast("Tidak ada akun", "error"); 
-        } 
-    } catch (error) { 
-        if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; 
-        showToast("Gagal terhubung ke server", "error"); 
-    } 
-}
-
-function loginAccount(accountName) { 
-    activeAccountName = accountName; 
-    if(currentAccountName) currentAccountName.innerText = accountName; 
-    setAccountViewingStatus(true); 
-    const rawOrders = JSON.parse(localStorage.getItem(`virtual_orders_${accountName}`)) || []; 
-    activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); 
-    if (rawOrders.length !== activeOrders.length) saveToStorage(); 
-    hiddenBadOrders = JSON.parse(localStorage.getItem(`virtual_hidden_bad_orders_${accountName}`)) || []; 
-    loadHistory(); 
-    initMainApp(); 
-}
-
 window.openNotesFromAnywhere = function() { if(notesListModal) notesListModal.classList.remove('hidden'); history.pushState(null, null, "#notes"); };
 document.addEventListener('click', function(e) { const target = e.target.closest('button'); if (target && (target.id === 'btnOpenNotes' || (target.getAttribute('onclick') || '').includes('btnOpenNotes'))) { e.preventDefault(); e.stopPropagation(); window.openNotesFromAnywhere(); } }, true);
 function closeNotesListModal() { notesListModal.classList.add('hidden'); }
@@ -261,7 +230,6 @@ async function fetchBalance() {
     } 
 }
 
-// === LOGIKA CHECKLIST ACAK & GRID OPERATOR ===
 window.toggleRandomOperator = function() {
     const chk = document.getElementById('chkRandomOp');
     if (chk.checked) {
@@ -290,7 +258,6 @@ async function loadVirtualSMSProducts() {
         if (productsRes.success && productsRes.data.length > 0) {
             let ops = productsRes.data; 
             
-            // XL DITAMPILKAN KEMBALI
             let specificOps = ops.filter(o => o.id !== 'any' && o.id !== '');
             
             let cheapestPrice = 0;
@@ -332,9 +299,11 @@ async function loadVirtualSMSProducts() {
                 };
                 productList.appendChild(card);
             });
+        } else {
+             productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Data Operator Kosong/Error.</div>`; 
         }
     } catch (error) { 
-        document.getElementById('productList').innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error muat data.</div>`; 
+        productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error koneksi API Operator.</div>`; 
     }
 }
 
@@ -473,6 +442,31 @@ window.resendSpecificOrder = async function(orderId) {
     } catch (e) { showToast("Kesalahan jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
 };
 
-async function initMainApp() { fetchBalance(); await loadVirtualSMSProducts(); renderOrders(); startPollingAndTimer(); }
+async function initMainApp() { 
+    fetchBalance(); 
+    await loadVirtualSMSProducts(); 
+    renderOrders(); 
+    startPollingAndTimer(); 
+}
 
-window.onload = () => { relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initNotesSync(); initUsedNumbersSync(); fetchAccounts(); renderMainButtons(); };
+// EKSEKUSI AWAL APLIKASI
+window.onload = () => { 
+    relocateBalanceUI(); 
+    history.pushState(null, null, window.location.href); 
+    
+    // Status Terhubung secara otomatis
+    if(currentAccountName) currentAccountName.innerText = "Terhubung";
+
+    initNotesSync(); 
+    initUsedNumbersSync(); 
+
+    const rawOrders = JSON.parse(localStorage.getItem(`virtual_orders_${activeAccountName}`)) || []; 
+    activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); 
+    if (rawOrders.length !== activeOrders.length) saveToStorage(); 
+    hiddenBadOrders = JSON.parse(localStorage.getItem(`virtual_hidden_bad_orders_${activeAccountName}`)) || []; 
+    loadHistory(); 
+
+    // Langsung muat data Saldo dan Operator
+    initMainApp(); 
+    renderMainButtons(); 
+};
