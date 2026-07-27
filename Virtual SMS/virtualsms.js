@@ -1,80 +1,32 @@
-const BASE_URL = "https://hero-sms-proxy.masreno6pro.workers.dev"; 
+// Arahkan ke Worker Cloudflare Anda yang baru
+const BASE_URL = "https://virtual-sms-proxy.masreno6pro.workers.dev"; 
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-// Menggunakan Konfigurasi Firebase yang Sama Untuk Sinkronisasi Blacklist, Statistik, dan Catatan
+// Konfigurasi Firebase (Tetap sama)
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
 const DB_PATH = 'notes/public';
 
-// Menambahkan API Key pada objek pengaturan
-let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true, apiKey: "" };
+// Karena API key diurus backend (Cloudflare), kita tidak perlu menyimpannya di sini. Namun kita simpan password & autoCopy.
+let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
 let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = 'any'; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
 
-// === PENGATURAN MODAL & KONEKSI API ===
+// === PENGATURAN MODAL ===
 window.openSettingsModal = function() {
     document.getElementById('settingsPassword').value = appSettings.password;
     document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy;
-    document.getElementById('settingsApiKey').value = appSettings.apiKey || ""; 
     document.getElementById('settingsModal').classList.remove('hidden');
     history.pushState(null, null, "#settings");
 }
 window.closeSettingsModal = function() { document.getElementById('settingsModal').classList.add('hidden'); }
-
-// FUNGSI BARU: Tombol Sambungkan
-window.testApiConnection = async function() {
-    const testKey = document.getElementById('settingsApiKey').value.trim();
-    if (!testKey) {
-        showToast("Masukkan API Key terlebih dahulu!", "warning");
-        return;
-    }
-
-    const btn = document.querySelector('button[onclick="testApiConnection()"]');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<div class="loader" style="width:14px; height:14px; border-width:2px; display:inline-block; margin-right:5px; margin-bottom:-2px;"></div> Menyambungkan...';
-    btn.disabled = true;
-
-    // Set sementara untuk pengetesan koneksi
-    appSettings.apiKey = testKey;
-    
-    try {
-        const res = await apiCall('/api/accounts');
-        if (res.accounts && res.accounts.length > 0) {
-            showToast("Tersambung!", "success");
-            
-            // Simpan API Key yang sukses ke local storage
-            localStorage.setItem('app_settings', JSON.stringify(appSettings));
-            
-            // Render ulang data real ke UI
-            loginAccount(res.accounts[0]);
-            fetchBalance();
-            loadVirtualSMSProducts();
-            
-        } else {
-            showToast("API Key tidak valid.", "error");
-            appSettings.apiKey = ""; // Reset jika gagal
-        }
-    } catch (error) {
-        showToast("Gagal menyambungkan.", "error");
-        appSettings.apiKey = ""; // Reset jika gagal
-    } finally {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    }
-}
-
 window.saveSettings = function() {
     appSettings.password = document.getElementById('settingsPassword').value;
     appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked;
-    
-    // Hanya simpan API key jika kotak tidak kosong
-    const inputtedKey = document.getElementById('settingsApiKey').value;
-    if (inputtedKey) appSettings.apiKey = inputtedKey; 
-
     localStorage.setItem('app_settings', JSON.stringify(appSettings));
     closeSettingsModal(); 
     showToast("Pengaturan disimpan!"); 
@@ -143,14 +95,13 @@ window.addEventListener('popstate', (e) => {
 function closeExitModal() { exitModal.classList.add('hidden'); isExitModalOpen = false; }
 function confirmExit() { setAccountViewingStatus(false); window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
 
-// Interceptor API (Menyisipkan API Key Manual jika diperlukan di Header)
+// Interceptor API (Cukup sertakan X-Account-Name, Authorization akan ditangani Cloudflare)
 async function apiCall(endpoint, method = "GET", body = null) { 
     const options = { 
         method, 
         headers: { 
             "Content-Type": "application/json", 
-            "X-Account-Name": activeAccountName,
-            "Authorization": appSettings.apiKey ? `Bearer ${appSettings.apiKey}` : "" 
+            "X-Account-Name": activeAccountName
         } 
     }; 
     if (body) options.body = JSON.stringify(body); 
@@ -251,13 +202,8 @@ window.openHistoryModal = function() { document.getElementById('historyModal').c
 window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
 window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`virtual_history_${activeAccountName}`); renderHistory(); } }
 
-// MODIFIKASI: Tunggu API Key ada sebelum fetch otomatis
+// Memanggil data secara otomatis tanpa tombol
 async function fetchAccounts() { 
-    if (!appSettings.apiKey) {
-        if(currentAccountName) currentAccountName.innerText = "Menunggu API Key..."; 
-        return;
-    }
-    
     try { 
         const res = await apiCall('/api/accounts'); 
         if (res.accounts && res.accounts.length > 0) { 
@@ -268,7 +214,7 @@ async function fetchAccounts() {
         } 
     } catch (error) { 
         if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; 
-        showToast("Gagal terhubung", "error"); 
+        showToast("Gagal terhubung ke server", "error"); 
     } 
 }
 
@@ -300,14 +246,8 @@ function executeSaveNote(title, content) { const data = { title: title, content:
 function confirmDeleteNote() { if(confirm("Hapus catatan ini?")) { db.ref(`${DB_PATH}/${selectedNoteKey}`).remove().then(() => { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); showToast("Catatan dihapus."); }); } }
 function copyNoteContent() { copyToClipboard(currentNoteRawContent); }
 
-// MODIFIKASI: Tunggu API Key ada
 async function fetchBalance() { 
     const bDisplay = document.getElementById('balanceDisplay');
-    if (!appSettings.apiKey) {
-        if (bDisplay) bDisplay.innerText = "---";
-        return;
-    }
-
     try { 
         if (bDisplay) bDisplay.innerText = "Menghitung..."; 
         const res = await apiCall('/balance'); 
@@ -341,15 +281,8 @@ window.toggleRandomOperator = function() {
     if (btnOrder) btnOrder.disabled = false;
 }
 
-// MODIFIKASI: Tunggu API Key ada
 async function loadVirtualSMSProducts() {
     const productList = document.getElementById('productList');
-    
-    if (!appSettings.apiKey) {
-        productList.innerHTML = '<div class="status-text">Silakan sambungkan API Key di Pengaturan.</div>';
-        return;
-    }
-
     try {
         productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
         
@@ -542,4 +475,4 @@ window.resendSpecificOrder = async function(orderId) {
 
 async function initMainApp() { fetchBalance(); await loadVirtualSMSProducts(); renderOrders(); startPollingAndTimer(); }
 
-window.onload = () => { relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initNotesSync(); initUsedNumbersSync(); fetchAccounts(); renderMainButtons(); loadVirtualSMSProducts(); fetchBalance(); };
+window.onload = () => { relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initNotesSync(); initUsedNumbersSync(); fetchAccounts(); renderMainButtons(); };
