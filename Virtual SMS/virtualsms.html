@@ -1,1 +1,65 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual SMS Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
+    <div class="app-container">
+        <!-- Header Navigasi -->
+        <header>
+            <div class="menu-icon">&#9776;</div>
+            <div class="logo">
+                <span class="logo-icon">&#128241;</span>
+                VIRTUAL SMS
+            </div>
+            <div class="profile-icon">&#128100;</div>
+        </header>
+
+        <main>
+            <!-- Bagian Grid: Pilih Layanan -->
+            <section class="panel">
+                <h2 class="panel-title">Pilih Layanan</h2>
+                <div class="service-grid">
+                    <button class="service-btn" data-service="WhatsApp">
+                        <span class="icon">WA</span> WhatsApp
+                    </button>
+                    <button class="service-btn" data-service="Telegram">
+                        <span class="icon">TG</span> Telegram
+                    </button>
+                    <button class="service-btn" data-service="Instagram">
+                        <span class="icon">IG</span> Instagram
+                    </button>
+                    <button class="service-btn" data-service="Google">
+                        <span class="icon">GO</span> Google
+                    </button>
+                </div>
+            </section>
+
+            <!-- Bagian Pesan & Logika OTP -->
+            <section class="panel message-panel">
+                <h2 class="panel-title">Kotak Masuk <span id="activeNumber"></span></h2>
+                
+                <div class="chat-container" id="chatContainer">
+                    <div class="message incoming">
+                        <div class="message-content">Silakan pilih layanan di atas untuk memesan nomor virtual.</div>
+                        <div class="message-time">Sistem</div>
+                    </div>
+                </div>
+
+                <!-- Tombol Aksi Logika -->
+                <div class="action-buttons" id="actionButtons" style="display: none;">
+                    <button id="btnCancel" class="btn btn-danger">Batalkan</button>
+                    <button id="btnResend" class="btn btn-warning">Minta Ulang</button>
+                    <button id="btnChange" class="btn btn-primary">Ganti Nomor</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
