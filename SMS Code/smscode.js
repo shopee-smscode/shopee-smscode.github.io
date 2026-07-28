@@ -9,7 +9,8 @@ let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password
 let cachedAccounts = [];
 
 let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; 
-let currentCountryId = null; let currentServiceId = null; let selectedProductId = 'any'; 
+let currentCountryId = 7; // HARDCODE 7 = INDONESIA UNTUK MENCEGAH ERROR API
+let currentServiceId = null; let selectedProductId = 'any'; 
 let timerInterval = null; let pollingInterval = null; let orderHistory = []; let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 
 const idrFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
@@ -47,13 +48,9 @@ async function apiCall(endpoint, method = "GET", body = null) {
         try { 
             return JSON.parse(textData); 
         } catch (err) {
-            let lowerText = textData.toLowerCase();
-            if (lowerText.includes("<html") || lowerText.includes("cloudflare") || lowerText.includes("blocked")) {
-                return { success: false, error: { message: "Akses diblokir (Cloudflare)." } };
-            }
-            return { success: false, error: { message: `Data tidak valid/Error ${response.status}` } };
+            return { success: false, error: { message: `Data bukan JSON (Bisa jadi Cloudflare diblokir).` } };
         }
-    } catch (err) { return { success: false, error: { message: "Koneksi Proxy Gagal: " + err.message } }; }
+    } catch (err) { return { success: false, error: { message: "Koneksi Proxy Terputus: " + err.message } }; }
 }
 
 function openSettingsModal() { document.getElementById('settingsPassword').value = appSettings.password; document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; document.getElementById('settingsModal').classList.remove('hidden'); history.pushState(null, null, "#settings"); }
@@ -64,7 +61,7 @@ function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).re
 function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
 function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } return otpStr; }
 function getProviderName(phone) { let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2); const prefix = p.substring(0, 4); if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel"; if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat"; if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL/Axis"; if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Tri"; if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren"; return "Acak"; }
-function getOperatorLogo(id) { const i = String(id).toLowerCase(); if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; if (i.includes('indosat') || i.includes('isat') || i.includes('im3')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; if (i.includes('xl') || i.includes('axis')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; if (i.includes('three') || i.includes('tri') || i.includes('hutchison')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; if (i.includes('smartfren')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; }
+function getOperatorLogo(id) { const i = String(id).toLowerCase(); if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; if (i.includes('indosat') || i.includes('isat') || i.includes('im3')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; if (i.includes('xl') || i.includes('axis')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; if (i.includes('three') || i.includes('tri') || i.includes('hutchison')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; if (i.includes('smartfren') || i.includes('smart')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; }
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
@@ -80,6 +77,8 @@ function closeExitModal() { exitModal.classList.add('hidden'); isExitModalOpen =
 function confirmExit() { setAccountViewingStatus(false); window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
 function setAccountViewingStatus(isViewing) { if (!activeAccountName) return; if (isViewing) { const connectedRef = db.ref('.info/connected'); viewingPresenceRef = db.ref(`presence/${activeAccountName}/is_viewing`); connectedRef.on('value', (snap) => { if (snap.val() === true) { viewingPresenceRef.onDisconnect().set(false); viewingPresenceRef.set(true); } }); } else { if (viewingPresenceRef) { viewingPresenceRef.set(false); viewingPresenceRef.onDisconnect().cancel(); } } }
 function updateAccountOrdersStatus() { if (!activeAccountName) return; db.ref(`presence/${activeAccountName}/has_orders`).set(activeOrders.length > 0); }
+
+function relocateBalanceUI() { const headerContainer = document.querySelector('.app-header-container'); const balanceContainer = document.querySelector('.balance-container'); if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) { balanceContainer.style.display = 'none'; const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right'; newBalanceDiv.innerHTML = `<span style="font-size: 11px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 18px; font-weight: 900; color: var(--primary-color);">...</span>`; headerContainer.appendChild(newBalanceDiv); const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id'); newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay'; } }
 
 function initUsedNumbersSync() {
     db.ref('used_numbers/smscode').on('value', snapshot => {
@@ -136,20 +135,40 @@ window.openHistoryModal = function() { document.getElementById('historyModal').c
 window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
 window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`smscode_history_${activeAccountName}`); renderHistory(); } }
 
+// === FUNGSI FETCH ACCOUNTS DENGAN ERROR HANDLING YANG KUAT ===
 async function fetchAccounts() {
+    const accNameEl = document.getElementById('currentAccountName');
+    const accBadgeEl = document.getElementById('currentAccountBadge');
     try {
-        const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json();
-        if (data.accounts && data.accounts.length > 0) {
-            cachedAccounts = data.accounts; let savedAccount = localStorage.getItem('smscode_last_account');
-            let defaultAcc = (savedAccount && cachedAccounts.includes(savedAccount)) ? savedAccount : cachedAccounts[0]; loginAccount(defaultAcc);
-        } else { if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = "Tidak ada"; showToast("Tidak ada akun di Server", "error"); }
-    } catch (error) { if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = "Error"; showToast("Gagal terhubung ke Server", "error"); }
+        const res = await fetch(`${BASE_URL}/api/accounts`); 
+        const textData = await res.text();
+        const data = JSON.parse(textData);
+        
+        if (data.success && data.accounts && data.accounts.length > 0) {
+            cachedAccounts = data.accounts; 
+            let savedAccount = localStorage.getItem('smscode_last_account');
+            let defaultAcc = (savedAccount && cachedAccounts.includes(savedAccount)) ? savedAccount : cachedAccounts[0]; 
+            loginAccount(defaultAcc);
+        } else { 
+            if (accNameEl) accNameEl.innerHTML = `<span style="color:var(--danger-color);">Data Kosong</span>`;
+            if (accBadgeEl) accBadgeEl.innerText = "Tidak ada"; 
+            showToast("Tidak ada akun di Server API", "error"); 
+        }
+    } catch (error) { 
+        if (accNameEl) accNameEl.innerHTML = `<span style="color:var(--danger-color);">Proxy Error / Terputus</span>`;
+        if (accBadgeEl) accBadgeEl.innerText = "Error API"; 
+        showToast("Gagal terhubung ke Proxy Cloudflare!", "error"); 
+    }
 }
 
 window.openAccountModal = function() {
     const container = document.getElementById('accountListContainer'); container.innerHTML = '<div class="status-text-mini">Memuat akun...</div>';
     document.getElementById('accountModal').classList.remove('hidden'); history.pushState(null, null, "#account");
     container.innerHTML = "";
+    if (!cachedAccounts || cachedAccounts.length === 0) {
+        container.innerHTML = '<div class="status-text-mini" style="color:var(--danger-color);">Proxy Error: Cek Link Cloudflare Anda!</div>';
+        return;
+    }
     cachedAccounts.forEach(acc => {
         const btn = document.createElement('button'); const isActive = (acc === activeAccountName); btn.id = `btn-acc-${acc}`;
         btn.style = `width: 100%; padding: 12px 14px; border-radius: 12px; font-size: 13px; font-weight: bold; text-align: left; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15);`;
@@ -165,7 +184,6 @@ async function fetchBalanceForAccount(accName) {
         const response = await fetch(`${BASE_URL}/balance`, options); const res = await response.json();
         const balEl = document.getElementById(`bal-${accName}`);
         if (balEl) {
-            // MENGGUNAKAN CANONICAL AMOUNT DARI API V2 UNTUK MENDAPATKAN IDR
             if (res.success && res.data && res.data.balance) { 
                 balEl.innerText = idrFormatter.format(res.data.balance.canonical_amount); 
                 balEl.style.color = (accName === activeAccountName) ? "var(--primary-color)" : "var(--text-primary)"; 
@@ -203,7 +221,6 @@ async function fetchBalance() {
         const res = await apiCall('/balance'); 
         if (res.success && res.data && res.data.balance) { 
             const bDisplay = document.getElementById('balanceDisplay'); 
-            // MENGGUNAKAN CANONICAL AMOUNT DARI API V2 UNTUK MENDAPATKAN IDR
             if (bDisplay) bDisplay.innerText = idrFormatter.format(res.data.balance.canonical_amount); 
         } 
     } catch (error) { 
@@ -212,17 +229,16 @@ async function fetchBalance() {
     } 
 }
 
-// === FUNGSI LOAD SERVICES (TAMPILKAN DROPDOWN) ===
+// === FUNGSI LOAD SERVICES ===
 async function loadServices() {
     const serviceSelect = document.getElementById('serviceSelect'); if (!serviceSelect) return;
     try {
-        const countriesRes = await apiCall('/catalog/countries'); 
-        if (!countriesRes.success) return;
-        const indo = countriesRes.data.find(c => c.name.toLowerCase() === 'indonesia');
-        if (!indo) return;
-        currentCountryId = indo.id;
+        serviceSelect.innerHTML = '<option value="">Menyambung API...</option>';
+        
+        // Sengaja melewati panggilan /catalog/countries agar lebih cepat, langsung pakai ID 7
+        currentCountryId = 7; // Indonesia
 
-        const servicesRes = await apiCall(`/catalog/services?country_id=${indo.id}`);
+        const servicesRes = await apiCall(`/catalog/services?country_id=${currentCountryId}`);
         if (servicesRes.success && servicesRes.data) {
             let services = servicesRes.data; 
             services.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
@@ -238,8 +254,10 @@ async function loadServices() {
             serviceSelect.value = currentServiceId; 
             localStorage.setItem('smscode_selected_service', currentServiceId); 
             loadProducts(currentServiceId);
+        } else {
+            serviceSelect.innerHTML = `<option value="">Error Server Pusat</option>`;
         }
-    } catch (e) { serviceSelect.innerHTML = '<option value="">Gagal Jaringan</option>'; }
+    } catch (e) { serviceSelect.innerHTML = '<option value="">Gagal Jaringan API</option>'; }
 }
 
 window.changeService = function() { 
@@ -248,29 +266,27 @@ window.changeService = function() {
     loadProducts(currentServiceId); 
 }
 
-// === FUNGSI LOAD PRODUCTS (KARTU LOGO OPERATOR DARI V2) ===
+// === FUNGSI LOAD PRODUCTS ===
 async function loadProducts(serviceId) {
     try {
-        if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
+        if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Stok Operator...</div>';
         const btnOrder = document.getElementById('btnOrder');
         if (btnOrder) btnOrder.disabled = true;
 
         const productsRes = await apiCall(`/catalog/products?country_id=${currentCountryId}&platform_id=${serviceId}`);
         if (productsRes.success && productsRes.data && productsRes.data.length > 0) {
             
-            // PENGAMBILAN HARGA IDR MENGGUNAKAN CANONICAL AMOUNT V2
             let ops = productsRes.data.map(p => ({
                 id: p.id,
                 name: p.operator_name || p.name || `Server ${p.id}`,
                 operator_id: p.operator_id,
-                price: p.price ? p.price.canonical_amount : 0,
+                price: (p.price && typeof p.price.canonical_amount !== 'undefined') ? p.price.canonical_amount : (p.price || 0),
                 available: p.available
             })).sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
             
             let anyOp = ops.find(p => p.operator_id === null);
             let specificOps = ops.filter(p => p.operator_id !== null);
 
-            // LOGIKA PEMISAHAN ACAK & OPERATOR RESMI
             if (!anyOp && ops.length > 0) {
                 anyOp = { id: 'any', name: 'Acak', price: ops[0].price, available: 'Auto' };
             } else if (anyOp) {
@@ -317,7 +333,7 @@ async function loadProducts(serviceId) {
                 };
                 if (productList) productList.appendChild(card);
             });
-        } else { if (productList) productList.innerHTML = '<div class="status-text-mini">Server sedang kosong.</div>'; }
+        } else { if (productList) productList.innerHTML = '<div class="status-text-mini" style="color:var(--warning-color);">Stok kosong untuk layanan ini.</div>'; }
     } catch (error) { if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error muat data.</div>`; }
 }
 
@@ -374,7 +390,7 @@ window.onOrderButtonClicked = async function() {
     const btn = document.getElementById('btnOrder');
     if (!btn) return;
     
-    if (!isUsedNumbersLoaded) { showToast("Sabar, sedang sinkronisasi database...", "warning"); return; }
+    if (!isUsedNumbersLoaded) { showToast("Sabar, sinkronisasi blacklist...", "warning"); return; }
     if (!selectedProductId) { showToast("Silakan pilih server operator!", "error"); return; }
     
     btn.disabled = true; 
@@ -387,9 +403,8 @@ window.onOrderButtonClicked = async function() {
             const actualProductId = o.finalProductId || selectedProductId;
             const opInfo = availableProducts.find(p => String(p.id) === String(actualProductId)); 
             
-            // BACA HARGA DARI V2 ATAU DARI DATA PRODUK LOKAL
             let opPrice = 0;
-            if (o.amount && o.amount.canonical_amount) { opPrice = o.amount.canonical_amount; } 
+            if (o.amount && typeof o.amount.canonical_amount !== 'undefined') { opPrice = o.amount.canonical_amount; } 
             else if (opInfo && opInfo.price) { opPrice = opInfo.price; }
 
             const expiresAtMs = o.expires_at ? new Date(o.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
@@ -427,7 +442,6 @@ function renderOrders() {
         let isSuccess = (order.status === "OTP_RECEIVED" && order.otp); const wait = order.cancelUnlockTime - now;
         let otpHtml = isSuccess ? `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
         
-        // MENAMPILKAN LOGO OPERATOR DI KARTU PESANAN
         const matchedProduct = availableProducts.find(p => String(p.id) === String(order.productId));
         let opTag = matchedProduct && matchedProduct.name ? matchedProduct.name : (order.productId || 'Acak');
         if (opTag === 'Acak') opTag = getProviderName(order.phone);
@@ -477,7 +491,6 @@ function startPollingAndTimer() {
                     if (res.data.status === "OTP_RECEIVED") { 
                         notifSound.play().catch(e => console.log("Sound error:", e));
                         activeOrders[i].status = "OTP_RECEIVED"; 
-                        // MENGGUNAKAN otp_code SESUAI STANDAR V2
                         activeOrders[i].otp = res.data.otp_code; 
                         saveToStorage(); fetchBalance();
                         const phoneStr = normalizePhone(activeOrders[i].phone);
@@ -498,12 +511,11 @@ async function syncServerOrders() {
             serverOrders.forEach(order => {
                 if (!activeOrders.find(o => o.id === order.id)) {
                     let syncedPrice = 0;
-                    if (order.amount && order.amount.canonical_amount) { syncedPrice = order.amount.canonical_amount; } 
+                    if (order.amount && typeof order.amount.canonical_amount !== 'undefined') { syncedPrice = order.amount.canonical_amount; } 
                     else if (order.product_id && availableProducts.length > 0) { const matchProduct = availableProducts.find(p => String(p.id) === String(order.product_id)); if (matchProduct) syncedPrice = matchProduct.price; }
                     
                     const exp = order.expires_at ? new Date(order.expires_at).getTime() : Date.now() + (20*60*1000);
                     const cTime = order.created_at ? new Date(order.created_at).getTime() : (exp - (20*60*1000));
-                    
                     activeOrders.unshift({ id: order.id, productId: order.product_id || order.catalog_product_id, phone: order.phone_number || order.phone, price: syncedPrice, otp: order.otp_code, status: order.status, expiresAt: exp, cancelUnlockTime: cTime + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
                 }
             });
@@ -534,7 +546,7 @@ window.replaceSpecificOrder = async function(orderId) {
                 if (n) {
                     const actualProductId = n.finalProductId || opToUse;
                     const pInfo = availableProducts.find(p => String(p.id) === String(actualProductId)); 
-                    let finalPrice = 0; if (n.amount && n.amount.canonical_amount) { finalPrice = n.amount.canonical_amount; } else if (pInfo && pInfo.price) { finalPrice = pInfo.price; }
+                    let finalPrice = 0; if (n.amount && typeof n.amount.canonical_amount !== 'undefined') { finalPrice = n.amount.canonical_amount; } else if (pInfo && pInfo.price) { finalPrice = pInfo.price; }
                     
                     const expiresAtMs = n.expires_at ? new Date(n.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
                     activeOrders.unshift({ id: n.id, productId: parseInt(actualProductId), phone: n.phone_number || n.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
