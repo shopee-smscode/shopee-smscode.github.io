@@ -9,7 +9,7 @@ const DB_PATH = 'notes/public';
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
 let activeAccountName = "VirtualUser"; 
 let currentServiceId = null; 
-let currentCountryId = null; // ID Negara kini dinamis mencari Indonesia
+let currentCountryId = null; 
 let activeOrders = []; let availableProducts = []; let selectedProductId = 'any'; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
@@ -18,7 +18,7 @@ const productList = document.getElementById('productList');
 const btnOrder = document.getElementById('btnOrder'); 
 const activeOrdersContainer = document.getElementById('activeOrdersContainer'); 
 
-// Fungsi API Induk[span_0](start_span)[span_0](end_span)
+// Fungsi API Induk[span_2](start_span)[span_2](end_span)
 async function apiCall(endpoint, method = "GET", body = null) { 
     try {
         const options = { 
@@ -34,7 +34,7 @@ async function apiCall(endpoint, method = "GET", body = null) {
     }
 }
 
-// 1. CEK SALDO[span_1](start_span)[span_1](end_span)
+// 1. CEK SALDO[span_3](start_span)[span_3](end_span)
 async function fetchBalance() { 
     const bDisplay = document.getElementById('balanceDisplay');
     if (!bDisplay) return;
@@ -59,7 +59,7 @@ async function fetchBalance() {
     } 
 }
 
-// 2. MUAT SEMUA LAYANAN (Menyimpan Pilihan Service ke LocalStorage)[span_2](start_span)[span_2](end_span)
+// 2. MUAT SEMUA LAYANAN[span_4](start_span)[span_4](end_span)
 async function loadServices() {
     const serviceSelect = document.getElementById('serviceSelect');
     if (!serviceSelect) return;
@@ -85,7 +85,6 @@ async function loadServices() {
                 }
             });
 
-            // Terapkan layanan yang disimpan sebelumnya, jika ada
             let savedServiceId = localStorage.getItem('virtual_selected_service');
             let serviceExists = services.find(s => String(s.id) === String(savedServiceId));
 
@@ -108,7 +107,6 @@ async function loadServices() {
     }
 }
 
-// Menyimpan perubahan Layanan ke HP pengguna
 window.changeService = function() {
     const serviceSelect = document.getElementById('serviceSelect');
     currentServiceId = serviceSelect.value;
@@ -116,7 +114,7 @@ window.changeService = function() {
     loadVirtualSMSProducts(currentServiceId);
 }
 
-// 3. MUAT OPERATOR & HARGA (Otomatis Deteksi ID Negara Indonesia)[span_3](start_span)[span_3](end_span)
+// 3. MUAT OPERATOR & HARGA[span_5](start_span)[span_5](end_span)
 async function loadVirtualSMSProducts(serviceId) {
     try {
         productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
@@ -125,7 +123,6 @@ async function loadVirtualSMSProducts(serviceId) {
         const res = await apiCall(`/v1/price/${serviceId}`);
         
         if (res && res.status === true && Array.isArray(res.data)) {
-            // Mencari Negara dengan kata kunci "indonesia" atau fallback ke ID 62/1
             let countryData = res.data.find(c => 
                 (c.countryName && c.countryName.toLowerCase().includes("indonesia")) || 
                 String(c.country) === "62" || 
@@ -141,7 +138,6 @@ async function loadVirtualSMSProducts(serviceId) {
                 return;
             }
 
-            // Set global currentCountryId dari API agar order tidak gagal
             currentCountryId = countryData.country || countryData.countryId || 1;
 
             let ops = countryData.operators || [];
@@ -178,7 +174,6 @@ async function loadVirtualSMSProducts(serviceId) {
                 card.id = `op-card-${opCode}`;
                 if (selectedProductId === String(opCode)) card.classList.add('selected');
                 
-                // Peningkatan Akurasi Pencocokan Logo dengan Menggabungkan Nama & Kode
                 let logoImg = getOperatorLogo(opName + ' ' + opCode); 
                 
                 card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${usdFormatter.format(priceUsd)}</div>`;
@@ -188,7 +183,7 @@ async function loadVirtualSMSProducts(serviceId) {
                     card.classList.add('selected'); 
                     document.getElementById('chkRandomOp').checked = false;
                     selectedProductId = String(opCode); 
-                    localStorage.setItem('virtual_selected_operator', selectedProductId); // Save State
+                    localStorage.setItem('virtual_selected_operator', selectedProductId); 
                 };
                 productList.appendChild(card);
             });
@@ -203,31 +198,29 @@ async function loadVirtualSMSProducts(serviceId) {
     }
 }
 
-// === MENYIMPAN STATE CHECKLIST ACAK ===
 window.toggleRandomOperator = function() {
     const chk = document.getElementById('chkRandomOp');
     if (chk.checked) {
         document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
         selectedProductId = 'any';
-        localStorage.setItem('virtual_selected_operator', 'any'); // Menyimpan Pilihan "Acak"
+        localStorage.setItem('virtual_selected_operator', 'any');
     } else {
         if(selectedProductId === 'any' && availableProducts.length > 1) {
             const firstManual = availableProducts.find(p => p.code !== 'any');
             if(firstManual) {
                 selectedProductId = String(firstManual.code);
                 document.getElementById(`op-card-${firstManual.code}`).classList.add('selected');
-                localStorage.setItem('virtual_selected_operator', selectedProductId); // Menyimpan Pilihan Manual Pertama
+                localStorage.setItem('virtual_selected_operator', selectedProductId); 
             }
         }
     }
     if (btnOrder) btnOrder.disabled = false;
 }
 
-// 4. PESAN NOMOR[span_4](start_span)[span_4](end_span)
+// 4. PESAN NOMOR DENGAN DEEP SCAN & JALUR BELAKANG (FALLBACK)[span_6](start_span)[span_6](end_span)
 async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas. Silakan coba lagi.", "error"); return null; }
     
-    // Pastikan menggunakan currentCountryId yang sudah dideteksi dinamis
     const payload = {
         country: Number(currentCountryId),
         service: Number(currentServiceId),
@@ -237,23 +230,67 @@ async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
 
     const res = await apiCall('/v1/order/', 'POST', payload);
     
-    if (res && res.status === true && res.data) {
-        let orderData = Array.isArray(res.data) ? res.data[0] : res.data;
-        let o = {
-            id: orderData.orderId,
-            phone_number: orderData.number,
-            price: orderData.price || 0
-        };
+    if (res && res.status === true) {
+        let extractedId = null;
+        let extractedPhone = null;
+        let extractedPrice = 0;
 
-        const phoneStr = normalizePhone(o.phone_number);
-        if (usedNumbersDB.has(phoneStr)) {
-            showToast(`⚠️ Nomor ${o.phone_number} bekas. Mencari lagi...`, "warning");
-            hiddenBadOrders.push({ id: o.id, cancelAt: Date.now() + (3 * 60 * 1000), isCanceling: false });
-            localStorage.setItem(`virtual_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders));
-            return await processOrderFreshNumber(operatorCode, maxRetries - 1);
-        } else { 
-            return o; 
+        // TAHAP 1: Ekstraksi Data Normal
+        if (res.data) {
+            let orderData = Array.isArray(res.data) ? res.data[0] : res.data;
+            if (orderData.data) orderData = Array.isArray(orderData.data) ? orderData.data[0] : orderData.data;
+            else if (orderData.order) orderData = orderData.order;
+
+            extractedId = orderData.orderId || orderData.id || orderData.Id || null;
+            extractedPhone = orderData.number || orderData.phone || orderData.phoneNumber || orderData.phone_number || null;
+            extractedPrice = orderData.price || orderData.amount || 0;
         }
+
+        // TAHAP 2: Pemindai Paksa (Deep Scan Regex) jika kunci tidak standar
+        if (!extractedId || !extractedPhone) {
+            const strData = JSON.stringify(res);
+            let idMatch = strData.match(/"(?:orderId|id|order_id|Id)"\s*:\s*"?([A-Za-z0-9_-]+)"?/i);
+            if (idMatch) extractedId = idMatch[1];
+            
+            let phoneMatch = strData.match(/"(?:number|phone|phone_number|phoneNumber)"\s*:\s*"?(\+?\d+)"?/i);
+            if (phoneMatch) extractedPhone = phoneMatch[1];
+        }
+
+        // TAHAP 3: Jalur Belakang (Memanggil Daftar Order Aktif jika semua gagal)[span_7](start_span)[span_7](end_span)
+        if (!extractedId || !extractedPhone) {
+            console.log("Format order aneh, menggunakan fallback ke /v1/order/active...");
+            const activeRes = await apiCall('/v1/order/active');
+            if (activeRes && activeRes.status === true && Array.isArray(activeRes.data) && activeRes.data.length > 0) {
+                // Mengambil pesanan yang paling baru di daftar aktif
+                let latestOrder = activeRes.data[0]; 
+                extractedId = latestOrder.orderId || latestOrder.id;
+                extractedPhone = latestOrder.number || latestOrder.phone;
+                extractedPrice = latestOrder.price || extractedPrice;
+            }
+        }
+
+        // Validasi Final
+        if (extractedId && extractedPhone) {
+            let o = {
+                id: extractedId,
+                phone_number: extractedPhone,
+                price: extractedPrice
+            };
+
+            const phoneStr = normalizePhone(o.phone_number);
+            if (usedNumbersDB.has(phoneStr)) {
+                showToast(`⚠️ Nomor ${o.phone_number} bekas. Mencari lagi...`, "warning");
+                hiddenBadOrders.push({ id: o.id, cancelAt: Date.now() + (3 * 60 * 1000), isCanceling: false });
+                localStorage.setItem(`virtual_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders));
+                return await processOrderFreshNumber(operatorCode, maxRetries - 1);
+            } else { 
+                return o; 
+            }
+        } else {
+            showToast("Server tidak mengirimkan ID / Nomor yang valid", "error"); 
+            return null; 
+        }
+
     } else { 
         showToast(res.message || "Gagal mendapat nomor", "error"); 
         return null; 
@@ -307,7 +344,7 @@ function startPollingAndTimer() {
         });
     }, 1000);
     
-    // Polling Status OTP[span_5](start_span)[span_5](end_span)
+    // Polling Status OTP[span_8](start_span)[span_8](end_span)
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
@@ -344,7 +381,7 @@ if (btnOrder) {
         try {
             const o = await processOrderFreshNumber(selectedProductId, 5); 
             if (o) {
-                const opInfo = availableProducts.find(p => p.code === selectedProductId); 
+                const opInfo = availableProducts.find(p => String(p.code) === String(selectedProductId)); 
                 const opPrice = o.price || (opInfo ? opInfo.price : 0);
                 activeOrders.unshift({ 
                     id: o.id, 
@@ -364,7 +401,7 @@ if (btnOrder) {
     };
 }
 
-// Ubah Status[span_6](start_span)[span_6](end_span)
+// Ubah Status (1=Cancel, 2=More Sms, 3=Complete)[span_9](start_span)[span_9](end_span)
 window.cancelSpecificOrder = async function(id, auto = false) {
     const idStr = String(id); const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
@@ -423,7 +460,7 @@ window.replaceSpecificOrder = async function(orderId) {
         activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
         const od = await processOrderFreshNumber(opToUse, 5); 
         if (od) {
-            const opInfo = availableProducts.find(p => p.code === opToUse); 
+            const opInfo = availableProducts.find(p => String(p.code) === String(opToUse)); 
             const opPrice = od.price || (opInfo ? opInfo.price : (oldOrder ? oldOrder.price : 0));
             activeOrders.unshift({ id: od.id, productId: opToUse, phone: od.phone_number, price: opPrice, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
             saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(od.phone_number); showToast("Nomor diganti!"); window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -431,15 +468,16 @@ window.replaceSpecificOrder = async function(orderId) {
     } catch (e) { showToast("Error.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
 };
 
-// === RENDER UI & LOGO (LEBIH PINTAR) ===
+// === RENDER UI & LOGO ===
 function getOperatorLogo(id) { 
     const i = String(id).toLowerCase(); 
     if (i.includes('telkomsel') || i.includes('tsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; 
-    if (i.includes('indosat') || i.includes('isat')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; 
+    if (i.includes('indosat') || i.includes('isat') || i.includes('im3')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; 
     if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; 
     if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg'; 
-    if (i.includes('three') || i.includes('tri') || i === '3') return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; 
+    if (i.includes('three') || i.includes('tri') || i.includes('3')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; 
     if (i.includes('smartfren') || i.includes('smart')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; 
+    if (i.includes('byu') || i.includes('by.u')) return 'https://www.byu.id/images/logo-byu.png';
     return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; 
 }
 
@@ -454,7 +492,7 @@ function renderOrders() {
         const isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
         let opTag = order.productId;
         if (opTag === 'any' || !opTag) { opTag = getProviderName(order.phone); } else { opTag = String(opTag).toUpperCase(); }
-        const matchedProduct = availableProducts.find(p => p.code === order.productId);
+        const matchedProduct = availableProducts.find(p => String(p.code) === String(order.productId));
         const displayPrice = usdFormatter.format(order.price || (matchedProduct ? matchedProduct.price : 0));
         const wait = order.cancelUnlockTime - now; 
         let otpHtml = isSuccess ? `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
@@ -522,7 +560,7 @@ function formatDate(ts) { if(!ts) return "---"; const d = new Date(ts); const da
 function escapeHTML(str) { if(!str) return ""; return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
 function openAddNoteModal() { isEditingNote = false; document.getElementById('form-modal-title').innerText = "Catatan Baru"; document.getElementById('note-title').value = ""; document.getElementById('note-content').value = ""; notesListModal.classList.add('hidden'); noteFormModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); }
 function openNoteDetailModal(key, data) { selectedNoteKey = key; currentNoteRawContent = data.content; document.getElementById('view-tag').innerText = `Dibuat: ${formatDate(data.timestamp)}`; document.getElementById('view-title').value = data.title || "Tanpa Judul"; document.getElementById('view-content').innerText = data.content; notesListModal.classList.add('hidden'); noteDetailModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); }
-function closeNoteDetailModal() { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); }
+function closeNoteDetailModal() { noteDetailModal.classList.add('hidden'); notesListModal.classList.add('hidden'); }
 function handleCancelNoteForm() { noteFormModal.classList.add('hidden'); if (isEditingNote) { noteDetailModal.classList.remove('hidden'); } else { notesListModal.classList.remove('hidden'); } }
 function editFromDetail() { const t = document.getElementById('view-title').value; const c = currentNoteRawContent; noteDetailModal.classList.add('hidden'); isEditingNote = true; document.getElementById('form-modal-title').innerText = "Edit Catatan"; document.getElementById('note-title').value = (t === "Tanpa Judul") ? "" : t; document.getElementById('note-content').value = c; noteFormModal.classList.remove('hidden'); }
 function handleSaveNote() { let t = document.getElementById('note-title').value.trim(); const c = document.getElementById('note-content').value.trim(); if(!c || c === "") return showToast("⚠️ Konten tidak boleh kosong!", "error"); db.ref(DB_PATH).once('value').then(snapshot => { let isDuplicate = false; let usedNumbers = new Set(); snapshot.forEach(child => { let exTitle = child.val().title; let exContent = child.val().content; if (exTitle && /^\d+$/.test(exTitle.toString().trim())) { usedNumbers.add(parseInt(exTitle.toString().trim())); } if (exContent && exContent.trim() === c) { if (!isEditingNote || selectedNoteKey !== child.key) { isDuplicate = true; } } }); if (isDuplicate) return showToast("⚠️ Gagal: Catatan sama sudah ada!", "error"); if (!t) { let nextNum = 1; while (usedNumbers.has(nextNum)) { nextNum++; } executeSaveNote(nextNum.toString(), c); } else { executeSaveNote(t, c); } }); }
@@ -546,7 +584,7 @@ window.addEventListener('popstate', (e) => {
 
 function confirmExit() { window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
 
-// INIT (Memulai Aplikasi)
+// INIT
 window.onload = async () => { 
     relocateBalanceUI(); 
     history.pushState(null, null, window.location.href); 
@@ -563,7 +601,6 @@ window.onload = async () => {
     loadHistory(); 
     renderMainButtons(); 
     
-    // Tarik Saldo dan Data Layanan Bersamaan
     fetchBalance(); 
     await loadServices(); 
     renderOrders(); 
