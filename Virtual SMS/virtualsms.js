@@ -43,16 +43,22 @@ window.closeIframeNoteModal = function() {
     document.getElementById('iframeNoteModal').classList.add('hidden');
 }
 
-// === FUNGSI API (ANTI-CRASH PARSER) ===
+// === FUNGSI API (DENGAN DETEKSI CLOUDFLARE/HTML BLOCKED) ===
 async function apiCall(endpoint, method = "GET", body = null) { 
     try {
         const options = { method, headers: {} }; 
         if (body) { options.headers["Content-Type"] = "application/json"; options.body = JSON.stringify(body); }
         const response = await fetch(`${BASE_URL}${endpoint}`, options); 
         const textData = await response.text();
-        try { return JSON.parse(textData); } 
-        catch (err) {
-            let isErr = textData.toLowerCase().includes("wrong") || textData.toLowerCase().includes("error") || textData.toLowerCase().includes("fail");
+        try { 
+            return JSON.parse(textData); 
+        } catch (err) {
+            let lowerText = textData.toLowerCase();
+            // DETEKSI CLOUDFLARE ATAU HALAMAN HTML
+            if (lowerText.includes("<html") || lowerText.includes("cloudflare") || lowerText.includes("blocked")) {
+                return { status: false, message: "Akses API diblokir keamanan server (Cloudflare)." };
+            }
+            let isErr = lowerText.includes("wrong") || lowerText.includes("error") || lowerText.includes("fail");
             return (response.ok && !isErr) ? { status: true, message: textData || "Success" } : { status: false, message: textData || `Error ${response.status}` };
         }
     } catch (err) { return { status: false, message: "Koneksi Proxy Gagal: " + err.message }; }
@@ -68,7 +74,6 @@ async function fetchBalance() {
     } catch (error) {} 
 }
 
-// MEMUAT & MENGINGAT LAYANAN
 async function loadServices() {
     const serviceSelect = document.getElementById('serviceSelect'); if (!serviceSelect) return;
     try {
@@ -89,7 +94,6 @@ async function loadServices() {
 
 window.changeService = function() { currentServiceId = document.getElementById('serviceSelect').value; localStorage.setItem('virtual_selected_service', currentServiceId); loadVirtualSMSProducts(currentServiceId); }
 
-// MEMUAT & MENGINGAT OPERATOR
 async function loadVirtualSMSProducts(serviceId) {
     try {
         productList.innerHTML = '<div class="status-text-mini">Mencari Operator...</div>';
@@ -137,7 +141,6 @@ window.toggleRandomOperator = function() {
     if (btnOrder) btnOrder.disabled = false;
 }
 
-// === ORDER LOGIC ===
 async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Banyak nomor bekas.", "error"); return null; }
     const res = await apiCall('/v1/order/', 'POST', { country: Number(currentCountryId), service: Number(currentServiceId), operator: operatorCode === 'any' ? 'any' : operatorCode, type: 1 });
@@ -190,6 +193,7 @@ function startPollingAndTimer() {
         });
     }, 1000);
     
+    // DELAY POLLING KE 10 DETIK MENCEGAH BLOKIR CLOUDFLARE
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
@@ -204,7 +208,7 @@ function startPollingAndTimer() {
                 }
             } catch(e) {}
         }
-    }, 5000);
+    }, 10000);
 }
 
 function removeOrderWithAnimation(idStr, callback) { const c = document.getElementById(`order-card-${idStr}`); if (c) { c.classList.add('removing'); setTimeout(() => { callback(); }, 300); } else { callback(); } }
@@ -260,7 +264,6 @@ window.replaceSpecificOrder = async function(orderId) {
     } catch (e) { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
 };
 
-// === RENDER UI & LOGO ===
 function getOperatorLogo(id) { const i = String(id).toLowerCase(); if (i.includes('telkomsel') || i.includes('tsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; if (i.includes('indosat') || i.includes('isat') || i.includes('im3')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg'; if (i.includes('three') || i.includes('tri') || i.includes('3')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; if (i.includes('smartfren') || i.includes('smart')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; if (i.includes('byu') || i.includes('by.u')) return 'https://www.byu.id/images/logo-byu.png'; return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; }
 function renderOrders() {
     const aCount = document.getElementById('activeCount'); if (aCount) aCount.innerText = activeOrders.length;
@@ -281,7 +284,6 @@ function renderOrders() {
 }
 function relocateBalanceUI() { const hc = document.querySelector('.app-header-container'); const bc = document.querySelector('.balance-container'); if(hc && bc && !document.getElementById('newBalanceDisplay')) { bc.style.display = 'none'; const nd = document.createElement('div'); nd.style.textAlign = 'right'; nd.innerHTML = `<span style="font-size: 10px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 16px; font-weight: 900; color: var(--primary-color);">...</span>`; hc.appendChild(nd); const ob = document.getElementById('balanceDisplay'); if(ob) ob.removeAttribute('id'); nd.querySelector('span:last-child').id = 'balanceDisplay'; } }
 
-// === MISC UTILS ===
 window.openSettingsModal = function() { document.getElementById('settingsPassword').value = appSettings.password; document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; document.getElementById('settingsModal').classList.remove('hidden'); history.pushState(null, null, "#settings"); }
 window.closeSettingsModal = function() { document.getElementById('settingsModal').classList.add('hidden'); }
 window.saveSettings = function() { appSettings.password = document.getElementById('settingsPassword').value; appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; localStorage.setItem('app_settings', JSON.stringify(appSettings)); closeSettingsModal(); showToast("Pengaturan disimpan!"); renderMainButtons(); }
