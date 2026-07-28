@@ -7,30 +7,46 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="herosms.css?v=16"> 
+    <link rel="stylesheet" href="herosms.css?v=18"> 
+    
+    <!-- SKRIP PENGINGAT APLIKASI (AUTO-REDIRECT) -->
+    <script>
+        (function() {
+            var lastApp = localStorage.getItem('last_active_app');
+            var currentHref = window.location.href;
+            if (!lastApp) {
+                if (currentHref.includes('virtualsms.html')) localStorage.setItem('last_active_app', 'virtualsms.html');
+                else if (currentHref.includes('herosms.html')) localStorage.setItem('last_active_app', 'herosms.html');
+                else if (currentHref.includes('smscode.html')) localStorage.setItem('last_active_app', 'smscode.html');
+                return;
+            }
+            if (lastApp && !currentHref.includes(lastApp) && !sessionStorage.getItem('just_switched')) {
+                sessionStorage.setItem('just_switched', 'true');
+                if (lastApp === 'virtualsms.html') window.location.replace("https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html");
+                else if (lastApp === 'herosms.html') window.location.replace("https://shopee-smscode.github.io/Hero%20SMS/herosms.html");
+                else if (lastApp === 'smscode.html') window.location.replace("https://shopee-smscode.github.io/SMS%20Code/smscode.html");
+            }
+        })();
+    </script>
 </head>
 <body class="theme-hero">
     <div id="appView" class="container">
         
-        <!-- TOP ACTIONS BAR (DROPDOWN KIRI & KANAN) -->
         <div class="top-bar-modern">
             <div style="display: flex; gap: 8px; align-items: center;">
-                <!-- Dropdown Pilih SMS -->
                 <div class="dropdown">
                     <button class="dropbtn" onclick="toggleAppDropdown()">
                         <i class="fas fa-bolt"></i> Hero SMS <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 2px;"></i>
                     </button>
                     <div id="appDropdown" class="dropdown-content">
-                        <a href="https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html"><i class="fas fa-globe"></i> SMS Virtual</a>
-                        <a href="https://shopee-smscode.github.io/Hero%20SMS/herosms.html" class="active"><i class="fas fa-bolt"></i> Hero SMS</a>
-                        <a href="https://shopee-smscode.github.io/SMS%20Code/smscode.html"><i class="fas fa-sms"></i> SMS Code</a>
+                        <a href="https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html" onclick="localStorage.setItem('last_active_app', 'virtualsms.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-globe"></i> SMS Virtual</a>
+                        <a href="https://shopee-smscode.github.io/Hero%20SMS/herosms.html" class="active" onclick="localStorage.setItem('last_active_app', 'herosms.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-bolt"></i> Hero SMS</a>
+                        <a href="https://shopee-smscode.github.io/SMS%20Code/smscode.html" onclick="localStorage.setItem('last_active_app', 'smscode.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-sms"></i> SMS Code</a>
                     </div>
                 </div>
-                <!-- Tombol Note External -->
                 <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-sticky-note"></i></button>
             </div>
             
-            <!-- Dropdown Menu Aksi Kanan (Garis 3) -->
             <div class="dropdown">
                 <button class="dropbtn-icon" onclick="toggleMenuDropdown()">
                     <i class="fas fa-bars"></i>
@@ -44,7 +60,6 @@
             </div>
         </div>
 
-        <!-- HEADER TITLE -->
         <div class="app-header-container">
             <div class="header-titles">
                 <h1>Hero-SMS 🇮🇩</h1>
@@ -52,10 +67,8 @@
             </div>
         </div>
         
-        <div class="section" style="margin-bottom: 5px;">
-            <div id="activeOrdersContainer">
-                <div class="status-text-mini">Belum ada pesanan aktif.</div>
-            </div>
+        <div id="activeOrdersContainer">
+            <div class="status-text-mini">Belum ada pesanan aktif.</div>
         </div>
 
         <div class="balance-container">
@@ -65,7 +78,7 @@
             </div>
         </div>
 
-        <div class="section">
+        <div>
             <div id="productList" class="product-list">
                 <div class="status-text-mini">Memuat data Server...</div>
             </div>
@@ -174,6 +187,6 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <script src="herosms.js?v=16"></script>
+    <script src="herosms.js?v=18"></script>
 </body>
 </html>
