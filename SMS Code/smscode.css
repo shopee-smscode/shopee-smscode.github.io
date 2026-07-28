@@ -93,7 +93,6 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .btn-primary { width: 100%; background: var(--primary-color); color: #000; height: 50px !important; font-size: 15px !important; margin-top: 4px; border-radius: 12px !important; font-weight: 800; text-transform: uppercase; border: none; cursor: pointer; transition: 0.2s;}
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* --- DAFTAR PRODUK (GRID KOTAK PERSEGI 3 KOLOM SEPERTI HERO SMS) --- */
 .product-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; max-height: 250px; overflow-y: auto; padding: 8px; margin-left: -8px; margin-right: -8px; }
 .product-card { padding: 10px 4px; border-width: 2px; border-style: solid; border-color: var(--border-color); border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background-color: var(--bg-card); cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15); text-align: center; }
 .product-card:hover { background-color: var(--bg-card-hover); transform: translateY(-2px); }
