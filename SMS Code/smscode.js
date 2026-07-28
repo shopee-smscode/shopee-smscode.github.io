@@ -313,7 +313,6 @@ async function loadProducts(serviceId) {
         const btnOrder = document.getElementById('btnOrder');
         if (btnOrder) btnOrder.disabled = true;
 
-        // BACA KEDUA API SEKALIGUS: PRODUCTS (UNTUK HARGA) DAN OPERATORS (UNTUK DAFTAR JARINGAN)
         const [productsRes, operatorsRes] = await Promise.all([
             apiCall(`/catalog/products?country_id=${currentCountryId}&platform_id=${serviceId}`),
             apiCall(`/catalog/operators?country_id=${currentCountryId}&platform_id=${serviceId}`)
@@ -340,22 +339,20 @@ async function loadProducts(serviceId) {
 
         let ops = [];
         if (operatorsRes.success && operatorsRes.data && operatorsRes.data.length > 0) {
-            // MERUBAH DATA OPERATORS MENJADI KOTAK GRID
             ops = operatorsRes.data.map(op => {
                 let isAny = op.operator_id === null;
                 return {
                     id: isAny ? 'any' : op.operator_id,
-                    name: isAny ? 'Acak (Semua Jaringan)' : (op.name || op.local_name || op.code),
+                    name: isAny ? 'Acak' : (op.name || op.local_name || op.code),
                     catalog_product_id: catalogProductId,
                     price: basePrice,
                     available: isAny ? baseStock : 'Cek Server'
                 };
             });
         } else {
-            // JAGA JAGA JIKA API OPERATORS KOSONG
             ops = [{
                 id: 'any',
-                name: 'Acak (Semua Jaringan)',
+                name: 'Acak',
                 catalog_product_id: catalogProductId,
                 price: basePrice,
                 available: baseStock
@@ -378,7 +375,6 @@ async function loadProducts(serviceId) {
         availableProducts.forEach(product => {
             let opCode = product.id;
             let opName = product.name.toUpperCase();
-            if(opName === 'ANY') opName = 'ACAK (SEMUA JARINGAN)';
             
             const card = document.createElement("div"); card.className = "product-card"; card.id = `op-card-${opCode}`;
             if (selectedProductId === String(opCode)) card.classList.add('selected');
@@ -425,11 +421,10 @@ window.toggleRandomOperator = function() {
     if (btn) btn.disabled = false;
 }
 
-// LOGIKA PEMESANAN BARU (MENGGABUNGKAN CATALOG ID DAN OPERATOR ID)
-async function processOrderFreshNumber(selectedId, maxRetries = 5) {
+async function processOrderFreshNumber(productId, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas.", "error"); return null; }
     
-    const selectedOpInfo = availableProducts.find(p => String(p.id) === String(selectedId));
+    const selectedOpInfo = availableProducts.find(p => String(p.id) === String(productId));
     if (!selectedOpInfo) return null;
 
     const reqBody = {
@@ -437,8 +432,8 @@ async function processOrderFreshNumber(selectedId, maxRetries = 5) {
         quantity: 1
     };
     
-    if (selectedId !== 'any') {
-        reqBody.operator_id = parseInt(selectedId);
+    if (productId !== 'any') {
+        reqBody.operator_id = parseInt(productId);
     }
 
     const res = await apiCall('/orders/create', 'POST', reqBody);
@@ -450,9 +445,9 @@ async function processOrderFreshNumber(selectedId, maxRetries = 5) {
             showToast(`⚠️ Nomor ${rawPhone} bekas. Mencari lagi...`, "warning");
             hiddenBadOrders.push({ id: o.id, cancelAt: Date.now() + (3 * 60 * 1000), isCanceling: false });
             localStorage.setItem(`smscode_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders));
-            return await processOrderFreshNumber(selectedId, maxRetries - 1);
+            return await processOrderFreshNumber(productId, maxRetries - 1);
         } else { 
-            o.finalOperatorId = selectedId; 
+            o.finalOperatorId = productId; 
             o.catalog_product_id = reqBody.catalog_product_id;
             return o; 
         }
@@ -488,7 +483,7 @@ window.onOrderButtonClicked = async function() {
             
             activeOrders.unshift({ 
                 id: o.id, 
-                productId: String(actualOpId), // MENYIMPAN OPERATOR ID SEBAGAI PRODUCT ID UNTUK RENDER LOGO
+                productId: String(actualOpId), 
                 phone: o.phone_number, 
                 price: opPrice, 
                 otp: null, 
@@ -526,15 +521,35 @@ function renderOrders() {
             opTag = getProviderName(order.phone);
         }
         opTag = String(opTag).toUpperCase();
-        if(opTag === 'ANY') opTag = 'ACAK';
         
+        // PENGATURAN LOGIKA TOMBOL (GANTI, BATAL, ULANG, SELESAI)
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
-        if (isSuccess) { finishBtnAttr = ""; resendBtnAttr = ""; cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; } else if (wait <= 0 && !order.isAutoCanceling) { cancelBtnAttr = ""; replaceBtnAttr = ""; resendBtnAttr = "disabled"; } else if (order.isAutoCanceling) { cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; }
+        
+        // Jika OTP Sukses, Hanya Selesai dan Ulang (Untuk minta SMS Ke-2) yang aktif
+        if (isSuccess) { 
+            finishBtnAttr = ""; 
+            resendBtnAttr = ""; 
+            cancelBtnAttr = "disabled"; 
+            replaceBtnAttr = "disabled"; 
+        } 
+        // Jika Menunggu OTP dan Kunci Waktu 2 menit sudah lewat, Batal/Ganti aktif
+        else if (wait <= 0 && !order.isAutoCanceling) { 
+            cancelBtnAttr = ""; 
+            replaceBtnAttr = ""; 
+            resendBtnAttr = "disabled"; 
+        } 
+        // Jika Sedang Batal Otomatis atau baru selesai minta "Ulang"
+        else if (order.isAutoCanceling) { 
+            cancelBtnAttr = "disabled"; 
+            replaceBtnAttr = "disabled"; 
+            resendBtnAttr = "disabled"; 
+        }
         
         const displayPrice = (order.price && order.price != 0) ? idrFormatter.format(order.price) : idrFormatter.format(matchedProduct?.price || 0);
         let headerLogoUrl = getOperatorLogo(opTag); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
         
-        card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id}</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
+        // MEMUNCULKAN NAMA OPERATOR DI KOTAK OTP (CONTOH: #1005 - TELKOMSEL)
+        card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id} (${opTag})</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id})" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder(${order.id})" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder(${order.id})" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder(${order.id})" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
         if (activeOrdersContainer) activeOrdersContainer.appendChild(card);
     });
 }
@@ -608,11 +623,11 @@ async function syncServerOrders() {
 
 function removeOrderWithAnimation(idStr, callback) { const card = document.getElementById(`order-card-${idStr}`); if (card) { card.classList.add('removing'); setTimeout(() => { callback(); }, 300); } else { callback(); } }
 
+// SEMUA FUNGSI API DI BAWAH INI SEKARANG MENGGUNAKAN parseInt() AGAR TIDAK GAGAL
 window.replaceSpecificOrder = async function(orderId) {
     if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
-    const idStr = String(orderId).trim();
-    const btn = document.getElementById(`btn-replace-${idStr}`); 
-    const oldOrder = activeOrders.find(o => String(o.id) === idStr); 
+    const btn = document.getElementById(`btn-replace-${orderId}`); 
+    const oldOrder = activeOrders.find(o => String(o.id) === String(orderId)); 
     const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
     
     if (!opToUse) return showToast("Pilih server manual.", "error"); 
@@ -620,10 +635,10 @@ window.replaceSpecificOrder = async function(orderId) {
     if (oldOrder) saveToHistory(oldOrder, "GANTI");
     
     try {
-        const c = await apiCall('/orders/cancel', 'POST', { id: idStr });
+        const c = await apiCall('/orders/cancel', 'POST', { id: parseInt(orderId) });
         if (c.success || (c.error && c.error.code === 'NOT_FOUND')) {
-            removeOrderWithAnimation(idStr, async () => {
-                activeOrders = activeOrders.filter(o => String(o.id) !== idStr);
+            removeOrderWithAnimation(orderId, async () => {
+                activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId));
                 const n = await processOrderFreshNumber(opToUse, 5);
                 if (n) {
                     const actualOpId = n.finalOperatorId || opToUse;
@@ -639,41 +654,42 @@ window.replaceSpecificOrder = async function(orderId) {
 };
 
 window.resendSpecificOrder = async function(orderId) {
-    const idStr = String(orderId); const btn = document.getElementById(`btn-resend-${idStr}`); 
+    const btn = document.getElementById(`btn-resend-${orderId}`); 
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
-        const res = await apiCall('/orders/resend', 'POST', { id: idStr });
+        const res = await apiCall('/orders/resend', 'POST', { id: parseInt(orderId) });
         if (res.success) { 
             showToast("Meminta kode baru..."); 
-            let idx = activeOrders.findIndex(o => String(o.id) === idStr);
+            let idx = activeOrders.findIndex(o => String(o.id) === String(orderId));
             if (idx !== -1) { 
                 saveToHistory(activeOrders[idx], "MINTA ULANG"); 
-                activeOrders[idx].status = "ACTIVE"; 
+                activeOrders[idx].status = "ACTIVE"; // Kembalikan ke mode menunggu
                 activeOrders[idx].otp = null; 
-                activeOrders[idx].disableAutoCancel = true;
+                activeOrders[idx].disableAutoCancel = true; // Matikan pembatalan otomatis 10 menit
+                activeOrders[idx].cancelUnlockTime = Date.now() + (60 * 1000); // Kunci tombol batal/ganti 1 menit
                 saveToStorage(); 
             }
         } else { showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
     } catch (e) { showToast("Kesalahan jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
 };
 
-window.cancelSpecificOrder = async function(id, auto = false) {
-    const btnCancel = document.getElementById(`btn-cancel-${id}`); if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
+window.cancelSpecificOrder = async function(orderId, auto = false) {
+    const btnCancel = document.getElementById(`btn-cancel-${orderId}`); if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
     try { 
-        const res = await apiCall('/orders/cancel', 'POST', { id: id }); 
+        const res = await apiCall('/orders/cancel', 'POST', { id: parseInt(orderId) }); 
         if (res.success || (res.error && res.error.code === 'NOT_FOUND')) { 
-            const oldOrder = activeOrders.find(o => String(o.id) === String(id)); if (oldOrder) saveToHistory(oldOrder, "BATAL"); recordStat('failed');
-            removeOrderWithAnimation(id, () => { activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis dibatalkan (Waktu Habis)", "error"); else showToast("Pesanan dibatalkan", "success"); }); 
+            const oldOrder = activeOrders.find(o => String(o.id) === String(orderId)); if (oldOrder) saveToHistory(oldOrder, "BATAL"); recordStat('failed');
+            removeOrderWithAnimation(orderId, () => { activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis dibatalkan (Waktu Habis)", "error"); else showToast("Pesanan dibatalkan", "success"); }); 
         } else { showToast("Gagal dibatalkan.", "error"); if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } } 
     } catch (e) { if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
 };
 
-window.finishSpecificOrder = async function(id) {
-    const btnFinish = document.getElementById(`btn-finish-${id}`); if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
-    const oldOrder = activeOrders.find(o => String(o.id) === String(id)); if (oldOrder) saveToHistory(oldOrder, "SUKSES");
+window.finishSpecificOrder = async function(orderId) {
+    const btnFinish = document.getElementById(`btn-finish-${orderId}`); if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
+    const oldOrder = activeOrders.find(o => String(o.id) === String(orderId)); if (oldOrder) saveToHistory(oldOrder, "SUKSES");
     if (appSettings.autoCopy) { copyToClipboard(appSettings.password); } recordStat('success');
-    try { await apiCall('/orders/finish', 'POST', { id: id }); } catch (e) {} 
-    removeOrderWithAnimation(id, () => { activeOrders = activeOrders.filter(o => o.id !== id); saveToStorage(); });
+    try { await apiCall('/orders/finish', 'POST', { id: parseInt(orderId) }); } catch (e) {} 
+    removeOrderWithAnimation(orderId, () => { activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); saveToStorage(); });
 };
 
 async function initMainApp() { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "..."; await loadServices(); renderOrders(); if (activeOrders.length > 0) startPollingAndTimer(); syncServerOrders(); }
