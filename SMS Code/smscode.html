@@ -7,25 +7,40 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="smscode.css">
+    <link rel="stylesheet" href="smscode.css?v=17">
 </head>
 <body class="theme-smscode">
     <div id="appView" class="container">
         
-        <!-- TOP ACTIONS BAR (1 BARIS PENUH DENGAN 3 APLIKASI) -->
+        <!-- TOP ACTIONS BAR (DROPDOWN KIRI & KANAN) -->
         <div class="top-bar-modern">
-            <div class="app-tabs">
-                <a href="https://shopee-smscode.github.io/Hero%20SMS/herosms.html" class="app-tab"><i class="fas fa-bolt"></i> Hero</a>
-                <a href="https://shopee-smscode.github.io/SMS%20Code/smscode.html" class="app-tab active"><i class="fas fa-sms"></i> SMSCode</a>
-                <a href="https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html" class="app-tab"><i class="fas fa-globe"></i> Virtual</a>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <!-- Dropdown Pilih SMS -->
+                <div class="dropdown">
+                    <button class="dropbtn" onclick="toggleAppDropdown()">
+                        <i class="fas fa-sms"></i> SMS Code <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 2px;"></i>
+                    </button>
+                    <div id="appDropdown" class="dropdown-content">
+                        <a href="https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html"><i class="fas fa-globe"></i> SMS Virtual</a>
+                        <a href="https://shopee-smscode.github.io/Hero%20SMS/herosms.html"><i class="fas fa-bolt"></i> Hero SMS</a>
+                        <a href="https://shopee-smscode.github.io/SMS%20Code/smscode.html" class="active"><i class="fas fa-sms"></i> SMS Code</a>
+                    </div>
+                </div>
+                <!-- Tombol Note External -->
+                <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-sticky-note"></i></button>
             </div>
-            <div class="action-icons">
-                <button onclick="openStatsModal()" class="btn-switch-sm"><i class="fas fa-chart-bar"></i></button>
-                <button onclick="openBlacklistModal()" class="btn-switch-sm"><i class="fas fa-ban"></i><span id="blacklistBadge" class="badge">0</span></button>
-                <button onclick="openHistoryModal()" class="btn-switch-sm"><i class="fas fa-history"></i></button>
-                <button onclick="document.getElementById('btnOpenNotes').click()" class="btn-switch-sm"><i class="fas fa-sticky-note"></i></button>
-                <button id="btnOpenNotes" class="hidden"></button>
-                <button onclick="openSettingsModal()" class="btn-switch-sm"><i class="fas fa-cog"></i></button>
+            
+            <!-- Dropdown Menu Aksi Kanan (Garis 3) -->
+            <div class="dropdown">
+                <button class="dropbtn-icon" onclick="toggleMenuDropdown()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div id="menuDropdown" class="dropdown-content dropdown-right">
+                    <a href="#" onclick="openStatsModal(); return false;"><i class="fas fa-chart-bar"></i> Statistik</a>
+                    <a href="#" onclick="openBlacklistModal(); return false;" style="position: relative;"><i class="fas fa-ban"></i> Blacklist <span id="blacklistBadge" class="badge-menu">0</span></a>
+                    <a href="#" onclick="openHistoryModal(); return false;"><i class="fas fa-history"></i> Riwayat</a>
+                    <a href="#" onclick="openSettingsModal(); return false;"><i class="fas fa-cog"></i> Pengaturan</a>
+                </div>
             </div>
         </div>
 
@@ -41,10 +56,9 @@
             <span id="currentAccountName" style="display:none;"></span>
         </div>
         
-        <div class="section" style="margin-bottom: 5px;">
-            <div id="activeOrdersContainer">
-                <div class="status-text">Belum ada pesanan aktif.</div>
-            </div>
+        <!-- AREA PESANAN AKTIF (Dipangkas jaraknya) -->
+        <div id="activeOrdersContainer">
+            <div class="status-text-mini">Belum ada pesanan aktif.</div>
         </div>
 
         <div class="balance-container">
@@ -54,10 +68,18 @@
             </div>
         </div>
 
-        <div class="section">
-            <div id="productList" class="product-list">
-                <div class="status-text">Memuat data Server...</div>
+        <!-- AREA PILIHAN -->
+        <div>
+            <!-- TEKS PILIH SERVER RATA KIRI -->
+            <div style="text-align: left; font-size: 10px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; padding-left: 4px;">
+                Pilih Server
             </div>
+
+            <!-- DAFTAR SERVER -->
+            <div id="productList" class="product-list">
+                <div class="status-text-mini">Memuat data Server...</div>
+            </div>
+            
             <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
             <div id="extraBtnWrapper"></div>
         </div>
@@ -71,6 +93,19 @@
                 <button onclick="closeAccountModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
             <div id="accountListContainer" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; text-align: left;">
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EXTERNAL NOTES (IFRAME) -->
+    <div id="iframeNoteModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 95vh; display: flex; flex-direction: column; padding: 10px; width: 95%; max-width: 450px;">
+            <div class="modal-header" style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: none;">
+                <h3 class="modal-title" style="font-size: 16px;">Catatan</h3>
+                <button onclick="closeIframeNoteModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="flex: 1; border-radius: 12px; overflow: hidden; background: #fff;">
+                <iframe src="https://shopee-smscode.github.io/Notes/notes.html" style="width: 100%; height: 100%; border: none; min-height: 65vh; display: block;"></iframe>
             </div>
         </div>
     </div>
@@ -142,71 +177,26 @@
                 <button onclick="closeHistoryModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
             <div id="history-list" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
-                <div class="status-text">Belum ada riwayat.</div>
+                <div class="status-text-mini" style="text-align:center;">Belum ada riwayat.</div>
             </div>
             <button onclick="clearHistory()" class="btn-danger" style="margin-top: 15px; width: 100%; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: bold;"><i class="fas fa-trash"></i> Hapus Riwayat</button>
         </div>
     </div>
 
-    <!-- MODAL NOTES -->
-    <div id="notesListModal" class="modal hidden">
-        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
-            <div class="modal-header" style="margin-bottom: 15px;">
-                <div style="text-align: left;"><h3 class="modal-title" style="margin:0;">Catatanku <span id="notesCount" style="font-size:14px; font-weight:600; color:var(--text-secondary);">(0)</span></h3></div>
-                <div style="display: flex; gap: 8px;">
-                    <button onclick="openAddNoteModal()" class="btn-success" style="padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: bold;"><i class="fas fa-plus"></i> Baru</button>
-                    <button onclick="closeNotesListModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
-                </div>
-            </div>
-            <div id="notes-grid" class="notes-list" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left;"><div class="status-text">Memuat catatan...</div></div>
-        </div>
-    </div>
-
-    <!-- MODAL FORM NOTE -->
-    <div id="noteFormModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="form-modal-title" class="modal-title">Catatan Baru</h3>
-                <button onclick="handleCancelNoteForm()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
-            </div>
-            <input type="text" id="note-title" class="form-input" placeholder="Judul (Kosong = Auto Number)" style="margin-bottom:12px; font-weight:700;">
-            <textarea id="note-content" class="form-input" placeholder="Tulis catatan Anda di sini..." style="min-height: 180px; resize: vertical; margin-bottom: 15px; font-size: 13px;"></textarea>
-            <div style="display: flex; gap: 10px;">
-                <button class="btn-primary" style="flex:1; padding: 12px; border-radius: 12px; background-color: var(--bg-card); color: var(--text-primary);" onclick="handleCancelNoteForm()">Batal</button>
-                <button class="btn-success" style="flex:2; padding: 12px; border-radius: 12px; font-size: 14px;" onclick="handleSaveNote()"><i class="fas fa-check"></i> Simpan</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL DETAIL NOTE -->
-    <div id="noteDetailModal" class="modal hidden">
-        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
-            <div class="modal-header" style="margin-bottom: 10px;">
-                <span id="view-tag" style="font-size: 11px; font-weight: bold; color: var(--text-secondary);"></span>
-                <button onclick="closeNoteDetailModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
-            </div>
-            <input type="text" id="view-title" readonly style="width:100%; border:none; padding:0; font-size:20px; font-weight:900; margin-bottom:15px; background:transparent; color: var(--text-primary); outline: none;">
-            <div id="view-content"></div>
-            <div style="display: flex; gap: 10px; align-items: stretch;">
-                <button class="btn-primary" style="flex: 0 0 auto; width: 44px; padding: 0; border-radius: 10px; display: flex; align-items: center; justify-content: center;" onclick="editFromDetail()"><i class="fas fa-edit" style="font-size: 14px;"></i></button>
-                <button class="btn-success" style="flex: 1; border-radius: 10px; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="copyNoteContent()"><i class="fas fa-copy"></i> Salin</button>
-                <button class="btn-danger" style="flex: 0 0 auto; width: 44px; padding: 0; border-radius: 10px; display: flex; align-items: center; justify-content: center;" onclick="confirmDeleteNote()"><i class="fas fa-trash" style="font-size: 14px;"></i></button>
-            </div>
-        </div>
-    </div>
-
+    <!-- MODAL KELUAR -->
     <div id="exitModal" class="modal hidden">
         <div class="modal-content">
             <h3 class="modal-title">Keluar Aplikasi?</h3>
             <p class="modal-desc">Apakah Anda yakin ingin menutup dan keluar dari aplikasi ini?</p>
-            <div class="modal-actions">
-                <button onclick="closeExitModal()" class="btn-primary" style="width:48%; padding:12px; background-color: var(--bg-card); color: var(--text-primary); border-radius: 12px;">Batal</button>
-                <button onclick="confirmExit()" class="btn-danger" style="width:48%; padding:12px; border-radius: 12px;">Keluar</button>
+            <div class="modal-actions" style="display:flex; justify-content:space-between; gap:10px;">
+                <button onclick="closeExitModal()" class="btn-primary" style="flex:1; padding:12px; background-color: var(--bg-card); color: var(--text-primary); border-radius: 12px;">Batal</button>
+                <button onclick="confirmExit()" class="btn-danger" style="flex:1; padding:12px; border-radius: 12px;">Keluar</button>
             </div>
         </div>
     </div>
+
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <script src="smscode.js"></script>
+    <script src="smscode.js?v=17"></script>
 </body>
 </html>
