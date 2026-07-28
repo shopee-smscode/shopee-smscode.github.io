@@ -1,6 +1,8 @@
 const BASE_URL = "https://virtual-sms-proxy.masreno6pro.workers.dev"; 
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
+const COUNTRY_ID = 1; 
+
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
@@ -18,37 +20,63 @@ const productList = document.getElementById('productList');
 const btnOrder = document.getElementById('btnOrder'); 
 const activeOrdersContainer = document.getElementById('activeOrdersContainer'); 
 
-// Fungsi API Induk[span_5](start_span)[span_5](end_span)
+// Fungsi API Induk yang kebal terhadap Error Non-JSON[span_3](start_span)[span_3](end_span)
 async function apiCall(endpoint, method = "GET", body = null) { 
     try {
-        const options = { 
-            method, 
-            headers: { "Content-Type": "application/json" } 
-        }; 
-        if (body) options.body = JSON.stringify(body); 
+        const options = { method, headers: {} }; 
+        
+        // Hanya kirim header application/json jika ada body payload[span_4](start_span)[span_4](end_span)
+        if (body) {
+            options.headers["Content-Type"] = "application/json";
+            options.body = JSON.stringify(body); 
+        }
+        
         const response = await fetch(`${BASE_URL}${endpoint}`, options); 
-        const json = await response.json();
-        return json;
+        const textData = await response.text(); // Ambil raw text dulu
+        
+        try {
+            // Coba terjemahkan sebagai JSON
+            return JSON.parse(textData);
+        } catch (err) {
+            // Jika server merespons dengan teks biasa (misal "Something went wrong")
+            let isErrorText = textData.toLowerCase().includes("wrong") || textData.toLowerCase().includes("error") || textData.toLowerCase().includes("fail");
+            if (response.ok && !isErrorText) {
+                return { status: true, message: textData || "Success", data: null };
+            } else {
+                return { status: false, message: textData || `HTTP Error ${response.status}`, data: null };
+            }
+        }
     } catch (err) {
         return { status: false, message: "Koneksi Proxy Gagal: " + err.message, data: null };
     }
 }
 
-// 1. CEK SALDO[span_6](start_span)[span_6](end_span)
+// 1. CEK SALDO[span_5](start_span)[span_5](end_span)
 async function fetchBalance() { 
     const bDisplay = document.getElementById('balanceDisplay');
     if (!bDisplay) return;
     try { 
+        bDisplay.innerText = "Cek Saldo..."; 
+        bDisplay.style.color = "var(--primary-color)";
+        bDisplay.style.fontSize = "16px";
+        
         const res = await apiCall('/v1/profile/'); 
+        
         if (res && (res.status === true || res.status === "true") && res.data && typeof res.data.balance !== 'undefined') {
             bDisplay.innerText = usdFormatter.format(res.data.balance); 
-            bDisplay.style.color = "var(--primary-color)";
-            bDisplay.style.fontSize = "16px";
-        } 
-    } catch (error) {} 
+        } else {
+            bDisplay.innerText = res.message ? res.message : "Error API";
+            bDisplay.style.color = "var(--danger-color)";
+            bDisplay.style.fontSize = "10px";
+        }
+    } catch (error) { 
+        bDisplay.innerText = "Gagal Fetch"; 
+        bDisplay.style.color = "var(--danger-color)";
+        bDisplay.style.fontSize = "10px";
+    } 
 }
 
-// 2. MUAT SEMUA LAYANAN[span_7](start_span)[span_7](end_span)
+// 2. MUAT SEMUA LAYANAN[span_6](start_span)[span_6](end_span)
 async function loadServices() {
     const serviceSelect = document.getElementById('serviceSelect');
     if (!serviceSelect) return;
@@ -103,7 +131,7 @@ window.changeService = function() {
     loadVirtualSMSProducts(currentServiceId);
 }
 
-// 3. MUAT OPERATOR & HARGA[span_8](start_span)[span_8](end_span)
+// 3. MUAT OPERATOR & HARGA[span_7](start_span)[span_7](end_span)
 async function loadVirtualSMSProducts(serviceId) {
     try {
         productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
@@ -206,7 +234,7 @@ window.toggleRandomOperator = function() {
     if (btnOrder) btnOrder.disabled = false;
 }
 
-// 4. PESAN NOMOR DENGAN DEEP SCAN & JALUR BELAKANG[span_9](start_span)[span_9](end_span)
+// 4. PESAN NOMOR[span_8](start_span)[span_8](end_span)
 async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas. Silakan coba lagi.", "error"); return null; }
     
@@ -327,7 +355,7 @@ function startPollingAndTimer() {
         });
     }, 1000);
     
-    // Polling Status OTP[span_10](start_span)[span_10](end_span)
+    // Polling Status OTP[span_9](start_span)[span_9](end_span)
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
@@ -384,30 +412,26 @@ if (btnOrder) {
     };
 }
 
-// LOGIKA 4 TOMBOL (TERINTEGRASI VALIDASI API & LOGIKA HEROSMS)[span_11](start_span)[span_11](end_span)[span_12](start_span)[span_12](end_span)
+// LOGIKA 4 TOMBOL (TERINTEGRASI VALIDASI API & LOGIKA HEROSMS)[span_10](start_span)[span_10](end_span)
 
-// 1. BATAL (Memastikan server sukses sebelum dihapus dari layar)[span_13](start_span)[span_13](end_span)[span_14](start_span)[span_14](end_span)[span_15](start_span)[span_15](end_span)
+// 1. BATAL (Memastikan server sukses sebelum dihapus dari layar)[span_11](start_span)[span_11](end_span)
 window.cancelSpecificOrder = async function(id, auto = false) {
     const idStr = String(id).trim(); 
     const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
     
     try { 
-        // 1=Cancel[span_16](start_span)[span_16](end_span)
         const res = await apiCall(`/v1/order/${idStr}/1`, 'PATCH'); 
         
-        // Cek validitas: pastikan API menjawab status sukses
-        if (res && (res.status === true || res.status === "true" || (res.message && res.message.toLowerCase().includes("success")))) {
+        if (res && (res.status === true || res.status === "true" || (typeof res.message === 'string' && res.message.toLowerCase().includes("success")))) {
             const oldOrder = activeOrders.find(o => String(o.id) === idStr); 
             if (oldOrder) saveToHistory(oldOrder, "BATAL"); 
             recordStat('failed');
             
-            // Hapus dari memori lokal (layar)[span_17](start_span)[span_17](end_span)[span_18](start_span)[span_18](end_span)
             activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
             saveToStorage(); fetchBalance(); 
             if(auto) showToast("Otomatis dibatalkan", "error"); else showToast("Pesanan dibatalkan", "success");
         } else {
-            // Tampilkan error server jika gagal batal
             showToast(res.message || "Gagal batal, pesanan tetap berjalan", "error");
             if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; }
         }
@@ -417,14 +441,13 @@ window.cancelSpecificOrder = async function(id, auto = false) {
     }
 };
 
-// 2. SELESAI[span_19](start_span)[span_19](end_span)[span_20](start_span)[span_20](end_span)[span_21](start_span)[span_21](end_span)
+// 2. SELESAI[span_12](start_span)[span_12](end_span)
 window.finishSpecificOrder = async function(id) {
     const idStr = String(id).trim(); 
     const btnFinish = document.getElementById(`btn-finish-${idStr}`); 
     if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
     
     try { 
-        // 3=Complete[span_22](start_span)[span_22](end_span)
         const res = await apiCall(`/v1/order/${idStr}/3`, 'PATCH'); 
         
         const oldOrder = activeOrders.find(o => String(o.id) === idStr); 
@@ -433,12 +456,11 @@ window.finishSpecificOrder = async function(id) {
         if (appSettings.autoCopy) { copyToClipboard(appSettings.password); }
         recordStat('success');
         
-        // Hapus dari UI bagaimanapun juga karena user memaksa selesai[span_23](start_span)[span_23](end_span)[span_24](start_span)[span_24](end_span)
         activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
         saveToStorage(); fetchBalance();
         
         if (!res || (res.status !== true && res.status !== "true")) {
-            showToast(res.message || "Pesanan diakhiri (Peringatan Server)", "warning");
+            showToast(res.message || "Pesanan diakhiri", "warning");
         } else {
             showToast("Pesanan diselesaikan!", "success");
         }
@@ -447,16 +469,15 @@ window.finishSpecificOrder = async function(id) {
     }
 };
 
-// 3. ULANG[span_25](start_span)[span_25](end_span)[span_26](start_span)[span_26](end_span)[span_27](start_span)[span_27](end_span)
+// 3. ULANG[span_13](start_span)[span_13](end_span)
 window.resendSpecificOrder = async function(orderId) {
     const idStr = String(orderId).trim(); 
     const btn = document.getElementById(`btn-resend-${idStr}`); 
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     
     try {
-        // 2=More Sms[span_28](start_span)[span_28](end_span)
         const res = await apiCall(`/v1/order/${idStr}/2`, 'PATCH');
-        if (res && (res.status === true || res.status === "true")) { 
+        if (res && (res.status === true || res.status === "true" || (typeof res.message === 'string' && res.message.toLowerCase().includes("success")))) { 
             showToast("Meminta kode baru..."); 
             let idx = activeOrders.findIndex(o => String(o.id) === idStr); 
             if (idx !== -1) { 
@@ -475,7 +496,7 @@ window.resendSpecificOrder = async function(orderId) {
     }
 };
 
-// 4. GANTI (Batal -> Pesan Baru)[span_29](start_span)[span_29](end_span)[span_30](start_span)[span_30](end_span)[span_31](start_span)[span_31](end_span)
+// 4. GANTI (Batal -> Pesan Baru)[span_14](start_span)[span_14](end_span)
 window.replaceSpecificOrder = async function(orderId) {
     if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
     
@@ -487,10 +508,9 @@ window.replaceSpecificOrder = async function(orderId) {
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     
     try {
-        // Pastikan pesanan lama dibatalkan sebelum menarik nomor baru[span_32](start_span)[span_32](end_span)[span_33](start_span)[span_33](end_span)
         const cancelRes = await apiCall(`/v1/order/${idStr}/1`, 'PATCH'); 
         
-        if (cancelRes && (cancelRes.status === true || cancelRes.status === "true" || (cancelRes.message && cancelRes.message.toLowerCase().includes("success")))) {
+        if (cancelRes && (cancelRes.status === true || cancelRes.status === "true" || (typeof cancelRes.message === 'string' && cancelRes.message.toLowerCase().includes("success")))) {
             if (oldOrder) saveToHistory(oldOrder, "GANTI"); 
             recordStat('failed');
             activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
@@ -505,7 +525,6 @@ window.replaceSpecificOrder = async function(orderId) {
                 saveToStorage(); fetchBalance(); showToast("Batal sukses, tapi gagal pesan baru.", "warning"); 
             }
         } else {
-            // Tampilkan error server jika gagal batal
             showToast(cancelRes.message || "Gagal membatalkan nomor lama", "error");
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
         }
@@ -631,7 +650,7 @@ window.addEventListener('popstate', (e) => {
 
 function confirmExit() { window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
 
-// INIT (Memulai Aplikasi)
+// INIT
 window.onload = async () => { 
     relocateBalanceUI(); 
     history.pushState(null, null, window.location.href); 
