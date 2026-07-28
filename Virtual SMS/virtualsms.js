@@ -1,8 +1,6 @@
 const BASE_URL = "https://virtual-sms-proxy.masreno6pro.workers.dev"; 
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-const COUNTRY_ID = 1; 
-
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
@@ -20,25 +18,19 @@ const productList = document.getElementById('productList');
 const btnOrder = document.getElementById('btnOrder'); 
 const activeOrdersContainer = document.getElementById('activeOrdersContainer'); 
 
-// Fungsi API Induk yang kebal terhadap Error Non-JSON[span_3](start_span)[span_3](end_span)
+// Fungsi API Induk dengan Safe Parser[span_3](start_span)[span_3](end_span)
 async function apiCall(endpoint, method = "GET", body = null) { 
     try {
         const options = { method, headers: {} }; 
-        
-        // Hanya kirim header application/json jika ada body payload[span_4](start_span)[span_4](end_span)
         if (body) {
             options.headers["Content-Type"] = "application/json";
             options.body = JSON.stringify(body); 
         }
-        
         const response = await fetch(`${BASE_URL}${endpoint}`, options); 
-        const textData = await response.text(); // Ambil raw text dulu
-        
+        const textData = await response.text();
         try {
-            // Coba terjemahkan sebagai JSON
             return JSON.parse(textData);
         } catch (err) {
-            // Jika server merespons dengan teks biasa (misal "Something went wrong")
             let isErrorText = textData.toLowerCase().includes("wrong") || textData.toLowerCase().includes("error") || textData.toLowerCase().includes("fail");
             if (response.ok && !isErrorText) {
                 return { status: true, message: textData || "Success", data: null };
@@ -51,32 +43,21 @@ async function apiCall(endpoint, method = "GET", body = null) {
     }
 }
 
-// 1. CEK SALDO[span_5](start_span)[span_5](end_span)
+// 1. CEK SALDO[span_4](start_span)[span_4](end_span)
 async function fetchBalance() { 
     const bDisplay = document.getElementById('balanceDisplay');
     if (!bDisplay) return;
     try { 
-        bDisplay.innerText = "Cek Saldo..."; 
-        bDisplay.style.color = "var(--primary-color)";
-        bDisplay.style.fontSize = "16px";
-        
         const res = await apiCall('/v1/profile/'); 
-        
         if (res && (res.status === true || res.status === "true") && res.data && typeof res.data.balance !== 'undefined') {
             bDisplay.innerText = usdFormatter.format(res.data.balance); 
-        } else {
-            bDisplay.innerText = res.message ? res.message : "Error API";
-            bDisplay.style.color = "var(--danger-color)";
-            bDisplay.style.fontSize = "10px";
-        }
-    } catch (error) { 
-        bDisplay.innerText = "Gagal Fetch"; 
-        bDisplay.style.color = "var(--danger-color)";
-        bDisplay.style.fontSize = "10px";
-    } 
+            bDisplay.style.color = "var(--primary-color)";
+            bDisplay.style.fontSize = "16px";
+        } 
+    } catch (error) {} 
 }
 
-// 2. MUAT SEMUA LAYANAN[span_6](start_span)[span_6](end_span)
+// 2. MUAT SEMUA LAYANAN[span_5](start_span)[span_5](end_span)
 async function loadServices() {
     const serviceSelect = document.getElementById('serviceSelect');
     if (!serviceSelect) return;
@@ -131,7 +112,7 @@ window.changeService = function() {
     loadVirtualSMSProducts(currentServiceId);
 }
 
-// 3. MUAT OPERATOR & HARGA[span_7](start_span)[span_7](end_span)
+// 3. MUAT OPERATOR & HARGA[span_6](start_span)[span_6](end_span)
 async function loadVirtualSMSProducts(serviceId) {
     try {
         productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
@@ -234,7 +215,7 @@ window.toggleRandomOperator = function() {
     if (btnOrder) btnOrder.disabled = false;
 }
 
-// 4. PESAN NOMOR[span_8](start_span)[span_8](end_span)
+// 4. PESAN NOMOR[span_7](start_span)[span_7](end_span)
 async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas. Silakan coba lagi.", "error"); return null; }
     
@@ -355,7 +336,7 @@ function startPollingAndTimer() {
         });
     }, 1000);
     
-    // Polling Status OTP[span_9](start_span)[span_9](end_span)
+    // Polling Status OTP[span_8](start_span)[span_8](end_span)
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
@@ -382,6 +363,17 @@ function startPollingAndTimer() {
             } catch(e) {}
         }
     }, 5000);
+}
+
+// === HELPER ANIMASI HAPUS KARTU ===
+function removeOrderWithAnimation(idStr, callback) {
+    const card = document.getElementById(`order-card-${idStr}`);
+    if (card) {
+        card.classList.add('removing');
+        setTimeout(() => { callback(); }, 300);
+    } else {
+        callback();
+    }
 }
 
 // === AKSI TOMBOL ===
@@ -412,9 +404,9 @@ if (btnOrder) {
     };
 }
 
-// LOGIKA 4 TOMBOL (TERINTEGRASI VALIDASI API & LOGIKA HEROSMS)[span_10](start_span)[span_10](end_span)
+// LOGIKA 4 TOMBOL DENGAN VALIDASI SUKSES SERVER & ANIMASI[span_9](start_span)[span_9](end_span)
 
-// 1. BATAL (Memastikan server sukses sebelum dihapus dari layar)[span_11](start_span)[span_11](end_span)
+// 1. BATAL[span_10](start_span)[span_10](end_span)
 window.cancelSpecificOrder = async function(id, auto = false) {
     const idStr = String(id).trim(); 
     const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
@@ -428,9 +420,11 @@ window.cancelSpecificOrder = async function(id, auto = false) {
             if (oldOrder) saveToHistory(oldOrder, "BATAL"); 
             recordStat('failed');
             
-            activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
-            saveToStorage(); fetchBalance(); 
-            if(auto) showToast("Otomatis dibatalkan", "error"); else showToast("Pesanan dibatalkan", "success");
+            removeOrderWithAnimation(idStr, () => {
+                activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
+                saveToStorage(); fetchBalance(); 
+                if(auto) showToast("Otomatis dibatalkan", "error"); else showToast("Pesanan dibatalkan", "success");
+            });
         } else {
             showToast(res.message || "Gagal batal, pesanan tetap berjalan", "error");
             if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; }
@@ -441,7 +435,7 @@ window.cancelSpecificOrder = async function(id, auto = false) {
     }
 };
 
-// 2. SELESAI[span_12](start_span)[span_12](end_span)
+// 2. SELESAI[span_11](start_span)[span_11](end_span)
 window.finishSpecificOrder = async function(id) {
     const idStr = String(id).trim(); 
     const btnFinish = document.getElementById(`btn-finish-${idStr}`); 
@@ -449,27 +443,27 @@ window.finishSpecificOrder = async function(id) {
     
     try { 
         const res = await apiCall(`/v1/order/${idStr}/3`, 'PATCH'); 
-        
         const oldOrder = activeOrders.find(o => String(o.id) === idStr); 
         if (oldOrder) saveToHistory(oldOrder, "SUKSES"); 
         
         if (appSettings.autoCopy) { copyToClipboard(appSettings.password); }
         recordStat('success');
         
-        activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
-        saveToStorage(); fetchBalance();
-        
-        if (!res || (res.status !== true && res.status !== "true")) {
-            showToast(res.message || "Pesanan diakhiri", "warning");
-        } else {
-            showToast("Pesanan diselesaikan!", "success");
-        }
+        removeOrderWithAnimation(idStr, () => {
+            activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
+            saveToStorage(); fetchBalance();
+            if (!res || (res.status !== true && res.status !== "true")) {
+                showToast(res.message || "Pesanan diakhiri", "warning");
+            } else {
+                showToast("Pesanan diselesaikan!", "success");
+            }
+        });
     } catch (e) { 
         if (btnFinish) { btnFinish.disabled = false; btnFinish.innerHTML = '<i class="fas fa-check"></i> Selesai'; } 
     }
 };
 
-// 3. ULANG[span_13](start_span)[span_13](end_span)
+// 3. ULANG[span_12](start_span)[span_12](end_span)
 window.resendSpecificOrder = async function(orderId) {
     const idStr = String(orderId).trim(); 
     const btn = document.getElementById(`btn-resend-${idStr}`); 
@@ -496,7 +490,7 @@ window.resendSpecificOrder = async function(orderId) {
     }
 };
 
-// 4. GANTI (Batal -> Pesan Baru)[span_14](start_span)[span_14](end_span)
+// 4. GANTI[span_13](start_span)[span_13](end_span)
 window.replaceSpecificOrder = async function(orderId) {
     if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
     
@@ -513,17 +507,19 @@ window.replaceSpecificOrder = async function(orderId) {
         if (cancelRes && (cancelRes.status === true || cancelRes.status === "true" || (typeof cancelRes.message === 'string' && cancelRes.message.toLowerCase().includes("success")))) {
             if (oldOrder) saveToHistory(oldOrder, "GANTI"); 
             recordStat('failed');
-            activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
             
-            const od = await processOrderFreshNumber(opToUse, 5); 
-            if (od) {
-                const opInfo = availableProducts.find(p => String(p.code) === String(opToUse)); 
-                const opPrice = od.price || (opInfo ? opInfo.price : (oldOrder ? oldOrder.price : 0));
-                activeOrders.unshift({ id: od.id, productId: opToUse, phone: od.phone_number, price: opPrice, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
-                saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(od.phone_number); showToast("Nomor diganti!"); window.scrollTo({ top: 0, behavior: 'smooth' });
-            } else { 
-                saveToStorage(); fetchBalance(); showToast("Batal sukses, tapi gagal pesan baru.", "warning"); 
-            }
+            removeOrderWithAnimation(idStr, async () => {
+                activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
+                const od = await processOrderFreshNumber(opToUse, 5); 
+                if (od) {
+                    const opInfo = availableProducts.find(p => String(p.code) === String(opToUse)); 
+                    const opPrice = od.price || (opInfo ? opInfo.price : (oldOrder ? oldOrder.price : 0));
+                    activeOrders.unshift({ id: od.id, productId: opToUse, phone: od.phone_number, price: opPrice, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
+                    saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(od.phone_number); showToast("Nomor diganti!"); window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else { 
+                    saveToStorage(); fetchBalance(); showToast("Batal sukses, tapi gagal pesan baru.", "warning"); 
+                }
+            });
         } else {
             showToast(cancelRes.message || "Gagal membatalkan nomor lama", "error");
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
