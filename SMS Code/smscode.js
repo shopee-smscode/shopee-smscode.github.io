@@ -55,7 +55,7 @@ async function apiCall(endpoint, method = "GET", body = null) {
 function openSettingsModal() { document.getElementById('settingsPassword').value = appSettings.password; document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; document.getElementById('settingsModal').classList.remove('hidden'); history.pushState(null, null, "#settings"); }
 function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
 window.saveSettings = function() { appSettings.password = document.getElementById('settingsPassword').value; appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; localStorage.setItem('app_settings', JSON.stringify(appSettings)); closeSettingsModal(); showToast("Pengaturan disimpan!"); renderMainButtons(); }
-function renderMainButtons() { const extraBtnWrapper = document.getElementById('extraBtnWrapper'); if (!extraBtnWrapper) return; if (appSettings.autoCopy) { extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 12px; color: #fff;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
+function renderMainButtons() { const extraBtnWrapper = document.getElementById('extraBtnWrapper'); if (!extraBtnWrapper) return; if (appSettings.autoCopy) { extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 4px; width: 100%; border-radius: 12px; color: #fff;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 4px; width: 100%; border-radius: 12px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
 function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("0")) { p = "62" + p.substring(1); } return p; }
 function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
 function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } return otpStr; }
@@ -241,7 +241,7 @@ async function loadServices() {
     const btnSvc = document.getElementById('btnServiceSelect');
     if (!btnSvc) return;
     try {
-        btnSvc.innerHTML = `<span>Menyambung API...</span><i class="fas fa-spinner fa-spin"></i>`;
+        btnSvc.innerHTML = `<span>Memuat...</span><i class="fas fa-spinner fa-spin"></i>`;
         currentCountryId = 7; // Indonesia
 
         const servicesRes = await apiCall(`/catalog/services?country_id=${currentCountryId}`);
@@ -257,14 +257,14 @@ async function loadServices() {
             currentServiceId = selectedSvc.id; 
             
             localStorage.setItem('smscode_selected_service', currentServiceId); 
-            btnSvc.innerHTML = `<span>${selectedSvc.name.toUpperCase()}</span><i class="fas fa-search"></i>`;
+            btnSvc.innerHTML = `<span>${selectedSvc.name.toUpperCase()}</span><i class="fas fa-search" style="font-size: 11px;"></i>`;
             
             loadProducts(currentServiceId);
         } else {
-            btnSvc.innerHTML = `<span style="color:var(--danger-color);">Error Server Pusat</span><i class="fas fa-exclamation-triangle" style="color:var(--danger-color);"></i>`;
+            btnSvc.innerHTML = `<span style="color:var(--danger-color);">Error</span><i class="fas fa-exclamation-triangle"></i>`;
         }
     } catch (e) { 
-        btnSvc.innerHTML = `<span style="color:var(--danger-color);">Gagal Jaringan API</span><i class="fas fa-wifi" style="color:var(--danger-color);"></i>`; 
+        btnSvc.innerHTML = `<span style="color:var(--danger-color);">Gagal</span><i class="fas fa-wifi"></i>`; 
     }
 }
 
@@ -298,7 +298,7 @@ window.filterServices = function() {
             currentServiceId = svc.id;
             localStorage.setItem('smscode_selected_service', currentServiceId);
             const btnSvc = document.getElementById('btnServiceSelect');
-            if (btnSvc) btnSvc.innerHTML = `<span>${svc.name.toUpperCase()}</span><i class="fas fa-search"></i>`;
+            if (btnSvc) btnSvc.innerHTML = `<span>${svc.name.toUpperCase()}</span><i class="fas fa-search" style="font-size: 11px;"></i>`;
             closeServiceModal();
             loadProducts(currentServiceId);
         };
@@ -306,7 +306,7 @@ window.filterServices = function() {
     });
 }
 
-// === FUNGSI LOAD PRODUCTS (DIHAPUS BAGIAN STOK) ===
+// === FUNGSI LOAD PRODUCTS ===
 async function loadProducts(serviceId) {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Operator...</div>';
@@ -541,7 +541,6 @@ function renderOrders() {
         const displayPrice = (order.price && order.price != 0) ? idrFormatter.format(order.price) : idrFormatter.format(matchedProduct?.price || 0);
         let headerLogoUrl = getOperatorLogo(opTag); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
         
-        // Menampilkan nama operator di sebelah ID (Misal: #1005 (TELKOMSEL))
         card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id} (${opTag})</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id})" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder(${order.id})" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder(${order.id})" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder(${order.id})" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
         if (activeOrdersContainer) activeOrdersContainer.appendChild(card);
     });
