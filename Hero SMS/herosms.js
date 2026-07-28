@@ -7,7 +7,7 @@ const db = firebase.database();
 
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
 let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; 
-let selectedProductId = 'any'; // Default langsung Acak
+let selectedProductId = 'any'; 
 let timerInterval = null; let pollingInterval = null; let orderHistory = [];
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 });
@@ -128,7 +128,6 @@ document.getElementById('statDate').addEventListener('change', loadStatsData);
 window.openBlacklistModal = function() { document.getElementById('blacklistModal').classList.remove('hidden'); history.pushState(null, null, "#blacklist"); }
 window.closeBlacklistModal = function() { document.getElementById('blacklistModal').classList.add('hidden'); }
 
-// FUNGSI FETCH BALANCE
 async function fetchBalance() { 
     try { 
         const bDisplay = document.getElementById('balanceDisplay'); 
@@ -148,7 +147,6 @@ async function fetchBalance() {
     } 
 }
 
-// === FUNGSI ACAK & DAFTAR OPERATOR (SEPERTI VIRTUAL SMS) ===
 window.toggleRandomOperator = function() {
     const chk = document.getElementById('chkRandomOp');
     if (chk.checked) { 
@@ -206,7 +204,7 @@ async function loadShopeeIndonesia() {
             if (btnOrder) btnOrder.disabled = false;
             
             availableProducts.forEach(product => {
-                if (product.id === 'any') return; // Sembunyikan 'any' dari kartu, biarkan diatur lewat Checkbox Acak
+                if (product.id === 'any') return; 
                 
                 let opCode = product.id;
                 let opName = opCode.toUpperCase();
@@ -220,10 +218,8 @@ async function loadShopeeIndonesia() {
                 card.onclick = () => { 
                     document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
                     card.classList.add('selected'); 
-                    
                     const chk = document.getElementById('chkRandomOp'); 
                     if (chk) chk.checked = false;
-                    
                     selectedProductId = String(opCode); 
                     localStorage.setItem('hero_selected_operator', selectedProductId); 
                     if (btnOrder) btnOrder.disabled = false; 
@@ -234,14 +230,10 @@ async function loadShopeeIndonesia() {
     } catch (error) { if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error muat data.</div>`; }
 }
 
-// === ORDER LOGIC (DI-HARD BIND KE TOMBOL) ===
 async function processOrderFreshNumber(operatorId, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas.", "error"); return null; }
     
-    // Berdasarkan dokumen resmi SMS-Activate, parameter "operator" diharapkan format string[cite: 1]
     const res = await apiCall('/orders/create', 'POST', { operator: operatorId });
-    
-    // Jika server membalas format JSON dengan respon ACCESS_NUMBER yang sukses[cite: 1]
     if (res.success && res.data && res.data.orders && res.data.orders.length > 0) {
         const o = res.data.orders[0]; const rawPhone = String(o.phone_number); const phoneStr = normalizePhone(rawPhone);
         if (usedNumbersDB.has(phoneStr)) {
@@ -251,13 +243,11 @@ async function processOrderFreshNumber(operatorId, maxRetries = 5) {
             return await processOrderFreshNumber(operatorId, maxRetries - 1);
         } else { return o; }
     } else { 
-        // Jika server SMS-Activate merespon NO_NUMBERS, NO_BALANCE, atau BAD_ACTION[cite: 1]
         showToast(res.error ? res.error.message : "Gagal mendapat nomor API", "error"); 
         return null; 
     }
 }
 
-// FUNGSI INI DI PANGGIL LANGSUNG DARI HTML (ONCLICK)
 window.onOrderButtonClicked = async function() {
     const btn = document.getElementById('btnOrder');
     if (!btn) return;
@@ -274,6 +264,7 @@ window.onOrderButtonClicked = async function() {
         if (o) {
             const opInfo = availableProducts.find(p => String(p.id) === String(selectedProductId)); 
             const opPrice = o.price || o.cost || o.amount || (opInfo ? opInfo.price : 0);
+            // Tambahkan disableAutoCancel: false untuk pesanan baru
             activeOrders.unshift({ 
                 id: o.id, 
                 productId: selectedProductId, 
@@ -283,7 +274,8 @@ window.onOrderButtonClicked = async function() {
                 status: "ACTIVE", 
                 expiresAt: Date.now() + (20 * 60 * 1000), 
                 cancelUnlockTime: Date.now() + 120000, 
-                isAutoCanceling: false 
+                isAutoCanceling: false,
+                disableAutoCancel: false
             });
             saveToStorage(); 
             startPollingAndTimer(); 
@@ -337,19 +329,27 @@ function startPollingAndTimer() {
         const now = Date.now();
         for (let j = hiddenBadOrders.length - 1; j >= 0; j--) {
             let bo = hiddenBadOrders[j];
-            if (now >= bo.cancelAt && !bo.isCanceling) { bo.isCanceling = true; apiCall(`/orders/cancel`, 'POST', { id: bo.id }).then(res => { hiddenBadOrders.splice(j, 1); localStorage.setItem(`hero_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders)); }).catch(e => { bo.isCanceling = false; }); }
+            if (now >= bo.cancelAt && !bo.isCanceling) {
+                bo.isCanceling = true;
+                apiCall('/orders/cancel', 'POST', { id: bo.id }).then(res => { hiddenBadOrders.splice(j, 1); localStorage.setItem(`hero_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders)); }).catch(e => { bo.isCanceling = false; });
+            }
         }
         activeOrders.forEach((o, i) => {
             const left = o.expiresAt - now; const el = document.getElementById(`timer-${o.id}`);
             if (left <= 0) { activeOrders.splice(i, 1); saveToStorage(); fetchBalance(); return; }
             if (el) { const m = Math.floor(left/60000); const s = Math.floor((left%60000)/1000); el.innerText = `${m}:${s<10?'0':''}${s}`; if (left <= 12 * 60000) { el.style.color = "var(--danger-color)"; } else if (left <= 18 * 60000) { el.style.color = "var(--warning-color)"; } else { el.style.color = "#ffffff"; } }
-            if (left <= 600000 && o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) { o.isAutoCanceling = true; cancelSpecificOrder(o.id, true); }
-            const wait = o.cancelUnlockTime - now; const bC = document.getElementById(`btn-cancel-${o.id}`); const bR = document.getElementById(`btn-replace-${o.id}`); const bE = document.getElementById(`btn-resend-${o.id}`); 
-            if (o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) { if (wait <= 0) { if (bC && bC.disabled) bC.disabled = false; if (bR && bR.disabled && !bR.innerHTML.includes('loader')) bR.disabled = false; if (bE && !bE.disabled) bE.disabled = true; } else { if (bC && !bC.disabled) bC.disabled = true; if (bR && !bR.disabled) bR.disabled = true; if (bE && !bE.disabled) bE.disabled = true; } }
+            
+            // JIKA TOMBOL ULANG DITEKAN (!o.disableAutoCancel), BATAL OTOMATIS 10 MENIT DIABAIKAN
+            if (left <= 600000 && o.status !== "OTP_RECEIVED" && !o.isAutoCanceling && !o.disableAutoCancel) { o.isAutoCanceling = true; cancelSpecificOrder(o.id, true); }
+            
+            const wait = o.cancelUnlockTime - now; const btnCancel = document.getElementById(`btn-cancel-${o.id}`); const btnReplace = document.getElementById(`btn-replace-${o.id}`); const btnResend = document.getElementById(`btn-resend-${o.id}`); 
+            if (o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) {
+                if (wait <= 0) { if (btnCancel && btnCancel.disabled) btnCancel.disabled = false; if (btnReplace && btnReplace.disabled && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false; if (btnResend && !btnResend.disabled) btnResend.disabled = true; } 
+                else { if (btnCancel && !btnCancel.disabled) btnCancel.disabled = true; if (btnReplace && !btnReplace.disabled) btnReplace.disabled = true; if (btnResend && !btnResend.disabled) btnResend.disabled = true; }
+            }
         });
     }, 1000);
     
-    // DELAY POLLING KE 10 DETIK MENCEGAH BLOKIR CLOUDFLARE
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
@@ -375,42 +375,29 @@ function removeOrderWithAnimation(idStr, callback) {
 window.cancelSpecificOrder = async function(id, auto = false) {
     const btnCancel = document.getElementById(`btn-cancel-${id}`); 
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
-    
     try { 
         const res = await apiCall('/orders/cancel', 'POST', { id: id }); 
         if (res.success || (res.error && res.error.code === 'NOT_FOUND')) { 
             const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
             if (oldOrder) saveToHistory(oldOrder, "BATAL");
             recordStat('failed');
-
             removeOrderWithAnimation(id, () => {
                 activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); 
                 saveToStorage(); fetchBalance(); 
                 if(auto) showToast("Otomatis dibatalkan", "error"); else showToast("Pesanan dibatalkan", "success");
             });
-        } else { 
-            showToast("Gagal dibatalkan.", "error"); 
-            if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } 
-        } 
-    } catch (e) { 
-        if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } 
-    }
+        } else { showToast("Gagal dibatalkan.", "error"); if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } } 
+    } catch (e) { if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
 };
 
 window.finishSpecificOrder = async function(id) {
     const btnFinish = document.getElementById(`btn-finish-${id}`); 
     if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
-    
     const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
     if (oldOrder) saveToHistory(oldOrder, "SUKSES");
     if (appSettings.autoCopy) { copyToClipboard(appSettings.password); } recordStat('success');
-    
     try { await apiCall('/orders/finish', 'POST', { id: id }); } catch (e) {} 
-    
-    removeOrderWithAnimation(id, () => {
-        activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); 
-        saveToStorage(); fetchBalance();
-    });
+    removeOrderWithAnimation(id, () => { activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); saveToStorage(); fetchBalance(); });
 };
 
 window.resendSpecificOrder = async function(orderId) {
@@ -420,7 +407,14 @@ window.resendSpecificOrder = async function(orderId) {
         const res = await apiCall('/orders/resend', 'POST', { id: idStr });
         if (res.success) { 
             showToast("Meminta kode baru..."); let idx = activeOrders.findIndex(o => String(o.id) === idStr);
-            if (idx !== -1) { saveToHistory(activeOrders[idx], "MINTA ULANG"); activeOrders[idx].status = "ACTIVE"; activeOrders[idx].otp = null; saveToStorage(); }
+            if (idx !== -1) { 
+                saveToHistory(activeOrders[idx], "MINTA ULANG"); 
+                activeOrders[idx].status = "ACTIVE"; 
+                activeOrders[idx].otp = null; 
+                // BENDERA AKTIF: Batal Otomatis 10 Menit Dinonaktifkan untuk pesanan ini
+                activeOrders[idx].disableAutoCancel = true;
+                saveToStorage(); 
+            }
         } else { showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
     } catch (e) { showToast("Kesalahan jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
 };
@@ -439,7 +433,7 @@ window.replaceSpecificOrder = async function(orderId) {
                 if (n) {
                     const pInfo = availableProducts.find(p => String(p.id) === String(opToUse)); const finalPrice = n.price || n.cost || n.amount || (pInfo ? pInfo.price : 0);
                     const expiresAtMs = n.expires_at ? new Date(n.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
-                    activeOrders.unshift({ id: n.id, productId: opToUse, phone: n.phone_number || n.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false });
+                    activeOrders.unshift({ id: n.id, productId: opToUse, phone: n.phone_number || n.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
                     saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(n.phone_number || n.phone); showToast("Nomor diganti!");
                 } else { saveToStorage(); fetchBalance(); }
             });
