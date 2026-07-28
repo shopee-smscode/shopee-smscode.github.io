@@ -39,7 +39,26 @@ window.closeIframeNoteModal = function() {
     document.getElementById('iframeNoteModal').classList.add('hidden');
 }
 
-// === MISC UTILS ===
+// === FUNGSI API (DENGAN DETEKSI CLOUDFLARE/HTML BLOCKED) ===
+async function apiCall(endpoint, method = "GET", body = null) { 
+    const options = { method: method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; 
+    if (body) options.body = JSON.stringify(body); 
+    try {
+        const response = await fetch(`${BASE_URL}${endpoint}`, options); 
+        const textData = await response.text();
+        try { 
+            return JSON.parse(textData); 
+        } catch (err) {
+            let lowerText = textData.toLowerCase();
+            // DETEKSI CLOUDFLARE ATAU HALAMAN HTML
+            if (lowerText.includes("<html") || lowerText.includes("cloudflare") || lowerText.includes("blocked")) {
+                return { success: false, error: { message: "Akses diblokir (Cloudflare)." } };
+            }
+            return { success: false, error: { message: `Data tidak valid/Error ${response.status}` } };
+        }
+    } catch (err) { return { success: false, error: { message: "Koneksi Proxy Gagal: " + err.message } }; }
+}
+
 function openSettingsModal() { document.getElementById('settingsPassword').value = appSettings.password; document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; document.getElementById('settingsModal').classList.remove('hidden'); history.pushState(null, null, "#settings"); }
 function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
 window.saveSettings = function() { appSettings.password = document.getElementById('settingsPassword').value; appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; localStorage.setItem('app_settings', JSON.stringify(appSettings)); closeSettingsModal(); showToast("Pengaturan disimpan!"); renderMainButtons(); }
@@ -48,7 +67,7 @@ function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).re
 function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
 function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } return otpStr; }
 function getProviderName(phone) { let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2); const prefix = p.substring(0, 4); if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel"; if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat"; if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL/Axis"; if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Tri"; if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren"; return "Acak"; }
-function relocateBalanceUI() { const headerContainer = document.querySelector('.app-header-container'); const balanceContainer = document.querySelector('.balance-container'); if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) { balanceContainer.style.display = 'none'; const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right'; newBalanceDiv.innerHTML = `<span style="font-size: 10px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 16px; font-weight: 900; color: var(--primary-color);">...</span>`; headerContainer.appendChild(newBalanceDiv); const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id'); newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay'; } }
+function relocateBalanceUI() { const headerContainer = document.querySelector('.app-header-container'); const balanceContainer = document.querySelector('.balance-container'); if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) { balanceContainer.style.display = 'none'; const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right'; newBalanceDiv.innerHTML = `<span style="font-size: 11px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 18px; font-weight: 900; color: var(--primary-color);">...</span>`; headerContainer.appendChild(newBalanceDiv); const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id'); newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay'; } }
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
@@ -130,39 +149,21 @@ async function fetchAccounts() {
     try {
         const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json();
         if (data.accounts && data.accounts.length > 0) {
-            cachedAccounts = data.accounts;
-            let savedAccount = localStorage.getItem('smscode_last_account');
-            let defaultAcc = (savedAccount && cachedAccounts.includes(savedAccount)) ? savedAccount : cachedAccounts[0];
-            loginAccount(defaultAcc);
-        } else { 
-            if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = "Tidak ada"; 
-            showToast("Tidak ada akun di Server", "error"); 
-        }
-    } catch (error) { 
-        if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = "Error"; 
-        showToast("Gagal terhubung ke Server", "error"); 
-    }
+            cachedAccounts = data.accounts; let savedAccount = localStorage.getItem('smscode_last_account');
+            let defaultAcc = (savedAccount && cachedAccounts.includes(savedAccount)) ? savedAccount : cachedAccounts[0]; loginAccount(defaultAcc);
+        } else { if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = "Tidak ada"; showToast("Tidak ada akun di Server", "error"); }
+    } catch (error) { if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = "Error"; showToast("Gagal terhubung ke Server", "error"); }
 }
 
 window.openAccountModal = function() {
-    const container = document.getElementById('accountListContainer'); 
-    container.innerHTML = '<div class="status-text-mini">Memuat akun...</div>';
-    document.getElementById('accountModal').classList.remove('hidden'); 
-    history.pushState(null, null, "#account");
-    
+    const container = document.getElementById('accountListContainer'); container.innerHTML = '<div class="status-text-mini">Memuat akun...</div>';
+    document.getElementById('accountModal').classList.remove('hidden'); history.pushState(null, null, "#account");
     container.innerHTML = "";
     cachedAccounts.forEach(acc => {
-        const btn = document.createElement('button'); 
-        const isActive = (acc === activeAccountName);
-        
-        btn.id = `btn-acc-${acc}`;
+        const btn = document.createElement('button'); const isActive = (acc === activeAccountName); btn.id = `btn-acc-${acc}`;
         btn.style = `width: 100%; padding: 12px 14px; border-radius: 12px; font-size: 13px; font-weight: bold; text-align: left; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15);`;
-        
         btn.innerHTML = `<div style="display:flex; align-items:center; gap:6px;"><span>👤 ${acc}</span> ${isActive ? '<i class="fas fa-check-circle"></i>' : ''}</div> <span id="bal-${acc}" style="font-size:14px; font-weight: 900; color:var(--text-secondary);"><i class="fas fa-spinner fa-spin"></i></span>`;
-        
-        btn.onclick = () => { switchAccount(acc); closeAccountModal(); };
-        container.appendChild(btn);
-        fetchBalanceForAccount(acc);
+        btn.onclick = () => { switchAccount(acc); closeAccountModal(); }; container.appendChild(btn); fetchBalanceForAccount(acc);
     });
 }
 window.closeAccountModal = function() { document.getElementById('accountModal').classList.add('hidden'); }
@@ -170,23 +171,13 @@ window.closeAccountModal = function() { document.getElementById('accountModal').
 async function fetchBalanceForAccount(accName) {
     try {
         const options = { method: "GET", headers: { "Content-Type": "application/json", "X-Account-Name": accName } };
-        const response = await fetch(`${BASE_URL}/balance`, options);
-        const res = await response.json();
-        
+        const response = await fetch(`${BASE_URL}/balance`, options); const res = await response.json();
         const balEl = document.getElementById(`bal-${accName}`);
         if (balEl) {
-            if (res.success) {
-                const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
-                balEl.innerText = formatter.format(res.data.balance);
-                balEl.style.color = (accName === activeAccountName) ? "var(--primary-color)" : "var(--text-primary)";
-            } else {
-                balEl.innerText = "Error"; balEl.style.color = "var(--danger-color)";
-            }
+            if (res.success) { const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); balEl.innerText = formatter.format(res.data.balance); balEl.style.color = (accName === activeAccountName) ? "var(--primary-color)" : "var(--text-primary)"; } 
+            else { balEl.innerText = "Error"; balEl.style.color = "var(--danger-color)"; }
         }
-    } catch (err) {
-        const balEl = document.getElementById(`bal-${accName}`);
-        if (balEl) { balEl.innerText = "Gagal"; balEl.style.color = "var(--danger-color)"; }
-    }
+    } catch (err) { const balEl = document.getElementById(`bal-${accName}`); if (balEl) { balEl.innerText = "Gagal"; balEl.style.color = "var(--danger-color)"; } }
 }
 
 window.switchAccount = function(accountName) {
@@ -200,8 +191,7 @@ window.switchAccount = function(accountName) {
 };
 
 function loginAccount(accountName) { 
-    activeAccountName = accountName; 
-    if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = accountName;
+    activeAccountName = accountName; if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = accountName;
     if (currentAccountName) currentAccountName.innerText = accountName; 
     setAccountViewingStatus(true); 
     const now = Date.now(); const rawOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || []; activeOrders = rawOrders.filter(o => o.expiresAt > now); 
@@ -209,7 +199,6 @@ function loginAccount(accountName) {
     loadHistory(); initMainApp(); 
 }
 
-async function apiCall(endpoint, method = "GET", body = null) { const options = { method: method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; if (body) options.body = JSON.stringify(body); const response = await fetch(`${BASE_URL}${endpoint}`, options); return await response.json(); }
 function saveToStorage() { localStorage.setItem(`orders_${activeAccountName}`, JSON.stringify(activeOrders)); updateAccountOrdersStatus(); renderOrders(); }
 function showToast(pesan, type = "success") { const toast = document.getElementById("toast"); if (!toast) return; toast.innerHTML = pesan; if (type === "error") { toast.style.backgroundColor = "var(--danger-color)"; toast.style.color = "#ffffff"; } else { toast.style.backgroundColor = "var(--success-color)"; toast.style.color = "#ffffff"; } toast.classList.add("show"); setTimeout(() => { toast.classList.remove("show"); }, 3000); }
 function copyToClipboard(text) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(() => { showToast("Berhasil disalin!"); }).catch(err => { copyFallback(text); }); } else { copyFallback(text); } }
@@ -225,12 +214,17 @@ async function loadShopeeIndonesia() {
         const productsRes = await apiCall(`/catalog/products?country_id=${indo.id}&platform_id=${shopee.id}`);
         if (productsRes.success && productsRes.data.length > 0) {
             availableProducts = productsRes.data.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-            if (productList) productList.innerHTML = ""; if (availableProducts.length > 0) { selectedProductId = availableProducts[0].id; if (btnOrder) btnOrder.disabled = false; }
+            if (productList) productList.innerHTML = ""; 
+            if (availableProducts.length > 0) { 
+                let savedOp = localStorage.getItem('smscode_selected_server'); let isOpExist = availableProducts.find(p => String(p.id) === String(savedOp));
+                selectedProductId = isOpExist ? savedOp : availableProducts[0].id; localStorage.setItem('smscode_selected_server', selectedProductId); 
+                if (btnOrder) btnOrder.disabled = false; 
+            }
             availableProducts.forEach(product => {
-                const card = document.createElement("div"); card.className = "product-card"; if (selectedProductId === product.id) { card.classList.add('selected'); }
+                const card = document.createElement("div"); card.className = "product-card"; if (selectedProductId == product.id) { card.classList.add('selected'); }
                 const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); const displayPrice = formatter.format(product.price);
                 card.innerHTML = `<div class="product-info"><h4>Server ID: ${product.id}</h4><p>Stok: ${product.available}</p></div><div class="product-price">${displayPrice}</div>`;
-                card.onclick = () => { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); selectedProductId = product.id; if (btnOrder) btnOrder.disabled = false; };
+                card.onclick = () => { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); selectedProductId = product.id; localStorage.setItem('smscode_selected_server', selectedProductId); if (btnOrder) btnOrder.disabled = false; };
                 if (productList) productList.appendChild(card);
             });
         } else { if (productList) productList.innerHTML = '<div class="status-text-mini">Server sedang kosong.</div>'; }
@@ -258,48 +252,16 @@ if (btnOrder) {
 function renderOrders() {
     if (activeCount) activeCount.innerText = activeOrders.length;
     if (activeOrders.length === 0) { if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text-mini">Belum ada pesanan aktif.</div>'; return; }
-    if (activeOrdersContainer) activeOrdersContainer.innerHTML = "";
-    const now = Date.now();
+    if (activeOrdersContainer) activeOrdersContainer.innerHTML = ""; const now = Date.now();
     activeOrders.forEach(order => {
         const card = document.createElement("div"); card.className = "order-card"; card.id = `order-card-${order.id}`; 
-        let isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
-        const wait = order.cancelUnlockTime - now;
+        let isSuccess = (order.status === "OTP_RECEIVED" && order.otp); const wait = order.cancelUnlockTime - now;
         let otpHtml = isSuccess ? `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
-        const passProductId = order.productId ? `'${order.productId}'` : 'null';
-        const providerName = getProviderName(order.phone);
-        
+        const passProductId = order.productId ? `'${order.productId}'` : 'null'; const providerName = getProviderName(order.phone);
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
-        
-        if (isSuccess) { 
-            finishBtnAttr = ""; resendBtnAttr = ""; cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled";
-        } else if (wait <= 0 && !order.isAutoCanceling) { 
-            cancelBtnAttr = ""; replaceBtnAttr = ""; resendBtnAttr = "disabled";
-        } else if (order.isAutoCanceling) { 
-            cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; 
-        }
-
+        if (isSuccess) { finishBtnAttr = ""; resendBtnAttr = ""; cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; } else if (wait <= 0 && !order.isAutoCanceling) { cancelBtnAttr = ""; replaceBtnAttr = ""; resendBtnAttr = "disabled"; } else if (order.isAutoCanceling) { cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; }
         const displayPrice = (order.price && order.price != 0) ? `Rp ${order.price}` : 'Rp -';
-
-        card.innerHTML = `
-            <div class="order-header">
-                <div class="order-info-left">
-                    <span class="order-id-label">#${order.id} (${providerName})</span> 
-                    <span class="order-price">${displayPrice}</span>
-                </div>
-                <span class="timer" id="timer-${order.id}">--:--</span>
-            </div>
-            <div class="phone-row">
-                <span class="phone-number">${formatPhoneNumber(order.phone)}</span>
-                <button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button>
-            </div>
-            <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div>
-            <div class="action-buttons-grid">
-                <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id}, ${passProductId})" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button>
-                <button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder(${order.id})" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button>
-                <button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder(${order.id})" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button>
-                <button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder(${order.id})" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button>
-            </div>
-        `;
+        card.innerHTML = `<div class="order-header"><div class="order-info-left"><span class="order-id-label">#${order.id} (${providerName})</span> <span class="order-price">${displayPrice}</span></div><span class="timer" id="timer-${order.id}">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id}, ${passProductId})" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder(${order.id})" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder(${order.id})" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder(${order.id})" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
         if (activeOrdersContainer) activeOrdersContainer.appendChild(card);
     });
 }
@@ -320,6 +282,8 @@ function startPollingAndTimer() {
             }
         });
     }, 1000);
+    
+    // DELAY POLLING KE 10 DETIK MENCEGAH BLOKIR CLOUDFLARE
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for (let i = 0; i < activeOrders.length; i++) {
@@ -336,7 +300,7 @@ function startPollingAndTimer() {
                 }
             } catch (e) {}
         }
-    }, 3000);
+    }, 10000);
 }
 
 async function syncServerOrders() {
@@ -359,10 +323,7 @@ async function syncServerOrders() {
     } catch (e) {}
 }
 
-function removeOrderWithAnimation(idStr, callback) {
-    const card = document.getElementById(`order-card-${idStr}`);
-    if (card) { card.classList.add('removing'); setTimeout(() => { callback(); }, 300); } else { callback(); }
-}
+function removeOrderWithAnimation(idStr, callback) { const card = document.getElementById(`order-card-${idStr}`); if (card) { card.classList.add('removing'); setTimeout(() => { callback(); }, 300); } else { callback(); } }
 
 window.replaceSpecificOrder = async function(orderId, productId) {
     if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
@@ -403,7 +364,7 @@ window.cancelSpecificOrder = async function(id, auto = false) {
         const res = await apiCall('/orders/cancel', 'POST', { id: id }); 
         if (res.success || (res.error && res.error.code === 'NOT_FOUND')) { 
             const oldOrder = activeOrders.find(o => String(o.id) === String(id)); if (oldOrder) saveToHistory(oldOrder, "BATAL"); recordStat('failed');
-            removeOrderWithAnimation(id, () => { activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis dibatalkan", "error"); }); 
+            removeOrderWithAnimation(id, () => { activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis dibatalkan (Waktu Habis)", "error"); else showToast("Pesanan dibatalkan", "success"); }); 
         } else { showToast("Gagal dibatalkan.", "error"); if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } } 
     } catch (e) { if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
 };
@@ -411,10 +372,9 @@ window.cancelSpecificOrder = async function(id, auto = false) {
 window.finishSpecificOrder = async function(id) {
     const btnFinish = document.getElementById(`btn-finish-${id}`); if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
     const oldOrder = activeOrders.find(o => String(o.id) === String(id)); if (oldOrder) saveToHistory(oldOrder, "SUKSES");
-    if (appSettings.autoCopy) { copyToClipboard(appSettings.password); }
-    recordStat('success');
+    if (appSettings.autoCopy) { copyToClipboard(appSettings.password); } recordStat('success');
     try { await apiCall('/orders/finish', 'POST', { id: id }); } catch (e) {} 
-    removeOrderWithAnimation(id, () => { activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); saveToStorage(); });
+    removeOrderWithAnimation(id, () => { activeOrders = activeOrders.filter(o => o.id !== id); saveToStorage(); });
 };
 
 async function initMainApp() { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "..."; await loadShopeeIndonesia(); renderOrders(); if (activeOrders.length > 0) startPollingAndTimer(); syncServerOrders(); }
