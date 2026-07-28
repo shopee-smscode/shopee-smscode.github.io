@@ -3,83 +3,64 @@ const BASE_URL = "https://hero-sms-proxy.masreno6pro.workers.dev";
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-const db = firebase.database(); const DB_PATH = 'notes/public';
+const db = firebase.database();
 
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
-let selectedNoteKey = null; let isEditingNote = false; let currentNoteRawContent = ""; let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
+let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
-const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); const notesListModal = document.getElementById('notesListModal'); const noteFormModal = document.getElementById('noteFormModal'); const noteDetailModal = document.getElementById('noteDetailModal'); const notesCountDisplay = document.getElementById('notesCount');
+const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); 
 
-function openSettingsModal() {
-    document.getElementById('settingsPassword').value = appSettings.password;
-    document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy;
-    document.getElementById('settingsModal').classList.remove('hidden');
-    history.pushState(null, null, "#settings");
+// === DROPDOWN & MENU LOGIC ===
+window.toggleAppDropdown = function() {
+    document.getElementById("appDropdown").classList.toggle("show");
+    document.getElementById("menuDropdown").classList.remove("show");
 }
-function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
-window.saveSettings = function() {
-    appSettings.password = document.getElementById('settingsPassword').value;
-    appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked;
-    localStorage.setItem('app_settings', JSON.stringify(appSettings));
-    closeSettingsModal(); showToast("Pengaturan disimpan!"); renderMainButtons(); 
+window.toggleMenuDropdown = function() {
+    document.getElementById("menuDropdown").classList.toggle("show");
+    document.getElementById("appDropdown").classList.remove("show");
 }
-function renderMainButtons() {
-    const extraBtnWrapper = document.getElementById('extraBtnWrapper');
-    if (!extraBtnWrapper) return;
-    if (appSettings.autoCopy) {
-        extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 8px;"><i class="fas fa-copy"></i> Salin Sandi</button>`;
-    } else {
-        extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 8px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`;
+window.onclick = function(event) {
+    if (!event.target.matches('.dropbtn') && !event.target.matches('.dropbtn *') && 
+        !event.target.matches('.dropbtn-icon') && !event.target.matches('.dropbtn-icon *')) {
+        let dropdowns = document.getElementsByClassName("dropdown-content");
+        for (let i = 0; i < dropdowns.length; i++) {
+            if (dropdowns[i].classList.contains('show')) dropdowns[i].classList.remove('show');
+        }
     }
 }
+window.openIframeNoteModal = function() {
+    document.getElementById('iframeNoteModal').classList.remove('hidden');
+    history.pushState(null, null, "#notes");
+}
+window.closeIframeNoteModal = function() {
+    document.getElementById('iframeNoteModal').classList.add('hidden');
+}
 
+// === MISC UTILS ===
+function openSettingsModal() { document.getElementById('settingsPassword').value = appSettings.password; document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; document.getElementById('settingsModal').classList.remove('hidden'); history.pushState(null, null, "#settings"); }
+function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
+window.saveSettings = function() { appSettings.password = document.getElementById('settingsPassword').value; appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; localStorage.setItem('app_settings', JSON.stringify(appSettings)); closeSettingsModal(); showToast("Pengaturan disimpan!"); renderMainButtons(); }
+function renderMainButtons() { const extraBtnWrapper = document.getElementById('extraBtnWrapper'); if (!extraBtnWrapper) return; if (appSettings.autoCopy) { extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 8px;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 8px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
 function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("0")) { p = "62" + p.substring(1); } return p; }
 function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
 function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } return otpStr; }
-function getProviderName(phone) {
-    let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2); const prefix = p.substring(0, 4);
-    if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel";
-    if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat";
-    if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL";
-    if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Three";
-    if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren"; return "Acak"; 
-}
-function getOperatorLogo(id) {
-    const i = String(id).toLowerCase();
-    if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png';
-    if (i.includes('indosat')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg';
-    if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png';
-    if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg';
-    if (i.includes('three') || i.includes('tri')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg';
-    if (i.includes('smartfren')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp';
-    return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; 
-}
-
-function relocateBalanceUI() {
-    const headerContainer = document.querySelector('.app-header-container'); const balanceContainer = document.querySelector('.balance-container');
-    if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) {
-        balanceContainer.style.display = 'none'; 
-        const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right';
-        newBalanceDiv.innerHTML = `<span style="font-size: 10px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 16px; font-weight: 900; color: var(--primary-color);">...</span>`;
-        headerContainer.appendChild(newBalanceDiv);
-        const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id');
-        newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay';
-    }
-}
+function getProviderName(phone) { let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2); const prefix = p.substring(0, 4); if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel"; if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat"; if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL"; if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Three"; if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren"; return "Acak"; }
+function getOperatorLogo(id) { const i = String(id).toLowerCase(); if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; if (i.includes('indosat')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg'; if (i.includes('three') || i.includes('tri')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; if (i.includes('smartfren')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; }
+function relocateBalanceUI() { const headerContainer = document.querySelector('.app-header-container'); const balanceContainer = document.querySelector('.balance-container'); if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) { balanceContainer.style.display = 'none'; const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right'; newBalanceDiv.innerHTML = `<span style="font-size: 10px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 16px; font-weight: 900; color: var(--primary-color);">...</span>`; headerContainer.appendChild(newBalanceDiv); const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id'); newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay'; } }
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
-    const blM = document.getElementById('blacklistModal'); const histM = document.getElementById('historyModal'); const statsM = document.getElementById('statsModal'); const setM = document.getElementById('settingsModal');
-    if (blM && !blM.classList.contains('hidden')) { window.closeBlacklistModal(); history.pushState(null, null, window.location.href); }
-    else if (histM && !histM.classList.contains('hidden')) { window.closeHistoryModal(); history.pushState(null, null, window.location.href); }
-    else if (statsM && !statsM.classList.contains('hidden')) { window.closeStatsModal(); history.pushState(null, null, window.location.href); }
-    else if (setM && !setM.classList.contains('hidden')) { window.closeSettingsModal(); history.pushState(null, null, window.location.href); }
-    else if (!noteFormModal.classList.contains('hidden')) { handleCancelNoteForm(); history.pushState(null, null, window.location.href); }
-    else if (!noteDetailModal.classList.contains('hidden')) { closeNoteDetailModal(); history.pushState(null, null, window.location.href); }
-    else if (!notesListModal.classList.contains('hidden')) { closeNotesListModal(); history.pushState(null, null, window.location.href); }
-    else if (isExitModalOpen) { closeExitModal(); history.pushState(null, null, window.location.href); }
+    let mods = ['blacklistModal', 'historyModal', 'statsModal', 'settingsModal', 'iframeNoteModal']; 
+    let closedAny = false;
+    mods.forEach(m => { 
+        let el = document.getElementById(m); 
+        if (el && !el.classList.contains('hidden')) { el.classList.add('hidden'); closedAny = true; } 
+    });
+    if (closedAny) { history.pushState(null, null, window.location.href); return; }
+    
+    if (isExitModalOpen) { closeExitModal(); history.pushState(null, null, window.location.href); }
     else { exitModal.classList.remove('hidden'); isExitModalOpen = true; history.pushState(null, null, window.location.href); }
 });
 
@@ -151,10 +132,10 @@ function saveToHistory(order, status) {
 }
 function renderHistory() {
     const list = document.getElementById('history-list'); if (!list) return;
-    if (orderHistory.length === 0) { list.innerHTML = '<div class="status-text">Belum ada riwayat pesanan.</div>'; return; }
+    if (orderHistory.length === 0) { list.innerHTML = '<div class="status-text-mini" style="text-align:center;">Belum ada riwayat.</div>'; return; }
     list.innerHTML = "";
     orderHistory.forEach(item => {
-        const card = document.createElement('div'); card.style.background = "var(--bg-card)"; card.style.padding = "12px"; card.style.borderRadius = "10px"; card.style.border = "1px solid var(--border-color)"; card.style.fontSize = "12px";
+        const card = document.createElement('div'); card.style.background = "var(--bg-card)"; card.style.padding = "10px"; card.style.borderRadius = "10px"; card.style.border = "1px solid var(--border-color)"; card.style.fontSize = "11px";
         let statusColor = "var(--text-secondary)"; let icon = "fa-clock";
         if (item.status === "SUKSES") { statusColor = "var(--success-color)"; icon = "fa-check-circle"; }
         if (item.status === "BATAL") { statusColor = "var(--danger-color)"; icon = "fa-times-circle"; }
@@ -162,14 +143,14 @@ function renderHistory() {
         if (item.status === "MINTA ULANG") { statusColor = "var(--info-color)"; icon = "fa-envelope"; }
         const opTag = getProviderName(item.phone); const dt = new Date(item.date); const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
         card.innerHTML = `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-                <strong style="color: var(--text-primary); font-size: 14px; letter-spacing: 1px;">${formatPhoneNumber(item.phone)} <span style="font-size:10px; font-weight:normal; color:var(--text-secondary);">(${opTag})</span></strong>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <strong style="color: var(--text-primary); font-size: 13px; letter-spacing: 1px;">${formatPhoneNumber(item.phone)} <span style="font-size:9px; font-weight:normal; color:var(--text-secondary);">(${opTag})</span></strong>
                 <span style="color: ${statusColor}; font-weight: 800;"><i class="fas ${icon}"></i> ${item.status}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 11px; margin-bottom: ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? '8px' : '0'};">
+            <div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 10px; margin-bottom: ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? '6px' : '0'};">
                 <span>ID: #${item.id}</span><span>${timeStr}</span>
             </div>
-            ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 6px; text-align: center; border-radius: 8px; font-weight: 900; letter-spacing: 4px; font-size: 16px; text-shadow: 0 0 10px rgba(150,212,0,0.3);">${item.otp}</div>` : ''}
+            ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 4px; text-align: center; border-radius: 6px; font-weight: 900; letter-spacing: 2px; font-size: 14px; text-shadow: 0 0 10px rgba(150,212,0,0.3);">${item.otp}</div>` : ''}
         `;
         list.appendChild(card);
     });
@@ -181,44 +162,26 @@ window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) {
 async function fetchAccounts() { try { const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json(); if (data.accounts && data.accounts.length > 0) { loginAccount(data.accounts[0]); } else { if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; showToast("Tidak ada akun", "error"); } } catch (error) { if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; showToast("Gagal terhubung", "error"); } }
 function loginAccount(accountName) { activeAccountName = accountName; if(currentAccountName) currentAccountName.innerText = accountName; setAccountViewingStatus(true); const rawOrders = JSON.parse(localStorage.getItem(`hero_orders_${accountName}`)) || []; activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); if (rawOrders.length !== activeOrders.length) saveToStorage(); hiddenBadOrders = JSON.parse(localStorage.getItem(`hero_hidden_bad_orders_${accountName}`)) || []; loadHistory(); initMainApp(); }
 
-window.openNotesFromAnywhere = function() { if(notesListModal) notesListModal.classList.remove('hidden'); history.pushState(null, null, "#notes"); };
-document.addEventListener('click', function(e) { const target = e.target.closest('button'); if (target && (target.id === 'btnOpenNotes' || (target.getAttribute('onclick') || '').includes('btnOpenNotes'))) { e.preventDefault(); e.stopPropagation(); window.openNotesFromAnywhere(); } }, true);
-function closeNotesListModal() { notesListModal.classList.add('hidden'); }
-function initNotesSync() { const grid = document.getElementById('notes-grid'); if (!grid) return; db.ref(DB_PATH).orderByChild('timestamp').on('value', snapshot => { grid.innerHTML = ''; let items = []; snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); }); if(notesCountDisplay) notesCountDisplay.innerText = `(${items.length})`; if(items.length === 0) { grid.innerHTML = '<div class="status-text">Belum ada catatan.</div>'; return; } items.reverse().forEach((d) => { const card = document.createElement('div'); card.className = 'note-card'; card.onclick = () => openNoteDetailModal(d.key, d); const previewText = escapeHTML(d.content).replace(/\n/g, ' '); card.innerHTML = `<div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div><div class="note-preview">${previewText}</div><div class="note-date">${formatDate(d.timestamp)}</div>`; grid.appendChild(card); }); }); }
-function formatDate(ts) { if(!ts) return "---"; const d = new Date(ts); const date = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`; const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; return `${date} - ${time}`; }
-function escapeHTML(str) { if(!str) return ""; return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])); }
-function openAddNoteModal() { isEditingNote = false; document.getElementById('form-modal-title').innerText = "Catatan Baru"; document.getElementById('note-title').value = ""; document.getElementById('note-content').value = ""; notesListModal.classList.add('hidden'); noteFormModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); }
-function openNoteDetailModal(key, data) { selectedNoteKey = key; currentNoteRawContent = data.content; document.getElementById('view-tag').innerText = `Dibuat: ${formatDate(data.timestamp)}`; document.getElementById('view-title').value = data.title || "Tanpa Judul"; document.getElementById('view-content').innerText = data.content; notesListModal.classList.add('hidden'); noteDetailModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); }
-function closeNoteDetailModal() { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); }
-function handleCancelNoteForm() { noteFormModal.classList.add('hidden'); if (isEditingNote) { noteDetailModal.classList.remove('hidden'); } else { notesListModal.classList.remove('hidden'); } }
-function editFromDetail() { const t = document.getElementById('view-title').value; const c = currentNoteRawContent; noteDetailModal.classList.add('hidden'); isEditingNote = true; document.getElementById('form-modal-title').innerText = "Edit Catatan"; document.getElementById('note-title').value = (t === "Tanpa Judul") ? "" : t; document.getElementById('note-content').value = c; noteFormModal.classList.remove('hidden'); }
-function handleSaveNote() { let t = document.getElementById('note-title').value.trim(); const c = document.getElementById('note-content').value.trim(); if(!c || c === "") return showToast("⚠️ Konten tidak boleh kosong!", "error"); db.ref(DB_PATH).once('value').then(snapshot => { let isDuplicate = false; let usedNumbers = new Set(); snapshot.forEach(child => { let exTitle = child.val().title; let exContent = child.val().content; if (exTitle && /^\d+$/.test(exTitle.toString().trim())) { usedNumbers.add(parseInt(exTitle.toString().trim())); } if (exContent && exContent.trim() === c) { if (!isEditingNote || selectedNoteKey !== child.key) { isDuplicate = true; } } }); if (isDuplicate) return showToast("⚠️ Gagal: Catatan sama sudah ada!", "error"); if (!t) { let nextNum = 1; while (usedNumbers.has(nextNum)) { nextNum++; } executeSaveNote(nextNum.toString(), c); } else { executeSaveNote(t, c); } }); }
-function executeSaveNote(title, content) { const data = { title: title, content: content, timestamp: Date.now() }; const promise = (isEditingNote && selectedNoteKey) ? db.ref(`${DB_PATH}/${selectedNoteKey}`).update(data) : db.ref(DB_PATH).push(data); promise.then(() => { noteFormModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); isEditingNote = false; showToast("Catatan tersimpan!"); }); }
-function confirmDeleteNote() { if(confirm("Hapus catatan ini?")) { db.ref(`${DB_PATH}/${selectedNoteKey}`).remove().then(() => { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); showToast("Catatan dihapus."); }); } }
-function copyNoteContent() { copyToClipboard(currentNoteRawContent); }
-
 async function fetchBalance() { try { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "Menghitung..."; const res = await apiCall('/balance'); if (res.success) { if (bDisplay) bDisplay.innerText = usdFormatter.format(res.data.balance); } else { if (bDisplay) bDisplay.innerText = "Gagal"; } } catch (error) { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "Error"; } }
 
 async function loadShopeeIndonesia() {
     try {
-        if (productList) productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
+        if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Operator...</div>';
         const productsRes = await apiCall(`/catalog/products`);
         if (productsRes.success && productsRes.data.length > 0) {
             let ops = productsRes.data; let anyOp = ops.find(o => o.id === 'any'); 
             if (!anyOp) anyOp = { id: 'any', price: ops[0]?.price || 0, available: 'Cek Server' };
             
-            // FILTERING XL DARI DAFTAR OPERATOR
             let specificOps = ops.filter(o => o.id !== 'any' && o.id !== '' && o.id.toLowerCase() !== 'xl');
             
             if (specificOps.length === 0) {
                 const realPrice = anyOp.price; const realStock = anyOp.available; 
-                // XL juga dihapus dari array cadangan (fallback)
                 specificOps = [ { id: 'telkomsel', price: realPrice, available: realStock }, { id: 'indosat', price: realPrice, available: realStock }, { id: 'axis', price: realPrice, available: realStock }, { id: 'three', price: realPrice, available: realStock }, { id: 'smartfren', price: realPrice, available: realStock } ];
             } else { specificOps.sort((a, b) => parseFloat(a.price) - parseFloat(b.price)); }
             
             availableProducts = [anyOp, ...specificOps]; 
             
-            if (productList) productList.innerHTML = '<div style="grid-column: span 3; font-size: 10px; font-weight: 800; color: var(--text-secondary); margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px; z-index: 2;">Pilih Operator:</div>'; 
+            if (productList) productList.innerHTML = ''; 
             
             let savedOp = localStorage.getItem('hero_selected_operator');
             if (savedOp && availableProducts.find(p => p.id === savedOp)) { selectedProductId = savedOp; } else { selectedProductId = 'any'; }
@@ -235,13 +198,13 @@ async function loadShopeeIndonesia() {
                 card.onclick = () => { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); selectedProductId = product.id; localStorage.setItem('hero_selected_operator', product.id); if (btnOrder) btnOrder.disabled = false; };
                 if (productList) productList.appendChild(card);
             });
-        } else { if (productList) productList.innerHTML = '<div class="status-text">Stok sedang kosong.</div>'; }
-    } catch (error) { if (productList) productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error muat data.</div>`; }
+        } else { if (productList) productList.innerHTML = '<div class="status-text-mini">Stok sedang kosong.</div>'; }
+    } catch (error) { if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error muat data.</div>`; }
 }
 
 function renderOrders() {
     if (activeCount) activeCount.innerText = activeOrders.length;
-    if (activeOrders.length === 0) { if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Belum ada pesanan aktif.</div>'; return; }
+    if (activeOrders.length === 0) { if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text-mini">Belum ada pesanan aktif.</div>'; return; }
     if (activeOrdersContainer) activeOrdersContainer.innerHTML = "";
     const now = Date.now();
     activeOrders.forEach(order => {
@@ -328,52 +291,119 @@ if (btnOrder) {
     };
 }
 
-window.replaceSpecificOrder = async function(orderId) {
-    if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
-    const idStr = String(orderId); const oldOrder = activeOrders.find(o => String(o.id) === idStr); const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
-    const btn = document.getElementById(`btn-replace-${idStr}`); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
-    if (oldOrder) saveToHistory(oldOrder, "GANTI"); 
-    try {
-        await apiCall('/orders/cancel', 'POST', { id: idStr }); activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
-        const od = await processOrderFreshNumber(opToUse, 5); 
-        if (od) {
-            const opInfo = availableProducts.find(p => p.id === opToUse); const opPrice = od.price || od.cost || od.amount || (opInfo ? opInfo.price : (oldOrder ? oldOrder.price : 0));
-            activeOrders.unshift({ id: od.id, productId: opToUse, phone: od.phone_number, price: opPrice, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
-            saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(od.phone_number); showToast("Nomor diganti!"); window.scrollTo({ top: 0, behavior: 'smooth' });
-        } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru.", "error"); }
-    } catch (e) { showToast("Error.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
-};
+function removeOrderWithAnimation(idStr, callback) {
+    const card = document.getElementById(`order-card-${idStr}`);
+    if (card) {
+        card.classList.add('removing');
+        setTimeout(() => { callback(); }, 300);
+    } else {
+        callback();
+    }
+}
 
 window.cancelSpecificOrder = async function(id, auto = false) {
-    const idStr = String(id); const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
+    const btnCancel = document.getElementById(`btn-cancel-${id}`); 
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
-    const oldOrder = activeOrders.find(o => String(o.id) === idStr); if (oldOrder) saveToHistory(oldOrder, "BATAL"); 
-    recordStat('failed');
-    try { await apiCall('/orders/cancel', 'POST', { id: idStr }); activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis dibatalkan", "error"); } catch (e) { if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
+    
+    try { 
+        const res = await apiCall('/orders/cancel', 'POST', { id: id }); 
+        if (res.success || (res.error && res.error.code === 'NOT_FOUND')) { 
+            const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
+            if (oldOrder) saveToHistory(oldOrder, "BATAL");
+            recordStat('failed');
+
+            removeOrderWithAnimation(id, () => {
+                activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); 
+                saveToStorage(); fetchBalance(); 
+                if(auto) showToast("Otomatis dibatalkan", "error"); else showToast("Pesanan dibatalkan", "success");
+            });
+        } else { 
+            showToast("Gagal dibatalkan.", "error"); 
+            if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } 
+        } 
+    } catch (e) { 
+        if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } 
+    }
 };
 
 window.finishSpecificOrder = async function(id) {
-    const idStr = String(id); const btnFinish = document.getElementById(`btn-finish-${idStr}`); 
+    const btnFinish = document.getElementById(`btn-finish-${id}`); 
     if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
-    const oldOrder = activeOrders.find(o => String(o.id) === idStr); if (oldOrder) saveToHistory(oldOrder, "SUKSES"); 
     
+    const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
+    if (oldOrder) saveToHistory(oldOrder, "SUKSES");
     if (appSettings.autoCopy) { copyToClipboard(appSettings.password); }
-    
     recordStat('success');
-    try { await apiCall('/orders/finish', 'POST', { id: idStr }); } catch (e) {} 
-    activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage();
+    
+    try { await apiCall('/orders/finish', 'POST', { id: id }); } catch (e) {} 
+    
+    removeOrderWithAnimation(id, () => {
+        activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); 
+        saveToStorage(); fetchBalance();
+    });
 };
 
 window.resendSpecificOrder = async function(orderId) {
-    const idStr = String(orderId); const btn = document.getElementById(`btn-resend-${idStr}`); 
+    const idStr = String(orderId); 
+    const btn = document.getElementById(`btn-resend-${idStr}`); 
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         const res = await apiCall('/orders/resend', 'POST', { id: idStr });
-        if (res.success) { showToast("Meminta kode baru..."); let idx = activeOrders.findIndex(o => String(o.id) === idStr); if (idx !== -1) { saveToHistory(activeOrders[idx], "MINTA ULANG"); activeOrders[idx].status = "ACTIVE"; activeOrders[idx].otp = null; saveToStorage(); }
-        } else { showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
-    } catch (e) { showToast("Kesalahan jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
+        if (res.success) { 
+            showToast("Meminta kode baru..."); 
+            let idx = activeOrders.findIndex(o => String(o.id) === idStr);
+            if (idx !== -1) { saveToHistory(activeOrders[idx], "MINTA ULANG"); activeOrders[idx].status = "ACTIVE"; activeOrders[idx].otp = null; saveToStorage(); }
+        } else { 
+            showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); 
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } 
+        }
+    } catch (e) { 
+        showToast("Kesalahan jaringan.", "error"); 
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } 
+    }
+};
+
+window.replaceSpecificOrder = async function(orderId) {
+    if (!isUsedNumbersLoaded) { showToast("Sabar, sinkronisasi database...", "warning"); return; }
+    const btn = document.getElementById(`btn-replace-${orderId}`); 
+    const oldOrder = activeOrders.find(o => String(o.id) === String(orderId)); 
+    const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
+    
+    if (!opToUse) return showToast("Pilih operator/server.", "error"); 
+    if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
+    
+    try {
+        const c = await apiCall('/orders/cancel', 'POST', { id: orderId });
+        if (c.success || (c.error && c.error.code === 'NOT_FOUND')) {
+            if (oldOrder) saveToHistory(oldOrder, "GANTI");
+            recordStat('failed');
+
+            removeOrderWithAnimation(orderId, async () => {
+                activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId));
+                
+                const n = await apiCall('/orders/create', 'POST', { operator: opToUse });
+                if (n.success) {
+                    const od = n.data.orders[0]; 
+                    const pInfo = availableProducts.find(p => String(p.id) === String(opToUse)); 
+                    const finalPrice = od.price || od.cost || od.amount || (pInfo ? pInfo.price : 0);
+                    const expiresAtMs = od.expires_at ? new Date(od.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
+                    
+                    activeOrders.unshift({ id: od.id, productId: opToUse, phone: od.phone_number || od.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false });
+                    saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(od.phone_number || od.phone); showToast("Nomor diganti!");
+                } else { 
+                    saveToStorage(); fetchBalance(); showToast("Gagal pesan baru.", "error"); 
+                }
+            });
+        } else { 
+            showToast("Gagal batal lama.", "error"); 
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } 
+        }
+    } catch (e) { 
+        showToast("Error Jaringan.", "error"); 
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } 
+    }
 };
 
 async function initMainApp() { fetchBalance(); await loadShopeeIndonesia(); renderOrders(); startPollingAndTimer(); }
 
-window.onload = () => { relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initNotesSync(); initUsedNumbersSync(); fetchAccounts(); renderMainButtons(); };
+window.onload = () => { relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initUsedNumbersSync(); fetchAccounts(); renderMainButtons(); };
