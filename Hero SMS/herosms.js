@@ -6,11 +6,13 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
 
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
-let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
+let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; 
+let selectedProductId = 'any'; // Default langsung Acak
+let timerInterval = null; let pollingInterval = null; let orderHistory = [];
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
-const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); 
+const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); 
 
 // === DROPDOWN & MENU LOGIC ===
 window.toggleAppDropdown = function() {
@@ -38,7 +40,7 @@ window.closeIframeNoteModal = function() {
     document.getElementById('iframeNoteModal').classList.add('hidden');
 }
 
-// === FUNGSI API (DENGAN DETEKSI CLOUDFLARE/HTML BLOCKED) ===
+// === FUNGSI API ===
 async function apiCall(endpoint, method = "GET", body = null) { 
     const options = { method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; 
     if (body) options.body = JSON.stringify(body); 
@@ -49,7 +51,6 @@ async function apiCall(endpoint, method = "GET", body = null) {
             return JSON.parse(textData); 
         } catch (err) {
             let lowerText = textData.toLowerCase();
-            // DETEKSI CLOUDFLARE ATAU HALAMAN HTML
             if (lowerText.includes("<html") || lowerText.includes("cloudflare") || lowerText.includes("blocked")) {
                 return { success: false, error: { message: "Akses diblokir (Cloudflare)." } };
             }
@@ -61,12 +62,12 @@ async function apiCall(endpoint, method = "GET", body = null) {
 function openSettingsModal() { document.getElementById('settingsPassword').value = appSettings.password; document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; document.getElementById('settingsModal').classList.remove('hidden'); history.pushState(null, null, "#settings"); }
 function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
 window.saveSettings = function() { appSettings.password = document.getElementById('settingsPassword').value; appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; localStorage.setItem('app_settings', JSON.stringify(appSettings)); closeSettingsModal(); showToast("Pengaturan disimpan!"); renderMainButtons(); }
-function renderMainButtons() { const extraBtnWrapper = document.getElementById('extraBtnWrapper'); if (!extraBtnWrapper) return; if (appSettings.autoCopy) { extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
+function renderMainButtons() { const extraBtnWrapper = document.getElementById('extraBtnWrapper'); if (!extraBtnWrapper) return; if (appSettings.autoCopy) { extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 12px; color: #fff;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
 function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("0")) { p = "62" + p.substring(1); } return p; }
 function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
 function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } return otpStr; }
 function getProviderName(phone) { let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2); const prefix = p.substring(0, 4); if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel"; if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat"; if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL"; if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Three"; if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren"; return "Acak"; }
-function getOperatorLogo(id) { const i = String(id).toLowerCase(); if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; if (i.includes('indosat')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg'; if (i.includes('three') || i.includes('tri')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; if (i.includes('smartfren')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; }
+function getOperatorLogo(id) { const i = String(id).toLowerCase(); if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; if (i.includes('indosat') || i.includes('isat') || i.includes('im3')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg'; if (i.includes('three') || i.includes('tri')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; if (i.includes('smartfren')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; }
 function relocateBalanceUI() { const headerContainer = document.querySelector('.app-header-container'); const balanceContainer = document.querySelector('.balance-container'); if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) { balanceContainer.style.display = 'none'; const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right'; newBalanceDiv.innerHTML = `<span style="font-size: 10px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 16px; font-weight: 900; color: var(--primary-color);">...</span>`; headerContainer.appendChild(newBalanceDiv); const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id'); newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay'; } }
 
 let isExitModalOpen = false;
@@ -86,7 +87,7 @@ function closeExitModal() { exitModal.classList.add('hidden'); isExitModalOpen =
 function confirmExit() { setAccountViewingStatus(false); window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
 
 function saveToStorage() { localStorage.setItem(`hero_orders_${activeAccountName}`, JSON.stringify(activeOrders)); updateAccountOrdersStatus(); renderOrders(); }
-function showToast(pesan, type = "success") { const t = document.getElementById("toast"); if(!t) return; t.innerHTML = pesan; if (type === "error") { t.style.backgroundColor = "var(--danger-color)"; t.style.color = "#ffffff"; } else if (type === "warning") { t.style.backgroundColor = "var(--warning-color)"; t.style.color = "#000000"; } else { t.style.backgroundColor = "var(--success-color)"; t.style.color = "#ffffff"; } t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 4000); }
+function showToast(pesan, type = "success") { const t = document.getElementById("toast"); if(!t) return; t.innerHTML = pesan; if (type === "error") { t.style.backgroundColor = "var(--danger-color)"; t.style.color = "#ffffff"; } else if (type === "warning") { t.style.backgroundColor = "var(--warning-color)"; t.style.color = "#000000"; } else { t.style.backgroundColor = "var(--success-color)"; t.style.color = "#000"; } t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 4000); }
 function copyToClipboard(t) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(t).then(() => { showToast("Berhasil disalin!"); }).catch(err => { copyFallback(t); }); } else { copyFallback(t); } }
 function copyFallback(t) { const ta = document.createElement("textarea"); ta.value = t; ta.setAttribute('readonly', ''); ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999); try { document.execCommand('copy'); showToast("Berhasil disalin!"); } catch (err) { showToast("Gagal menyalin.", "error"); } document.body.removeChild(ta); }
 function setAccountViewingStatus(isViewing) { if (!activeAccountName) return; if (isViewing) { const connectedRef = db.ref('.info/connected'); viewingPresenceRef = db.ref(`presence/${activeAccountName}/is_viewing`); connectedRef.on('value', (snap) => { if (snap.val() === true) { viewingPresenceRef.onDisconnect().set(false); viewingPresenceRef.set(true); } }); } else { if (viewingPresenceRef) { viewingPresenceRef.set(false); viewingPresenceRef.onDisconnect().cancel(); } } }
@@ -127,7 +128,7 @@ document.getElementById('statDate').addEventListener('change', loadStatsData);
 window.openBlacklistModal = function() { document.getElementById('blacklistModal').classList.remove('hidden'); history.pushState(null, null, "#blacklist"); }
 window.closeBlacklistModal = function() { document.getElementById('blacklistModal').classList.add('hidden'); }
 
-// FUNGSI FETCH BALANCE DENGAN INDIKATOR ERROR
+// FUNGSI FETCH BALANCE
 async function fetchBalance() { 
     try { 
         const bDisplay = document.getElementById('balanceDisplay'); 
@@ -147,63 +148,33 @@ async function fetchBalance() {
     } 
 }
 
-async function processOrderFreshNumber(operatorId, maxRetries = 5) {
-    if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas. Silakan coba lagi.", "error"); return null; }
-    const res = await apiCall('/orders/create', 'POST', { operator: operatorId });
-    if (res.success && res.data && res.data.orders && res.data.orders.length > 0) {
-        const o = res.data.orders[0]; const rawPhone = String(o.phone_number); const phoneStr = normalizePhone(rawPhone);
-        if (usedNumbersDB.has(phoneStr)) {
-            showToast(`⚠️ Nomor ${rawPhone} bekas. Mencari lagi...`, "warning");
-            hiddenBadOrders.push({ id: o.id, cancelAt: Date.now() + (3 * 60 * 1000), isCanceling: false });
-            localStorage.setItem(`hero_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders));
-            return await processOrderFreshNumber(operatorId, maxRetries - 1);
-        } else { return o; }
-    } else { showToast(res.error ? res.error.message : "Gagal mendapat nomor", "error"); return null; }
+// === FUNGSI ACAK & DAFTAR OPERATOR (SEPERTI VIRTUAL SMS) ===
+window.toggleRandomOperator = function() {
+    const chk = document.getElementById('chkRandomOp');
+    if (chk.checked) { 
+        document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
+        selectedProductId = 'any'; 
+        localStorage.setItem('hero_selected_operator', 'any'); 
+    } else { 
+        if(selectedProductId === 'any' && availableProducts.length > 1) { 
+            const f = availableProducts.find(p => p.id !== 'any'); 
+            if(f) { 
+                selectedProductId = String(f.id); 
+                document.getElementById(`op-card-${f.id}`).classList.add('selected'); 
+                localStorage.setItem('hero_selected_operator', selectedProductId); 
+            } 
+        } 
+    }
+    const btn = document.getElementById('btnOrder');
+    if (btn) btn.disabled = false;
 }
-
-function loadHistory() { orderHistory = JSON.parse(localStorage.getItem(`hero_history_${activeAccountName}`)) || []; renderHistory(); }
-function saveToHistory(order, status) {
-    if (!order) return;
-    const historyItem = { id: order.id, phone: order.phone, op: order.productId, price: order.price, otp: order.otp || "-", status: status, date: Date.now() };
-    orderHistory.unshift(historyItem); if (orderHistory.length > 50) orderHistory.pop(); 
-    localStorage.setItem(`hero_history_${activeAccountName}`, JSON.stringify(orderHistory)); renderHistory();
-}
-function renderHistory() {
-    const list = document.getElementById('history-list'); if (!list) return;
-    if (orderHistory.length === 0) { list.innerHTML = '<div class="status-text-mini" style="text-align:center;">Belum ada riwayat.</div>'; return; }
-    list.innerHTML = "";
-    orderHistory.forEach(item => {
-        const card = document.createElement('div'); card.style.background = "var(--bg-card)"; card.style.padding = "10px"; card.style.borderRadius = "10px"; card.style.border = "1px solid var(--border-color)"; card.style.fontSize = "11px";
-        let statusColor = "var(--text-secondary)"; let icon = "fa-clock";
-        if (item.status === "SUKSES") { statusColor = "var(--success-color)"; icon = "fa-check-circle"; }
-        if (item.status === "BATAL") { statusColor = "var(--danger-color)"; icon = "fa-times-circle"; }
-        if (item.status === "GANTI") { statusColor = "var(--warning-color)"; icon = "fa-sync-alt"; }
-        if (item.status === "MINTA ULANG") { statusColor = "var(--info-color)"; icon = "fa-envelope"; }
-        const opTag = getProviderName(item.phone); const dt = new Date(item.date); const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
-        card.innerHTML = `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <strong style="color: var(--text-primary); font-size: 13px; letter-spacing: 1px;">${formatPhoneNumber(item.phone)} <span style="font-size:9px; font-weight:normal; color:var(--text-secondary);">(${opTag})</span></strong>
-                <span style="color: ${statusColor}; font-weight: 800;"><i class="fas ${icon}"></i> ${item.status}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 10px; margin-bottom: ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? '6px' : '0'};">
-                <span>ID: #${item.id}</span><span>${timeStr}</span>
-            </div>
-            ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 4px; text-align: center; border-radius: 6px; font-weight: 900; letter-spacing: 2px; font-size: 14px; text-shadow: 0 0 10px rgba(150,212,0,0.3);">${item.otp}</div>` : ''}
-        `;
-        list.appendChild(card);
-    });
-}
-window.openHistoryModal = function() { document.getElementById('historyModal').classList.remove('hidden'); history.pushState(null, null, "#history"); }
-window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
-window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`hero_history_${activeAccountName}`); renderHistory(); } }
-
-async function fetchAccounts() { try { const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json(); if (data.accounts && data.accounts.length > 0) { loginAccount(data.accounts[0]); } else { if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; showToast("Tidak ada akun", "error"); } } catch (error) { if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; showToast("Gagal terhubung", "error"); } }
-function loginAccount(accountName) { activeAccountName = accountName; if(currentAccountName) currentAccountName.innerText = accountName; setAccountViewingStatus(true); const rawOrders = JSON.parse(localStorage.getItem(`hero_orders_${accountName}`)) || []; activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); if (rawOrders.length !== activeOrders.length) saveToStorage(); hiddenBadOrders = JSON.parse(localStorage.getItem(`hero_hidden_bad_orders_${accountName}`)) || []; loadHistory(); initMainApp(); }
-
 
 async function loadShopeeIndonesia() {
     try {
-        if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Operator...</div>';
+        if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
+        const btnOrder = document.getElementById('btnOrder');
+        if (btnOrder) btnOrder.disabled = true;
+
         const productsRes = await apiCall(`/catalog/products`);
         
         if (productsRes.error && productsRes.error.message) {
@@ -224,27 +195,109 @@ async function loadShopeeIndonesia() {
             availableProducts = [anyOp, ...specificOps]; 
             if (productList) productList.innerHTML = ''; 
             
-            let savedOp = localStorage.getItem('hero_selected_operator');
+            let savedOp = localStorage.getItem('hero_selected_operator') || 'any';
             let isOpExist = availableProducts.find(p => String(p.id) === String(savedOp));
             selectedProductId = isOpExist ? savedOp : 'any'; 
             localStorage.setItem('hero_selected_operator', selectedProductId);
 
+            const chkRandom = document.getElementById('chkRandomOp'); 
+            if (chkRandom) chkRandom.checked = (selectedProductId === 'any');
+
             if (btnOrder) btnOrder.disabled = false;
+            
             availableProducts.forEach(product => {
-                const card = document.createElement("div"); card.className = "product-card"; 
-                if (selectedProductId === product.id) card.classList.add('selected');
+                if (product.id === 'any') return; // Sembunyikan 'any' dari kartu, biarkan diatur lewat Checkbox Acak
                 
-                let opName = product.id === 'any' ? 'Acak' : product.id.toUpperCase();
-                let logoImg = getOperatorLogo(product.id); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
+                let opCode = product.id;
+                let opName = opCode.toUpperCase();
+                const card = document.createElement("div"); card.className = "product-card"; card.id = `op-card-${opCode}`;
+                if (selectedProductId === String(opCode)) card.classList.add('selected');
+                
+                let logoImg = getOperatorLogo(opCode); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
                 
                 card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
                 
-                card.onclick = () => { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); selectedProductId = product.id; localStorage.setItem('hero_selected_operator', product.id); if (btnOrder) btnOrder.disabled = false; };
+                card.onclick = () => { 
+                    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
+                    card.classList.add('selected'); 
+                    
+                    const chk = document.getElementById('chkRandomOp'); 
+                    if (chk) chk.checked = false;
+                    
+                    selectedProductId = String(opCode); 
+                    localStorage.setItem('hero_selected_operator', selectedProductId); 
+                    if (btnOrder) btnOrder.disabled = false; 
+                };
                 if (productList) productList.appendChild(card);
             });
         } else { if (productList) productList.innerHTML = '<div class="status-text-mini">Stok sedang kosong.</div>'; }
     } catch (error) { if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error muat data.</div>`; }
 }
+
+// === ORDER LOGIC (DI-HARD BIND KE TOMBOL) ===
+async function processOrderFreshNumber(operatorId, maxRetries = 5) {
+    if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas.", "error"); return null; }
+    
+    // Berdasarkan dokumen resmi SMS-Activate, parameter "operator" diharapkan format string[cite: 1]
+    const res = await apiCall('/orders/create', 'POST', { operator: operatorId });
+    
+    // Jika server membalas format JSON dengan respon ACCESS_NUMBER yang sukses[cite: 1]
+    if (res.success && res.data && res.data.orders && res.data.orders.length > 0) {
+        const o = res.data.orders[0]; const rawPhone = String(o.phone_number); const phoneStr = normalizePhone(rawPhone);
+        if (usedNumbersDB.has(phoneStr)) {
+            showToast(`⚠️ Nomor ${rawPhone} bekas. Mencari lagi...`, "warning");
+            hiddenBadOrders.push({ id: o.id, cancelAt: Date.now() + (3 * 60 * 1000), isCanceling: false });
+            localStorage.setItem(`hero_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders));
+            return await processOrderFreshNumber(operatorId, maxRetries - 1);
+        } else { return o; }
+    } else { 
+        // Jika server SMS-Activate merespon NO_NUMBERS, NO_BALANCE, atau BAD_ACTION[cite: 1]
+        showToast(res.error ? res.error.message : "Gagal mendapat nomor API", "error"); 
+        return null; 
+    }
+}
+
+// FUNGSI INI DI PANGGIL LANGSUNG DARI HTML (ONCLICK)
+window.onOrderButtonClicked = async function() {
+    const btn = document.getElementById('btnOrder');
+    if (!btn) return;
+    
+    if (!isUsedNumbersLoaded) { showToast("Sabar, sedang sinkronisasi database...", "warning"); return; }
+    if (!selectedProductId) { showToast("Silakan pilih server operator!", "error"); return; }
+    
+    btn.disabled = true; 
+    const originalText = btn.innerText; 
+    btn.innerText = "Memproses...";
+    
+    try {
+        const o = await processOrderFreshNumber(selectedProductId, 5); 
+        if (o) {
+            const opInfo = availableProducts.find(p => String(p.id) === String(selectedProductId)); 
+            const opPrice = o.price || o.cost || o.amount || (opInfo ? opInfo.price : 0);
+            activeOrders.unshift({ 
+                id: o.id, 
+                productId: selectedProductId, 
+                phone: o.phone_number, 
+                price: opPrice, 
+                otp: null, 
+                status: "ACTIVE", 
+                expiresAt: Date.now() + (20 * 60 * 1000), 
+                cancelUnlockTime: Date.now() + 120000, 
+                isAutoCanceling: false 
+            });
+            saveToStorage(); 
+            startPollingAndTimer(); 
+            fetchBalance(); 
+            copyToClipboard(o.phone_number); 
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    } catch (e) { 
+        showToast("Terjadi kesalahan teknis.", "error"); 
+    }
+    
+    btn.disabled = false; 
+    btn.innerText = originalText;
+};
 
 function renderOrders() {
     if (activeCount) activeCount.innerText = activeOrders.length;
@@ -382,18 +435,56 @@ window.replaceSpecificOrder = async function(orderId) {
             if (oldOrder) saveToHistory(oldOrder, "GANTI"); recordStat('failed');
             removeOrderWithAnimation(orderId, async () => {
                 activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId));
-                const n = await apiCall('/orders/create', 'POST', { operator: opToUse });
-                if (n.success) {
-                    const od = n.data.orders[0]; const pInfo = availableProducts.find(p => String(p.id) === String(opToUse)); const finalPrice = od.price || od.cost || od.amount || (pInfo ? pInfo.price : 0);
-                    const expiresAtMs = od.expires_at ? new Date(od.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
-                    activeOrders.unshift({ id: od.id, productId: opToUse, phone: od.phone_number || od.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false });
-                    saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(od.phone_number || od.phone); showToast("Nomor diganti!");
-                } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru.", "error"); }
+                const n = await processOrderFreshNumber(opToUse, 5);
+                if (n) {
+                    const pInfo = availableProducts.find(p => String(p.id) === String(opToUse)); const finalPrice = n.price || n.cost || n.amount || (pInfo ? pInfo.price : 0);
+                    const expiresAtMs = n.expires_at ? new Date(n.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
+                    activeOrders.unshift({ id: n.id, productId: opToUse, phone: n.phone_number || n.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false });
+                    saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(n.phone_number || n.phone); showToast("Nomor diganti!");
+                } else { saveToStorage(); fetchBalance(); }
             });
         } else { showToast("Gagal batal lama.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
     } catch (e) { showToast("Error Jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
 };
 
-async function initMainApp() { fetchBalance(); await loadShopeeIndonesia(); renderOrders(); startPollingAndTimer(); }
+function loadHistory() { orderHistory = JSON.parse(localStorage.getItem(`hero_history_${activeAccountName}`)) || []; renderHistory(); }
+function saveToHistory(order, status) {
+    if (!order) return;
+    const historyItem = { id: order.id, phone: order.phone, op: order.productId, price: order.price, otp: order.otp || "-", status: status, date: Date.now() };
+    orderHistory.unshift(historyItem); if (orderHistory.length > 50) orderHistory.pop(); 
+    localStorage.setItem(`hero_history_${activeAccountName}`, JSON.stringify(orderHistory)); renderHistory();
+}
+function renderHistory() {
+    const list = document.getElementById('history-list'); if (!list) return;
+    if (orderHistory.length === 0) { list.innerHTML = '<div class="status-text-mini" style="text-align:center;">Belum ada riwayat.</div>'; return; }
+    list.innerHTML = "";
+    orderHistory.forEach(item => {
+        const card = document.createElement('div'); card.style.background = "var(--bg-card)"; card.style.padding = "10px"; card.style.borderRadius = "10px"; card.style.border = "1px solid var(--border-color)"; card.style.fontSize = "11px";
+        let statusColor = "var(--text-secondary)"; let icon = "fa-clock";
+        if (item.status === "SUKSES") { statusColor = "var(--success-color)"; icon = "fa-check-circle"; }
+        if (item.status === "BATAL") { statusColor = "var(--danger-color)"; icon = "fa-times-circle"; }
+        if (item.status === "GANTI") { statusColor = "var(--warning-color)"; icon = "fa-sync-alt"; }
+        if (item.status === "MINTA ULANG") { statusColor = "var(--info-color)"; icon = "fa-envelope"; }
+        const opTag = getProviderName(item.phone); const dt = new Date(item.date); const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <strong style="color: var(--text-primary); font-size: 13px; letter-spacing: 1px;">${formatPhoneNumber(item.phone)} <span style="font-size:9px; font-weight:normal; color:var(--text-secondary);">(${opTag})</span></strong>
+                <span style="color: ${statusColor}; font-weight: 800;"><i class="fas ${icon}"></i> ${item.status}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 10px; margin-bottom: ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? '6px' : '0'};">
+                <span>ID: #${item.id}</span><span>${timeStr}</span>
+            </div>
+            ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 4px; text-align: center; border-radius: 6px; font-weight: 900; letter-spacing: 2px; font-size: 14px; text-shadow: 0 0 10px rgba(150,212,0,0.3);">${item.otp}</div>` : ''}
+        `;
+        list.appendChild(card);
+    });
+}
+window.openHistoryModal = function() { document.getElementById('historyModal').classList.remove('hidden'); history.pushState(null, null, "#history"); }
+window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
+window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`hero_history_${activeAccountName}`); renderHistory(); } }
 
+async function fetchAccounts() { try { const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json(); if (data.accounts && data.accounts.length > 0) { loginAccount(data.accounts[0]); } else { if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; showToast("Tidak ada akun", "error"); } } catch (error) { if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; showToast("Gagal terhubung", "error"); } }
+function loginAccount(accountName) { activeAccountName = accountName; if(currentAccountName) currentAccountName.innerText = accountName; setAccountViewingStatus(true); const rawOrders = JSON.parse(localStorage.getItem(`hero_orders_${accountName}`)) || []; activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); if (rawOrders.length !== activeOrders.length) saveToStorage(); hiddenBadOrders = JSON.parse(localStorage.getItem(`hero_hidden_bad_orders_${accountName}`)) || []; loadHistory(); initMainApp(); }
+
+async function initMainApp() { fetchBalance(); await loadShopeeIndonesia(); renderOrders(); startPollingAndTimer(); }
 window.onload = () => { relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initUsedNumbersSync(); fetchAccounts(); renderMainButtons(); };
