@@ -39,7 +39,7 @@ window.closeIframeNoteModal = function() {
     document.getElementById('iframeNoteModal').classList.add('hidden');
 }
 
-// === FUNGSI API (DENGAN DETEKSI CLOUDFLARE/HTML BLOCKED) ===
+// === FUNGSI API ===
 async function apiCall(endpoint, method = "GET", body = null) { 
     const options = { method: method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; 
     if (body) options.body = JSON.stringify(body); 
@@ -50,7 +50,6 @@ async function apiCall(endpoint, method = "GET", body = null) {
             return JSON.parse(textData); 
         } catch (err) {
             let lowerText = textData.toLowerCase();
-            // DETEKSI CLOUDFLARE ATAU HALAMAN HTML
             if (lowerText.includes("<html") || lowerText.includes("cloudflare") || lowerText.includes("blocked")) {
                 return { success: false, error: { message: "Akses diblokir (Cloudflare)." } };
             }
@@ -241,7 +240,8 @@ if (btnOrder) {
                 const orderData = res.data.orders[0]; const productInfo = availableProducts.find(p => String(p.id) === String(selectedProductId));
                 const finalPrice = orderData.price || orderData.cost || orderData.amount || (productInfo ? productInfo.price : 0);
                 const expiresAtMs = orderData.expires_at ? new Date(orderData.expires_at).getTime() : Date.now() + (20 * 60 * 1000); const createdAtMs = orderData.created_at ? new Date(orderData.created_at).getTime() : Date.now();
-                activeOrders.unshift({ id: orderData.id, productId: parseInt(selectedProductId), phone: orderData.phone_number, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: createdAtMs + (120 * 1000), isAutoCanceling: false });
+                // Tambahkan disableAutoCancel: false untuk pesanan baru
+                activeOrders.unshift({ id: orderData.id, productId: parseInt(selectedProductId), phone: orderData.phone_number, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: createdAtMs + (120 * 1000), isAutoCanceling: false, disableAutoCancel: false });
                 saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(orderData.phone_number);
             } else { showToast(`Gagal: ${res.error.message}`, "error"); }
         } catch (error) { showToast("Kesalahan jaringan.", "error"); }
@@ -274,7 +274,10 @@ function startPollingAndTimer() {
             const timeLeft = order.expiresAt - now; const timerElement = document.getElementById(`timer-${order.id}`);
             if (timeLeft <= 0) { activeOrders.splice(index, 1); saveToStorage(); fetchBalance(); return; }
             if (timerElement) { const m = Math.floor((timeLeft / 1000 / 60) % 60); const s = Math.floor((timeLeft / 1000) % 60); timerElement.innerText = `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`; }
-            if (timeLeft <= 600000 && order.status !== "OTP_RECEIVED" && !order.isAutoCanceling) { order.isAutoCanceling = true; cancelSpecificOrder(order.id, true); }
+            
+            // JIKA TOMBOL ULANG DITEKAN (!order.disableAutoCancel), BATAL OTOMATIS 10 MENIT DIABAIKAN
+            if (timeLeft <= 600000 && order.status !== "OTP_RECEIVED" && !order.isAutoCanceling && !order.disableAutoCancel) { order.isAutoCanceling = true; cancelSpecificOrder(order.id, true); }
+            
             const wait = order.cancelUnlockTime - now; const btnCancel = document.getElementById(`btn-cancel-${order.id}`); const btnReplace = document.getElementById(`btn-replace-${order.id}`); const btnResend = document.getElementById(`btn-resend-${order.id}`); 
             if (order.status !== "OTP_RECEIVED" && !order.isAutoCanceling) {
                 if (wait <= 0) { if (btnCancel && btnCancel.disabled) btnCancel.disabled = false; if (btnReplace && btnReplace.disabled && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false; if (btnResend && !btnResend.disabled) btnResend.disabled = true; } 
@@ -283,7 +286,6 @@ function startPollingAndTimer() {
         });
     }, 1000);
     
-    // DELAY POLLING KE 10 DETIK MENCEGAH BLOKIR CLOUDFLARE
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for (let i = 0; i < activeOrders.length; i++) {
@@ -315,7 +317,8 @@ async function syncServerOrders() {
                     if (syncedPrice == 0 && order.product_id && availableProducts.length > 0) { const matchProduct = availableProducts.find(p => String(p.id) === String(order.product_id)); if (matchProduct) syncedPrice = matchProduct.price; }
                     const exp = order.expires_at ? new Date(order.expires_at).getTime() : Date.now() + (20*60*1000);
                     const cTime = order.created_at ? new Date(order.created_at).getTime() : (exp - (20*60*1000));
-                    activeOrders.unshift({ id: order.id, productId: order.product_id || order.service_id, phone: order.phone_number || order.phone, price: syncedPrice, otp: order.otp_code, status: order.status, expiresAt: exp, cancelUnlockTime: cTime + (120*1000), isAutoCanceling: false });
+                    // Tambahkan disableAutoCancel: false untuk pesanan yang ditarik dari server
+                    activeOrders.unshift({ id: order.id, productId: order.product_id || order.service_id, phone: order.phone_number || order.phone, price: syncedPrice, otp: order.otp_code, status: order.status, expiresAt: exp, cancelUnlockTime: cTime + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
                 }
             });
             saveToStorage(); startPollingAndTimer(); fetchBalance();
@@ -337,7 +340,7 @@ window.replaceSpecificOrder = async function(orderId, productId) {
                 const n = await apiCall('/orders/create', 'POST', { product_id: parseInt(productId), quantity: 1 });
                 if (n.success) {
                     const od = n.data.orders[0]; const pInfo = availableProducts.find(p => String(p.id) === String(productId)); const finalPrice = od.price || od.cost || od.amount || (pInfo ? pInfo.price : 0);
-                    activeOrders.unshift({ id: od.id, productId: parseInt(productId), phone: od.phone_number, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: new Date(od.expires_at).getTime(), cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false });
+                    activeOrders.unshift({ id: od.id, productId: parseInt(productId), phone: od.phone_number, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: new Date(od.expires_at).getTime(), cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
                     saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(od.phone_number); showToast("Nomor diganti!");
                 } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru.", "error"); }
             });
@@ -353,7 +356,14 @@ window.resendSpecificOrder = async function(orderId) {
         if (res.success) { 
             showToast("Meminta kode baru..."); 
             let idx = activeOrders.findIndex(o => String(o.id) === idStr);
-            if (idx !== -1) { saveToHistory(activeOrders[idx], "MINTA ULANG"); activeOrders[idx].status = "ACTIVE"; activeOrders[idx].otp = null; saveToStorage(); }
+            if (idx !== -1) { 
+                saveToHistory(activeOrders[idx], "MINTA ULANG"); 
+                activeOrders[idx].status = "ACTIVE"; 
+                activeOrders[idx].otp = null; 
+                // BENDERA AKTIF: Batal Otomatis 10 Menit Dinonaktifkan untuk pesanan ini
+                activeOrders[idx].disableAutoCancel = true;
+                saveToStorage(); 
+            }
         } else { showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
     } catch (e) { showToast("Kesalahan jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
 };
@@ -364,7 +374,7 @@ window.cancelSpecificOrder = async function(id, auto = false) {
         const res = await apiCall('/orders/cancel', 'POST', { id: id }); 
         if (res.success || (res.error && res.error.code === 'NOT_FOUND')) { 
             const oldOrder = activeOrders.find(o => String(o.id) === String(id)); if (oldOrder) saveToHistory(oldOrder, "BATAL"); recordStat('failed');
-            removeOrderWithAnimation(id, () => { activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis dibatalkan (Waktu Habis)", "error"); else showToast("Pesanan dibatalkan", "success"); }); 
+            removeOrderWithAnimation(id, () => { activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis dibatalkan (Waktu Habis)", "error"); }); 
         } else { showToast("Gagal dibatalkan.", "error"); if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } } 
     } catch (e) { if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
 };
