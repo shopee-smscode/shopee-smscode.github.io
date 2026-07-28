@@ -4,7 +4,6 @@ const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
-const DB_PATH = 'notes/public';
 
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
 let activeAccountName = "VirtualUser"; 
@@ -18,325 +17,172 @@ const productList = document.getElementById('productList');
 const btnOrder = document.getElementById('btnOrder'); 
 const activeOrdersContainer = document.getElementById('activeOrdersContainer'); 
 
-// Fungsi API Induk dengan Safe Parser[span_3](start_span)[span_3](end_span)
+// === DROPDOWN & MENU LOGIC ===
+window.toggleAppDropdown = function() {
+    document.getElementById("appDropdown").classList.toggle("show");
+    document.getElementById("menuDropdown").classList.remove("show");
+}
+window.toggleMenuDropdown = function() {
+    document.getElementById("menuDropdown").classList.toggle("show");
+    document.getElementById("appDropdown").classList.remove("show");
+}
+window.onclick = function(event) {
+    if (!event.target.matches('.dropbtn') && !event.target.matches('.dropbtn *') && 
+        !event.target.matches('.dropbtn-icon') && !event.target.matches('.dropbtn-icon *')) {
+        let dropdowns = document.getElementsByClassName("dropdown-content");
+        for (let i = 0; i < dropdowns.length; i++) {
+            if (dropdowns[i].classList.contains('show')) dropdowns[i].classList.remove('show');
+        }
+    }
+}
+window.openIframeNoteModal = function() {
+    document.getElementById('iframeNoteModal').classList.remove('hidden');
+    history.pushState(null, null, "#notes");
+}
+window.closeIframeNoteModal = function() {
+    document.getElementById('iframeNoteModal').classList.add('hidden');
+}
+
+// === FUNGSI API ===[span_0](start_span)[span_0](end_span)
 async function apiCall(endpoint, method = "GET", body = null) { 
     try {
         const options = { method, headers: {} }; 
-        if (body) {
-            options.headers["Content-Type"] = "application/json";
-            options.body = JSON.stringify(body); 
-        }
+        if (body) { options.headers["Content-Type"] = "application/json"; options.body = JSON.stringify(body); }
         const response = await fetch(`${BASE_URL}${endpoint}`, options); 
         const textData = await response.text();
-        try {
-            return JSON.parse(textData);
-        } catch (err) {
-            let isErrorText = textData.toLowerCase().includes("wrong") || textData.toLowerCase().includes("error") || textData.toLowerCase().includes("fail");
-            if (response.ok && !isErrorText) {
-                return { status: true, message: textData || "Success", data: null };
-            } else {
-                return { status: false, message: textData || `HTTP Error ${response.status}`, data: null };
-            }
+        try { return JSON.parse(textData); } 
+        catch (err) {
+            let isErr = textData.toLowerCase().includes("wrong") || textData.toLowerCase().includes("error") || textData.toLowerCase().includes("fail");
+            return (response.ok && !isErr) ? { status: true, message: textData || "Success" } : { status: false, message: textData || `Error ${response.status}` };
         }
-    } catch (err) {
-        return { status: false, message: "Koneksi Proxy Gagal: " + err.message, data: null };
-    }
+    } catch (err) { return { status: false, message: "Koneksi Proxy Gagal: " + err.message }; }
 }
 
-// 1. CEK SALDO[span_4](start_span)[span_4](end_span)
 async function fetchBalance() { 
-    const bDisplay = document.getElementById('balanceDisplay');
-    if (!bDisplay) return;
+    const bDisplay = document.getElementById('balanceDisplay'); if (!bDisplay) return;
     try { 
         const res = await apiCall('/v1/profile/'); 
         if (res && (res.status === true || res.status === "true") && res.data && typeof res.data.balance !== 'undefined') {
-            bDisplay.innerText = usdFormatter.format(res.data.balance); 
-            bDisplay.style.color = "var(--primary-color)";
-            bDisplay.style.fontSize = "16px";
+            bDisplay.innerText = usdFormatter.format(res.data.balance); bDisplay.style.color = "var(--primary-color)"; bDisplay.style.fontSize = "16px";
         } 
     } catch (error) {} 
 }
 
-// 2. MUAT SEMUA LAYANAN[span_5](start_span)[span_5](end_span)
 async function loadServices() {
-    const serviceSelect = document.getElementById('serviceSelect');
-    if (!serviceSelect) return;
+    const serviceSelect = document.getElementById('serviceSelect'); if (!serviceSelect) return;
     try {
-        serviceSelect.innerHTML = '<option value="">Memuat layanan...</option>';
         const res = await apiCall('/v1/services/');
-        
         if (res && (res.status === true || res.status === "true") && Array.isArray(res.data)) {
-            let services = res.data;
-            services.sort((a, b) => (a.serviceName || "").localeCompare(b.serviceName || ""));
-            
-            serviceSelect.innerHTML = '';
-            let shopeeId = null;
-
+            let services = res.data; services.sort((a, b) => (a.serviceName || "").localeCompare(b.serviceName || ""));
+            serviceSelect.innerHTML = ''; let shopeeId = null;
             services.forEach(svc => {
-                const opt = document.createElement('option');
-                opt.value = svc.id;
-                opt.textContent = svc.serviceName;
-                serviceSelect.appendChild(opt);
-
-                if (svc.serviceName && svc.serviceName.toLowerCase().includes('shopee')) {
-                    shopeeId = svc.id;
-                }
+                const opt = document.createElement('option'); opt.value = svc.id; opt.textContent = svc.serviceName; serviceSelect.appendChild(opt);
+                if (svc.serviceName && svc.serviceName.toLowerCase().includes('shopee')) shopeeId = svc.id;
             });
-
-            let savedServiceId = localStorage.getItem('virtual_selected_service');
-            let serviceExists = services.find(s => String(s.id) === String(savedServiceId));
-
-            if (serviceExists) {
-                currentServiceId = savedServiceId;
-            } else if (shopeeId) {
-                currentServiceId = shopeeId;
-            } else {
-                currentServiceId = services[0].id;
-            }
-            
-            serviceSelect.value = currentServiceId;
-            loadVirtualSMSProducts(currentServiceId);
-        } else {
-            let errMsg = res.message ? `API: ${res.message}` : "Format Data Kosong/Salah";
-            serviceSelect.innerHTML = `<option value="">${errMsg}</option>`;
-        }
-    } catch (e) {
-        serviceSelect.innerHTML = '<option value="">Gagal memuat Jaringan</option>';
-    }
+            let savedId = localStorage.getItem('virtual_selected_service'); let exists = services.find(s => String(s.id) === String(savedId));
+            currentServiceId = exists ? savedId : (shopeeId ? shopeeId : services[0].id);
+            serviceSelect.value = currentServiceId; loadVirtualSMSProducts(currentServiceId);
+        } else { serviceSelect.innerHTML = `<option value="">${res.message || 'Error'}</option>`; }
+    } catch (e) { serviceSelect.innerHTML = '<option value="">Gagal Jaringan</option>'; }
 }
 
-window.changeService = function() {
-    const serviceSelect = document.getElementById('serviceSelect');
-    currentServiceId = serviceSelect.value;
-    localStorage.setItem('virtual_selected_service', currentServiceId);
-    loadVirtualSMSProducts(currentServiceId);
-}
+window.changeService = function() { currentServiceId = document.getElementById('serviceSelect').value; localStorage.setItem('virtual_selected_service', currentServiceId); loadVirtualSMSProducts(currentServiceId); }
 
-// 3. MUAT OPERATOR & HARGA[span_6](start_span)[span_6](end_span)
 async function loadVirtualSMSProducts(serviceId) {
     try {
-        productList.innerHTML = '<div class="status-text">Mencari Operator...</div>';
+        productList.innerHTML = '<div class="status-text-mini">Mencari Operator...</div>';
         if (btnOrder) btnOrder.disabled = true;
-        
         const res = await apiCall(`/v1/price/${serviceId}`);
-        
         if (res && (res.status === true || res.status === "true") && Array.isArray(res.data)) {
-            let countryData = res.data.find(c => 
-                (c.countryName && c.countryName.toLowerCase().includes("indonesia")) || 
-                String(c.country) === "62" || 
-                String(c.country) === "1"
-            );
-            
+            let countryData = res.data.find(c => (c.countryName && c.countryName.toLowerCase().includes("indonesia")) || String(c.country) === "62" || String(c.country) === "1");
             if (!countryData && res.data.length > 0) countryData = res.data[0];
-
-            if (!countryData) {
-                productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Layanan tidak tersedia.</div>`;
-                document.getElementById('randomPriceBadge').innerText = "---";
-                if (btnOrder) btnOrder.disabled = true;
-                return;
-            }
-
+            if (!countryData) { productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Layanan tak tersedia.</div>`; document.getElementById('randomPriceBadge').innerText = "---"; return; }
+            
             currentCountryId = countryData.country || countryData.countryId || 1;
-
-            let ops = countryData.operators || [];
-            let priceUsd = countryData.priceUsd || 0;
-
+            let ops = countryData.operators || []; let priceUsd = countryData.priceUsd || 0;
             document.getElementById('randomPriceBadge').innerText = usdFormatter.format(priceUsd);
             
             availableProducts = [{ id: 'any', code: 'any', name: 'Acak', price: priceUsd }];
-            ops.forEach(op => {
-                let opCode = op.code || op.id;
-                let opName = op.name || op.operatorName || opCode;
-                availableProducts.push({ id: opCode, code: opCode, name: opName, price: priceUsd });
-            });
-
-            productList.innerHTML = ''; 
-            let savedOp = localStorage.getItem('virtual_selected_operator') || 'any';
-            selectedProductId = savedOp;
-
-            const chkRandom = document.getElementById('chkRandomOp');
-            if (selectedProductId === 'any') { chkRandom.checked = true; } else { chkRandom.checked = false; }
-            if (btnOrder) btnOrder.disabled = false;
+            ops.forEach(op => { let code = op.code || op.id; availableProducts.push({ id: code, code: code, name: op.name || op.operatorName || code, price: priceUsd }); });
             
-            if (ops.length === 0) {
-                productList.innerHTML = `<div class="status-text">Operator otomatis (Acak) tersedia.</div>`;
-                return;
-            }
-
+            productList.innerHTML = ''; let savedOp = localStorage.getItem('virtual_selected_operator') || 'any'; selectedProductId = savedOp;
+            const chkRandom = document.getElementById('chkRandomOp'); if (selectedProductId === 'any') { chkRandom.checked = true; } else { chkRandom.checked = false; }
+            if (btnOrder) btnOrder.disabled = false;
+            if (ops.length === 0) { productList.innerHTML = `<div class="status-text-mini">Operator (Acak) tersedia.</div>`; return; }
+            
             ops.forEach(op => {
-                let opCode = op.code || op.id;
-                let opName = (op.name || op.operatorName || opCode).toUpperCase();
-                
-                const card = document.createElement("div"); 
-                card.className = "product-card"; 
-                card.id = `op-card-${opCode}`;
+                let opCode = op.code || op.id; let opName = (op.name || op.operatorName || opCode).toUpperCase();
+                const card = document.createElement("div"); card.className = "product-card"; card.id = `op-card-${opCode}`;
                 if (selectedProductId === String(opCode)) card.classList.add('selected');
-                
                 let logoImg = getOperatorLogo(opName + ' ' + opCode); 
-                
                 card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${usdFormatter.format(priceUsd)}</div>`;
-                
-                card.onclick = () => { 
-                    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
-                    card.classList.add('selected'); 
-                    document.getElementById('chkRandomOp').checked = false;
-                    selectedProductId = String(opCode); 
-                    localStorage.setItem('virtual_selected_operator', selectedProductId); 
-                };
+                card.onclick = () => { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); card.classList.add('selected'); document.getElementById('chkRandomOp').checked = false; selectedProductId = String(opCode); localStorage.setItem('virtual_selected_operator', selectedProductId); };
                 productList.appendChild(card);
             });
-        } else {
-             let errMsg = res.message ? `API: ${res.message}` : "Data Operator Kosong";
-             productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">${errMsg}</div>`; 
-             if (btnOrder) btnOrder.disabled = true;
-        }
-    } catch (error) { 
-        productList.innerHTML = `<div class="status-text" style="color:var(--danger-color);">Error koneksi API Operator.</div>`; 
-        if (btnOrder) btnOrder.disabled = true;
-    }
+        } else { productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">${res.message || 'Kosong'}</div>`; if (btnOrder) btnOrder.disabled = true; }
+    } catch (error) { productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error koneksi.</div>`; if (btnOrder) btnOrder.disabled = true; }
 }
 
 window.toggleRandomOperator = function() {
     const chk = document.getElementById('chkRandomOp');
-    if (chk.checked) {
-        document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
-        selectedProductId = 'any';
-        localStorage.setItem('virtual_selected_operator', 'any');
-    } else {
-        if(selectedProductId === 'any' && availableProducts.length > 1) {
-            const firstManual = availableProducts.find(p => p.code !== 'any');
-            if(firstManual) {
-                selectedProductId = String(firstManual.code);
-                document.getElementById(`op-card-${firstManual.code}`).classList.add('selected');
-                localStorage.setItem('virtual_selected_operator', selectedProductId); 
-            }
-        }
-    }
+    if (chk.checked) { document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); selectedProductId = 'any'; localStorage.setItem('virtual_selected_operator', 'any'); } 
+    else { if(selectedProductId === 'any' && availableProducts.length > 1) { const f = availableProducts.find(p => p.code !== 'any'); if(f) { selectedProductId = String(f.code); document.getElementById(`op-card-${f.code}`).classList.add('selected'); localStorage.setItem('virtual_selected_operator', selectedProductId); } } }
     if (btnOrder) btnOrder.disabled = false;
 }
 
-// 4. PESAN NOMOR[span_7](start_span)[span_7](end_span)
+// === ORDER LOGIC ===[span_1](start_span)[span_1](end_span)
 async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
-    if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas. Silakan coba lagi.", "error"); return null; }
-    
-    const payload = {
-        country: Number(currentCountryId),
-        service: Number(currentServiceId),
-        operator: operatorCode === 'any' ? 'any' : operatorCode,
-        type: 1
-    };
-
-    const res = await apiCall('/v1/order/', 'POST', payload);
-    
+    if (maxRetries <= 0) { showToast("Banyak nomor bekas.", "error"); return null; }
+    const res = await apiCall('/v1/order/', 'POST', { country: Number(currentCountryId), service: Number(currentServiceId), operator: operatorCode === 'any' ? 'any' : operatorCode, type: 1 });
     if (res && (res.status === true || res.status === "true")) {
-        let extractedId = null;
-        let extractedPhone = null;
-        let extractedPrice = 0;
-
-        if (res.data) {
-            let orderData = Array.isArray(res.data) ? res.data[0] : res.data;
-            if (orderData.data) orderData = Array.isArray(orderData.data) ? orderData.data[0] : orderData.data;
-            else if (orderData.order) orderData = orderData.order;
-
-            extractedId = orderData.orderId || orderData.id || orderData.Id || null;
-            extractedPhone = orderData.number || orderData.phone || orderData.phoneNumber || orderData.phone_number || null;
-            extractedPrice = orderData.price || orderData.amount || 0;
-        }
-
-        if (!extractedId || !extractedPhone) {
-            const strData = JSON.stringify(res);
-            let idMatch = strData.match(/"(?:orderId|id|order_id|Id)"\s*:\s*"?([A-Za-z0-9_-]+)"?/i);
-            if (idMatch) extractedId = idMatch[1];
-            
-            let phoneMatch = strData.match(/"(?:number|phone|phone_number|phoneNumber)"\s*:\s*"?(\+?\d+)"?/i);
-            if (phoneMatch) extractedPhone = phoneMatch[1];
-        }
-
-        if (!extractedId || !extractedPhone) {
-            const activeRes = await apiCall('/v1/order/active');
-            if (activeRes && (activeRes.status === true || activeRes.status === "true") && Array.isArray(activeRes.data) && activeRes.data.length > 0) {
-                let latestOrder = activeRes.data[0]; 
-                extractedId = latestOrder.orderId || latestOrder.id;
-                extractedPhone = latestOrder.number || latestOrder.phone;
-                extractedPrice = latestOrder.price || extractedPrice;
-            }
-        }
-
-        if (extractedId && extractedPhone) {
-            let o = {
-                id: String(extractedId).trim(),
-                phone_number: String(extractedPhone).trim(),
-                price: extractedPrice
-            };
-
-            const phoneStr = normalizePhone(o.phone_number);
-            if (usedNumbersDB.has(phoneStr)) {
-                showToast(`⚠️ Nomor ${o.phone_number} bekas. Mencari lagi...`, "warning");
-                hiddenBadOrders.push({ id: o.id, cancelAt: Date.now() + (3 * 60 * 1000), isCanceling: false });
-                localStorage.setItem(`virtual_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders));
-                return await processOrderFreshNumber(operatorCode, maxRetries - 1);
-            } else { 
-                return o; 
-            }
-        } else {
-            showToast("Server tidak mengirimkan ID / Nomor yang valid", "error"); 
-            return null; 
-        }
-
-    } else { 
-        showToast(res.message || "Gagal mendapat nomor", "error"); 
-        return null; 
-    }
+        let eId = null, ePhone = null, ePrice = 0;
+        if (res.data) { let d = Array.isArray(res.data) ? res.data[0] : res.data; if (d.data) d = Array.isArray(d.data) ? d.data[0] : d.data; else if (d.order) d = d.order; eId = d.orderId || d.id || d.Id; ePhone = d.number || d.phone || d.phoneNumber || d.phone_number; ePrice = d.price || d.amount || 0; }
+        if (!eId || !ePhone) { const sd = JSON.stringify(res); let m1 = sd.match(/"(?:orderId|id|order_id|Id)"\s*:\s*"?([A-Za-z0-9_-]+)"?/i); if (m1) eId = m1[1]; let m2 = sd.match(/"(?:number|phone|phone_number|phoneNumber)"\s*:\s*"?(\+?\d+)"?/i); if (m2) ePhone = m2[1]; }
+        if (!eId || !ePhone) { const ar = await apiCall('/v1/order/active'); if (ar && (ar.status === true || ar.status === "true") && Array.isArray(ar.data) && ar.data.length > 0) { let lo = ar.data[0]; eId = lo.orderId || lo.id; ePhone = lo.number || lo.phone; ePrice = lo.price || ePrice; } }
+        
+        if (eId && ePhone) {
+            let o = { id: String(eId).trim(), phone_number: String(ePhone).trim(), price: ePrice };
+            const ps = normalizePhone(o.phone_number);
+            if (usedNumbersDB.has(ps)) { hiddenBadOrders.push({ id: o.id, cancelAt: Date.now() + (3*60*1000), isCanceling: false }); localStorage.setItem(`virtual_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders)); return await processOrderFreshNumber(operatorCode, maxRetries - 1); } 
+            else { return o; }
+        } else { showToast("ID/Nomor tak valid", "error"); return null; }
+    } else { showToast(res.message || "Gagal mendapat nomor", "error"); return null; }
 }
 
-// === POLLING & TIMER ===
+if (btnOrder) {
+    btnOrder.onclick = async () => {
+        if (!isUsedNumbersLoaded) { showToast("Sabar, sinkron database...", "warning"); return; }
+        btnOrder.disabled = true; const oTxt = btnOrder.innerText; btnOrder.innerText = "Memproses...";
+        try {
+            const o = await processOrderFreshNumber(selectedProductId, 5); 
+            if (o) {
+                const opInfo = availableProducts.find(p => String(p.code) === String(selectedProductId)); const opPrice = o.price || (opInfo ? opInfo.price : 0);
+                activeOrders.unshift({ id: o.id, productId: selectedProductId, phone: o.phone_number, price: opPrice, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
+                saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(o.phone_number); window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        } catch (e) { showToast("Gagal.", "error"); }
+        btnOrder.disabled = false; btnOrder.innerText = oTxt;
+    };
+}
+
 function startPollingAndTimer() {
     if (timerInterval) clearInterval(timerInterval); if (pollingInterval) clearInterval(pollingInterval);
-    
     timerInterval = setInterval(() => {
         const now = Date.now();
         for (let j = hiddenBadOrders.length - 1; j >= 0; j--) {
             let bo = hiddenBadOrders[j];
-            if (now >= bo.cancelAt && !bo.isCanceling) {
-                bo.isCanceling = true;
-                apiCall(`/v1/order/${bo.id}/1`, 'PATCH').then(() => { 
-                    hiddenBadOrders.splice(j, 1); 
-                    localStorage.setItem(`virtual_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders)); 
-                }).catch(e => { bo.isCanceling = false; });
-            }
+            if (now >= bo.cancelAt && !bo.isCanceling) { bo.isCanceling = true; apiCall(`/v1/order/${bo.id}/1`, 'PATCH').then(() => { hiddenBadOrders.splice(j, 1); localStorage.setItem(`virtual_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders)); }).catch(e => { bo.isCanceling = false; }); }
         }
-
         activeOrders.forEach((o, i) => {
             const left = o.expiresAt - now; const el = document.getElementById(`timer-${o.id}`);
             if (left <= 0) { activeOrders.splice(i, 1); saveToStorage(); fetchBalance(); return; }
-            if (el) { 
-                const m = Math.floor(left/60000); const s = Math.floor((left%60000)/1000); 
-                el.innerText = `${m}:${s<10?'0':''}${s}`; 
-                if (left <= 12 * 60000) { el.style.color = "var(--danger-color)"; } else if (left <= 18 * 60000) { el.style.color = "var(--warning-color)"; } else { el.style.color = "#ffffff"; } 
-            }
-            
+            if (el) { const m = Math.floor(left/60000); const s = Math.floor((left%60000)/1000); el.innerText = `${m}:${s<10?'0':''}${s}`; if (left <= 12 * 60000) { el.style.color = "var(--danger-color)"; } else if (left <= 18 * 60000) { el.style.color = "var(--warning-color)"; } else { el.style.color = "#ffffff"; } }
             if (left <= 600000 && o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) { o.isAutoCanceling = true; cancelSpecificOrder(o.id, true); }
-            
-            const wait = o.cancelUnlockTime - now; 
-            const btnCancel = document.getElementById(`btn-cancel-${o.id}`); 
-            const btnReplace = document.getElementById(`btn-replace-${o.id}`); 
-            const btnResend = document.getElementById(`btn-resend-${o.id}`); 
-            
-            if (o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) {
-                if (wait <= 0) { 
-                    if (btnCancel && btnCancel.disabled) btnCancel.disabled = false; 
-                    if (btnReplace && btnReplace.disabled && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false; 
-                    if (btnResend && !btnResend.disabled) btnResend.disabled = true; 
-                } else { 
-                    if (btnCancel && !btnCancel.disabled) btnCancel.disabled = true; 
-                    if (btnReplace && !btnReplace.disabled) btnReplace.disabled = true; 
-                    if (btnResend && !btnResend.disabled) btnResend.disabled = true; 
-                }
-            }
+            const wait = o.cancelUnlockTime - now; const bC = document.getElementById(`btn-cancel-${o.id}`); const bR = document.getElementById(`btn-replace-${o.id}`); const bE = document.getElementById(`btn-resend-${o.id}`); 
+            if (o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) { if (wait <= 0) { if (bC && bC.disabled) bC.disabled = false; if (bR && bR.disabled && !bR.innerHTML.includes('loader')) bR.disabled = false; if (bE && !bE.disabled) bE.disabled = true; } else { if (bC && !bC.disabled) bC.disabled = true; if (bR && !bR.disabled) bR.disabled = true; if (bE && !bE.disabled) bE.disabled = true; } }
         });
     }, 1000);
     
-    // Polling Status OTP[span_8](start_span)[span_8](end_span)
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
@@ -345,326 +191,133 @@ function startPollingAndTimer() {
                 const res = await apiCall(`/v1/order/status/${o.id}`);
                 if (res && (res.status === true || res.status === "true") && res.data) {
                     if (res.data.orderStatus === "SUCCESS" && res.data.Sms && res.data.Sms.length > 0) { 
-                        notifSound.play().catch(e => console.log("Sound error:", e));
-                        activeOrders[i].status = "OTP_RECEIVED"; 
-                        activeOrders[i].otp = res.data.Sms[0].sms; 
-                        saveToStorage(); fetchBalance();
-                        
-                        const phoneStr = normalizePhone(activeOrders[i].phone);
-                        if (!usedNumbersDB.has(phoneStr)) { 
-                            db.ref('used_numbers/hero_sms').push({ phone: phoneStr, timestamp: Date.now() }); 
-                            usedNumbersDB.add(phoneStr); 
-                        }
-                    } else if (res.data.orderStatus === "CANCEL" || res.data.orderStatus === "REFUND") { 
-                        activeOrders = activeOrders.filter(ord => String(ord.id) !== String(o.id)); 
-                        saveToStorage(); fetchBalance(); 
-                    }
+                        notifSound.play().catch(e => console.log(e)); activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.Sms[0].sms; saveToStorage(); fetchBalance();
+                        const pStr = normalizePhone(activeOrders[i].phone); if (!usedNumbersDB.has(pStr)) { db.ref('used_numbers/hero_sms').push({ phone: pStr, timestamp: Date.now() }); usedNumbersDB.add(pStr); }
+                    } else if (res.data.orderStatus === "CANCEL" || res.data.orderStatus === "REFUND") { activeOrders = activeOrders.filter(ord => String(ord.id) !== String(o.id)); saveToStorage(); fetchBalance(); }
                 }
             } catch(e) {}
         }
     }, 5000);
 }
 
-// === HELPER ANIMASI HAPUS KARTU ===
-function removeOrderWithAnimation(idStr, callback) {
-    const card = document.getElementById(`order-card-${idStr}`);
-    if (card) {
-        card.classList.add('removing');
-        setTimeout(() => { callback(); }, 300);
-    } else {
-        callback();
-    }
-}
+function removeOrderWithAnimation(idStr, callback) { const c = document.getElementById(`order-card-${idStr}`); if (c) { c.classList.add('removing'); setTimeout(() => { callback(); }, 300); } else { callback(); } }
 
-// === AKSI TOMBOL ===
-if (btnOrder) {
-    btnOrder.onclick = async () => {
-        if (!isUsedNumbersLoaded) { showToast("Sabar, sinkronisasi database...", "warning"); return; }
-        btnOrder.disabled = true; const originalText = btnOrder.innerText; btnOrder.innerText = "Memproses...";
-        try {
-            const o = await processOrderFreshNumber(selectedProductId, 5); 
-            if (o) {
-                const opInfo = availableProducts.find(p => String(p.code) === String(selectedProductId)); 
-                const opPrice = o.price || (opInfo ? opInfo.price : 0);
-                activeOrders.unshift({ 
-                    id: o.id, 
-                    productId: selectedProductId, 
-                    phone: o.phone_number, 
-                    price: opPrice, 
-                    otp: null, 
-                    status: "ACTIVE", 
-                    expiresAt: Date.now() + (20 * 60 * 1000), 
-                    cancelUnlockTime: Date.now() + 120000, 
-                    isAutoCanceling: false 
-                });
-                saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(o.phone_number); window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
-        } catch (e) { showToast("Gagal terhubung.", "error"); }
-        btnOrder.disabled = false; btnOrder.innerText = originalText;
-    };
-}
-
-// LOGIKA 4 TOMBOL DENGAN VALIDASI SUKSES SERVER & ANIMASI[span_9](start_span)[span_9](end_span)
-
-// 1. BATAL[span_10](start_span)[span_10](end_span)
 window.cancelSpecificOrder = async function(id, auto = false) {
-    const idStr = String(id).trim(); 
-    const btnCancel = document.getElementById(`btn-cancel-${idStr}`); 
-    if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
-    
+    const idStr = String(id).trim(); const btn = document.getElementById(`btn-cancel-${idStr}`); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try { 
         const res = await apiCall(`/v1/order/${idStr}/1`, 'PATCH'); 
-        
         if (res && (res.status === true || res.status === "true" || (typeof res.message === 'string' && res.message.toLowerCase().includes("success")))) {
-            const oldOrder = activeOrders.find(o => String(o.id) === idStr); 
-            if (oldOrder) saveToHistory(oldOrder, "BATAL"); 
-            recordStat('failed');
-            
-            removeOrderWithAnimation(idStr, () => {
-                activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
-                saveToStorage(); fetchBalance(); 
-                if(auto) showToast("Otomatis dibatalkan", "error"); else showToast("Pesanan dibatalkan", "success");
-            });
-        } else {
-            showToast(res.message || "Gagal batal, pesanan tetap berjalan", "error");
-            if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; }
-        }
-    } catch (e) { 
-        showToast("Error gagal menghubungi server", "error");
-        if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } 
-    }
+            const oo = activeOrders.find(o => String(o.id) === idStr); if (oo) saveToHistory(oo, "BATAL"); recordStat('failed');
+            removeOrderWithAnimation(idStr, () => { activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage(); fetchBalance(); if(auto) showToast("Otomatis dibatalkan", "error"); else showToast("Dibatalkan", "success"); });
+        } else { showToast(res.message || "Gagal batal", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
+    } catch (e) { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
 };
 
-// 2. SELESAI[span_11](start_span)[span_11](end_span)
 window.finishSpecificOrder = async function(id) {
-    const idStr = String(id).trim(); 
-    const btnFinish = document.getElementById(`btn-finish-${idStr}`); 
-    if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
-    
+    const idStr = String(id).trim(); const btn = document.getElementById(`btn-finish-${idStr}`); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try { 
-        const res = await apiCall(`/v1/order/${idStr}/3`, 'PATCH'); 
-        const oldOrder = activeOrders.find(o => String(o.id) === idStr); 
-        if (oldOrder) saveToHistory(oldOrder, "SUKSES"); 
-        
-        if (appSettings.autoCopy) { copyToClipboard(appSettings.password); }
-        recordStat('success');
-        
-        removeOrderWithAnimation(idStr, () => {
-            activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
-            saveToStorage(); fetchBalance();
-            if (!res || (res.status !== true && res.status !== "true")) {
-                showToast(res.message || "Pesanan diakhiri", "warning");
-            } else {
-                showToast("Pesanan diselesaikan!", "success");
-            }
-        });
-    } catch (e) { 
-        if (btnFinish) { btnFinish.disabled = false; btnFinish.innerHTML = '<i class="fas fa-check"></i> Selesai'; } 
-    }
+        const res = await apiCall(`/v1/order/${idStr}/3`, 'PATCH'); const oo = activeOrders.find(o => String(o.id) === idStr); if (oo) saveToHistory(oo, "SUKSES"); 
+        if (appSettings.autoCopy) copyToClipboard(appSettings.password); recordStat('success');
+        removeOrderWithAnimation(idStr, () => { activeOrders = activeOrders.filter(o => String(o.id) !== idStr); saveToStorage(); fetchBalance(); });
+    } catch (e) { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Selesai'; } }
 };
 
-// 3. ULANG[span_12](start_span)[span_12](end_span)
 window.resendSpecificOrder = async function(orderId) {
-    const idStr = String(orderId).trim(); 
-    const btn = document.getElementById(`btn-resend-${idStr}`); 
-    if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
-    
+    const idStr = String(orderId).trim(); const btn = document.getElementById(`btn-resend-${idStr}`); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         const res = await apiCall(`/v1/order/${idStr}/2`, 'PATCH');
         if (res && (res.status === true || res.status === "true" || (typeof res.message === 'string' && res.message.toLowerCase().includes("success")))) { 
-            showToast("Meminta kode baru..."); 
-            let idx = activeOrders.findIndex(o => String(o.id) === idStr); 
-            if (idx !== -1) { 
-                saveToHistory(activeOrders[idx], "MINTA ULANG"); 
-                activeOrders[idx].status = "ACTIVE"; 
-                activeOrders[idx].otp = null; 
-                saveToStorage(); 
-            }
-        } else { 
-            showToast(res.message || "Gagal meminta ulang.", "error"); 
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } 
-        }
-    } catch (e) { 
-        showToast("Kesalahan jaringan.", "error"); 
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } 
-    }
+            showToast("Meminta ulang..."); let idx = activeOrders.findIndex(o => String(o.id) === idStr); if (idx !== -1) { saveToHistory(activeOrders[idx], "MINTA ULANG"); activeOrders[idx].status = "ACTIVE"; activeOrders[idx].otp = null; saveToStorage(); }
+        } else { showToast(res.message || "Gagal", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
+    } catch (e) { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
 };
 
-// 4. GANTI[span_13](start_span)[span_13](end_span)
 window.replaceSpecificOrder = async function(orderId) {
-    if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
-    
-    const idStr = String(orderId).trim(); 
-    const oldOrder = activeOrders.find(o => String(o.id) === idStr); 
-    const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
-    
-    const btn = document.getElementById(`btn-replace-${idStr}`); 
-    if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
-    
+    if (!isUsedNumbersLoaded) { showToast("Sabar, sinkron database...", "warning"); return; }
+    const idStr = String(orderId).trim(); const oo = activeOrders.find(o => String(o.id) === idStr); const opToUse = oo ? oo.productId : selectedProductId;
+    const btn = document.getElementById(`btn-replace-${idStr}`); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
-        const cancelRes = await apiCall(`/v1/order/${idStr}/1`, 'PATCH'); 
-        
-        if (cancelRes && (cancelRes.status === true || cancelRes.status === "true" || (typeof cancelRes.message === 'string' && cancelRes.message.toLowerCase().includes("success")))) {
-            if (oldOrder) saveToHistory(oldOrder, "GANTI"); 
-            recordStat('failed');
-            
+        const cRes = await apiCall(`/v1/order/${idStr}/1`, 'PATCH'); 
+        if (cRes && (cRes.status === true || cRes.status === "true" || (typeof cRes.message === 'string' && cRes.message.toLowerCase().includes("success")))) {
+            if (oo) saveToHistory(oo, "GANTI"); recordStat('failed');
             removeOrderWithAnimation(idStr, async () => {
                 activeOrders = activeOrders.filter(o => String(o.id) !== idStr); 
                 const od = await processOrderFreshNumber(opToUse, 5); 
                 if (od) {
-                    const opInfo = availableProducts.find(p => String(p.code) === String(opToUse)); 
-                    const opPrice = od.price || (opInfo ? opInfo.price : (oldOrder ? oldOrder.price : 0));
+                    const opInfo = availableProducts.find(p => String(p.code) === String(opToUse)); const opPrice = od.price || (opInfo ? opInfo.price : (oo ? oo.price : 0));
                     activeOrders.unshift({ id: od.id, productId: opToUse, phone: od.phone_number, price: opPrice, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
-                    saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(od.phone_number); showToast("Nomor diganti!"); window.scrollTo({ top: 0, behavior: 'smooth' });
-                } else { 
-                    saveToStorage(); fetchBalance(); showToast("Batal sukses, tapi gagal pesan baru.", "warning"); 
-                }
+                    saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(od.phone_number); showToast("Diganti!"); window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else { saveToStorage(); fetchBalance(); }
             });
-        } else {
-            showToast(cancelRes.message || "Gagal membatalkan nomor lama", "error");
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; }
-        }
-    } catch (e) { 
-        showToast("Error jaringan saat mengganti nomor", "error"); 
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } 
-    }
+        } else { showToast(cRes.message || "Gagal", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
+    } catch (e) { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
 };
 
 // === RENDER UI & LOGO ===
-function getOperatorLogo(id) { 
-    const i = String(id).toLowerCase(); 
-    if (i.includes('telkomsel') || i.includes('tsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; 
-    if (i.includes('indosat') || i.includes('isat') || i.includes('im3')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; 
-    if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; 
-    if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg'; 
-    if (i.includes('three') || i.includes('tri') || i.includes('3')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; 
-    if (i.includes('smartfren') || i.includes('smart')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; 
-    if (i.includes('byu') || i.includes('by.u')) return 'https://www.byu.id/images/logo-byu.png';
-    return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; 
-}
-
+function getOperatorLogo(id) { const i = String(id).toLowerCase(); if (i.includes('telkomsel') || i.includes('tsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; if (i.includes('indosat') || i.includes('isat') || i.includes('im3')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg'; if (i.includes('three') || i.includes('tri') || i.includes('3')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; if (i.includes('smartfren') || i.includes('smart')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; if (i.includes('byu') || i.includes('by.u')) return 'https://www.byu.id/images/logo-byu.png'; return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; }
 function renderOrders() {
-    const activeCount = document.getElementById('activeCount');
-    if (activeCount) activeCount.innerText = activeOrders.length;
-    if (activeOrders.length === 0) { if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text">Belum ada pesanan aktif.</div>'; return; }
-    if (activeOrdersContainer) activeOrdersContainer.innerHTML = "";
-    const now = Date.now();
+    const aCount = document.getElementById('activeCount'); if (aCount) aCount.innerText = activeOrders.length;
+    if (activeOrders.length === 0) { if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text-mini">Belum ada pesanan aktif.</div>'; return; }
+    if (activeOrdersContainer) activeOrdersContainer.innerHTML = ""; const now = Date.now();
     activeOrders.forEach(order => {
         const card = document.createElement("div"); card.className = "order-card"; card.id = `order-card-${order.id}`;
-        const isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
-        let opTag = order.productId;
-        if (opTag === 'any' || !opTag) { opTag = getProviderName(order.phone); } else { opTag = String(opTag).toUpperCase(); }
-        const matchedProduct = availableProducts.find(p => String(p.code) === String(order.productId));
-        const displayPrice = usdFormatter.format(order.price || (matchedProduct ? matchedProduct.price : 0));
-        const wait = order.cancelUnlockTime - now; 
-        let otpHtml = isSuccess ? `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
-        let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
-        
-        if (isSuccess) { 
-            finishBtnAttr = ""; resendBtnAttr = ""; cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled";
-        } else if (wait <= 0 && !order.isAutoCanceling) { 
-            cancelBtnAttr = ""; replaceBtnAttr = ""; resendBtnAttr = "disabled"; 
-        } else if (order.isAutoCanceling) { 
-            cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; 
-        }
-        
-        let headerLogoUrl = getOperatorLogo(opTag); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
-        const left = order.expiresAt - now; let timerColor = "#ffffff"; 
-        if (left <= 12 * 60000) { timerColor = "var(--danger-color)"; } else if (left <= 18 * 60000) { timerColor = "var(--warning-color)"; } else { timerColor = "#ffffff"; }
-        card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id}</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
+        const isSuccess = (order.status === "OTP_RECEIVED" && order.otp); let opTag = order.productId; if (opTag === 'any' || !opTag) { opTag = getProviderName(order.phone); } else { opTag = String(opTag).toUpperCase(); }
+        const matchedProduct = availableProducts.find(p => String(p.code) === String(order.productId)); const displayPrice = usdFormatter.format(order.price || (matchedProduct ? matchedProduct.price : 0));
+        const wait = order.cancelUnlockTime - now; let otpHtml = isSuccess ? `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
+        let cb = "disabled", rb = "disabled", eb = "disabled", fb = "disabled";
+        if (isSuccess) { fb = ""; eb = ""; } else if (wait <= 0 && !order.isAutoCanceling) { cb = ""; rb = ""; }
+        let logo = getOperatorLogo(opTag); let fall = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
+        const left = order.expiresAt - now; let tColor = "#ffffff"; if (left <= 12 * 60000) { tColor = "var(--danger-color)"; } else if (left <= 18 * 60000) { tColor = "var(--warning-color)"; }
+        card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${logo}" onerror="this.onerror=null; this.src='${fall}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id}</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}" style="color: ${tColor}; font-weight: 900;">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${rb}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${eb}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cb}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${fb}><i class="fas fa-check"></i> Selesai</button></div>`;
         if (activeOrdersContainer) activeOrdersContainer.appendChild(card);
     });
 }
+function relocateBalanceUI() { const hc = document.querySelector('.app-header-container'); const bc = document.querySelector('.balance-container'); if(hc && bc && !document.getElementById('newBalanceDisplay')) { bc.style.display = 'none'; const nd = document.createElement('div'); nd.style.textAlign = 'right'; nd.innerHTML = `<span style="font-size: 10px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 16px; font-weight: 900; color: var(--primary-color);">...</span>`; hc.appendChild(nd); const ob = document.getElementById('balanceDisplay'); if(ob) ob.removeAttribute('id'); nd.querySelector('span:last-child').id = 'balanceDisplay'; } }
 
-function relocateBalanceUI() {
-    const headerContainer = document.querySelector('.app-header-container'); const balanceContainer = document.querySelector('.balance-container');
-    if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) {
-        balanceContainer.style.display = 'none'; 
-        const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right';
-        newBalanceDiv.innerHTML = `<span style="font-size: 10px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 16px; font-weight: 900; color: var(--primary-color);">...</span>`;
-        headerContainer.appendChild(newBalanceDiv);
-        const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id');
-        newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay';
-    }
-}
-
-// Utilities & Modals Lainnya
+// === MISC UTILS ===
 window.openSettingsModal = function() { document.getElementById('settingsPassword').value = appSettings.password; document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; document.getElementById('settingsModal').classList.remove('hidden'); history.pushState(null, null, "#settings"); }
 window.closeSettingsModal = function() { document.getElementById('settingsModal').classList.add('hidden'); }
 window.saveSettings = function() { appSettings.password = document.getElementById('settingsPassword').value; appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; localStorage.setItem('app_settings', JSON.stringify(appSettings)); closeSettingsModal(); showToast("Pengaturan disimpan!"); renderMainButtons(); }
-function renderMainButtons() { const extraBtnWrapper = document.getElementById('extraBtnWrapper'); if (!extraBtnWrapper) return; if (appSettings.autoCopy) { extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 8px;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 8px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
-function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("0")) { p = "62" + p.substring(1); } return p; }
-function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
-function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } return otpStr; }
-function getProviderName(phone) { let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2); const prefix = p.substring(0, 4); if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel"; if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat"; if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL"; if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Three"; if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren"; return "Acak"; }
+function renderMainButtons() { const ebw = document.getElementById('extraBtnWrapper'); if (!ebw) return; if (appSettings.autoCopy) { ebw.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { ebw.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
+function normalizePhone(p) { if (!p) return ""; p = String(p).replace(/\D/g, ""); if (p.startsWith("0")) p = "62" + p.substring(1); return p; }
+function formatPhoneNumber(p) { if (!p) return ""; p = String(p); if (p.startsWith("62")) p = "0" + p.substring(2); return p.replace(/(.{4})/g, '$1 ').trim(); }
+function formatOTP(otp) { if (!otp) return ""; const s = String(otp); return s.length >= 6 ? s.slice(0, 3) + " - " + s.slice(3) : s; }
+function getProviderName(p) { p = String(p); if (p.startsWith("62")) p = "0" + p.substring(2); const px = p.substring(0, 4); if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(px)) return "Telkomsel"; if (['0814','0815','0816','0855','0856','0857','0858'].includes(px)) return "Indosat"; if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(px)) return "XL"; if (['0895','0896','0897','0898','0899'].includes(px)) return "Three"; if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(px)) return "Smartfren"; return "Acak"; }
 function saveToStorage() { localStorage.setItem(`virtual_orders_${activeAccountName}`, JSON.stringify(activeOrders)); renderOrders(); }
-function showToast(pesan, type = "success") { const t = document.getElementById("toast"); if(!t) return; t.innerHTML = pesan; if (type === "error") { t.style.backgroundColor = "var(--danger-color)"; t.style.color = "#ffffff"; } else if (type === "warning") { t.style.backgroundColor = "var(--warning-color)"; t.style.color = "#000000"; } else { t.style.backgroundColor = "var(--success-color)"; t.style.color = "#ffffff"; } t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 4000); }
-function copyToClipboard(t) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(t).then(() => { showToast("Berhasil disalin!"); }).catch(err => { copyFallback(t); }); } else { copyFallback(t); } }
-function copyFallback(t) { const ta = document.createElement("textarea"); ta.value = t; ta.setAttribute('readonly', ''); ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999); try { document.execCommand('copy'); showToast("Berhasil disalin!"); } catch (err) { showToast("Gagal menyalin.", "error"); } document.body.removeChild(ta); }
-function initUsedNumbersSync() { db.ref('used_numbers/hero_sms').on('value', snapshot => { usedNumbersDB.clear(); let operatorCounts = {}; let totalBlacklist = 0; if (snapshot.exists()) { snapshot.forEach(child => { if (child.val().phone) { let normalPhone = normalizePhone(child.val().phone); usedNumbersDB.add(normalPhone); totalBlacklist++; let op = getProviderName(normalPhone); operatorCounts[op] = (operatorCounts[op] || 0) + 1; } }); } isUsedNumbersLoaded = true; if(document.getElementById('blacklistBadge')) document.getElementById('blacklistBadge').innerText = totalBlacklist; if(document.getElementById('blacklistDetailCount')) document.getElementById('blacklistDetailCount').innerText = totalBlacklist; let breakdownText = ""; for (let op in operatorCounts) { breakdownText += `<span style="display:inline-block; background:var(--bg-card); padding:4px 10px; border-radius:10px; margin:4px; font-size:11px; font-weight:bold; color:var(--text-primary); border: 1px solid var(--border-color);">${op}: ${operatorCounts[op]}</span>`; } let breakdownDiv = document.getElementById('operatorBreakdown'); if(!breakdownDiv) { breakdownDiv = document.createElement('div'); breakdownDiv.id = 'operatorBreakdown'; breakdownDiv.style.marginTop = "15px"; breakdownDiv.style.textAlign = "center"; const targetParent = document.querySelector('#blacklistModal .modal-content p:last-of-type').parentNode; if(targetParent) targetParent.appendChild(breakdownDiv); } breakdownDiv.innerHTML = breakdownText; }); }
-function recordStat(type) { const today = new Date().toLocaleDateString('en-CA'); const statRef = db.ref(`stats/hero_sms/${today}/${type}`); statRef.transaction(currentCount => (currentCount || 0) + 1); }
-window.openStatsModal = function() { document.getElementById('statsModal').classList.remove('hidden'); const dateInput = document.getElementById('statDate'); if(!dateInput.value) dateInput.value = new Date().toLocaleDateString('en-CA'); loadStatsData(); history.pushState(null, null, "#stats"); }
+function showToast(psn, typ="success") { const t = document.getElementById("toast"); if(!t) return; t.innerHTML = psn; t.style.backgroundColor = typ==="error" ? "var(--danger-color)" : typ==="warning" ? "var(--warning-color)" : "var(--success-color)"; t.style.color = typ==="warning" ? "#000" : "#fff"; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 3000); }
+function copyToClipboard(t) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(t).then(() => showToast("Disalin!")).catch(() => copyFallback(t)); } else copyFallback(t); }
+function copyFallback(t) { const ta = document.createElement("textarea"); ta.value = t; ta.setAttribute('readonly',''); ta.style.position="absolute"; ta.style.left="-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast("Disalin!"); }
+function initUsedNumbersSync() { db.ref('used_numbers/hero_sms').on('value', s => { usedNumbersDB.clear(); let total = 0; if (s.exists()) { s.forEach(c => { if (c.val().phone) { usedNumbersDB.add(normalizePhone(c.val().phone)); total++; } }); } isUsedNumbersLoaded = true; const bdg1 = document.getElementById('blacklistBadge'); const bdg2 = document.getElementById('blacklistDetailCount'); if(bdg1) bdg1.innerText = total; if(bdg2) bdg2.innerText = total; }); }
+function recordStat(type) { const t = new Date().toLocaleDateString('en-CA'); db.ref(`stats/hero_sms/${t}/${type}`).transaction(c => (c || 0) + 1); }
+window.openStatsModal = function() { document.getElementById('statsModal').classList.remove('hidden'); const d = document.getElementById('statDate'); if(!d.value) d.value = new Date().toLocaleDateString('en-CA'); loadStatsData(); history.pushState(null, null, "#stats"); }
 window.closeStatsModal = function() { document.getElementById('statsModal').classList.add('hidden'); }
-function loadStatsData() { const selectedDate = document.getElementById('statDate').value; const sSuccess = document.getElementById('statSuccess'); const sFailed = document.getElementById('statFailed'); if(sSuccess) sSuccess.innerText = "..."; if(sFailed) sFailed.innerText = "..."; db.ref(`stats/hero_sms/${selectedDate}`).once('value', snap => { const data = snap.val(); if(sSuccess) sSuccess.innerText = data?.success || 0; if(sFailed) sFailed.innerText = data?.failed || 0; }); }
+function loadStatsData() { const d = document.getElementById('statDate').value; const ss = document.getElementById('statSuccess'); const sf = document.getElementById('statFailed'); if(ss) ss.innerText="..."; if(sf) sf.innerText="..."; db.ref(`stats/hero_sms/${d}`).once('value', s => { const val = s.val(); if(ss) ss.innerText = val?.success||0; if(sf) sf.innerText = val?.failed||0; }); }
 document.getElementById('statDate').addEventListener('change', loadStatsData);
 window.openBlacklistModal = function() { document.getElementById('blacklistModal').classList.remove('hidden'); history.pushState(null, null, "#blacklist"); }
 window.closeBlacklistModal = function() { document.getElementById('blacklistModal').classList.add('hidden'); }
 function loadHistory() { orderHistory = JSON.parse(localStorage.getItem(`virtual_history_${activeAccountName}`)) || []; renderHistory(); }
-function saveToHistory(order, status) { if (!order) return; const historyItem = { id: order.id, phone: order.phone, op: order.productId, price: order.price, otp: order.otp || "-", status: status, date: Date.now() }; orderHistory.unshift(historyItem); if (orderHistory.length > 50) orderHistory.pop(); localStorage.setItem(`virtual_history_${activeAccountName}`, JSON.stringify(orderHistory)); renderHistory(); }
-function renderHistory() { const list = document.getElementById('history-list'); if (!list) return; if (orderHistory.length === 0) { list.innerHTML = '<div class="status-text">Belum ada riwayat pesanan.</div>'; return; } list.innerHTML = ""; orderHistory.forEach(item => { const card = document.createElement('div'); card.style.background = "var(--bg-card)"; card.style.padding = "12px"; card.style.borderRadius = "10px"; card.style.border = "1px solid var(--border-color)"; card.style.fontSize = "12px"; let statusColor = "var(--text-secondary)"; let icon = "fa-clock"; if (item.status === "SUKSES") { statusColor = "var(--success-color)"; icon = "fa-check-circle"; } if (item.status === "BATAL") { statusColor = "var(--danger-color)"; icon = "fa-times-circle"; } if (item.status === "GANTI") { statusColor = "var(--warning-color)"; icon = "fa-sync-alt"; } if (item.status === "MINTA ULANG") { statusColor = "var(--info-color)"; icon = "fa-envelope"; } const opTag = getProviderName(item.phone); const dt = new Date(item.date); const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`; card.innerHTML = `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;"><strong style="color: var(--text-primary); font-size: 14px; letter-spacing: 1px;">${formatPhoneNumber(item.phone)} <span style="font-size:10px; font-weight:normal; color: var(--text-secondary);">(${opTag})</span></strong><span style="color: ${statusColor}; font-weight: 800;"><i class="fas ${icon}"></i> ${item.status}</span></div><div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 11px; margin-bottom: ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? '8px' : '0'};"><span>ID: #${item.id}</span><span>${timeStr}</span></div>${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 6px; text-align: center; border-radius: 8px; font-weight: 900; letter-spacing: 4px; font-size: 16px; text-shadow: 0 0 10px rgba(56,189,248,0.3);">${item.otp}</div>` : ''}`; list.appendChild(card); }); }
+function saveToHistory(o, st) { if (!o) return; orderHistory.unshift({ id: o.id, phone: o.phone, op: o.productId, price: o.price, otp: o.otp || "-", status: st, date: Date.now() }); if (orderHistory.length > 50) orderHistory.pop(); localStorage.setItem(`virtual_history_${activeAccountName}`, JSON.stringify(orderHistory)); renderHistory(); }
+function renderHistory() { const ls = document.getElementById('history-list'); if (!ls) return; if (orderHistory.length === 0) { ls.innerHTML = '<div class="status-text-mini" style="text-align:center;">Belum ada riwayat.</div>'; return; } ls.innerHTML = ""; orderHistory.forEach(i => { const c = document.createElement('div'); c.style.background = "var(--bg-card)"; c.style.padding = "10px"; c.style.borderRadius = "10px"; c.style.fontSize = "11px"; let sc = "var(--text-secondary)", ic = "fa-clock"; if (i.status === "SUKSES") { sc = "var(--success-color)"; ic = "fa-check-circle"; } if (i.status === "BATAL") { sc = "var(--danger-color)"; ic = "fa-times-circle"; } if (i.status === "GANTI") { sc = "var(--warning-color)"; ic = "fa-sync-alt"; } if (i.status === "MINTA ULANG") { sc = "var(--info-color)"; ic = "fa-envelope"; } const dt = new Date(i.date); const tStr = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`; c.innerHTML = `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><strong style="color: var(--text-primary); font-size: 13px;">${formatPhoneNumber(i.phone)} <span style="font-size:9px; color:var(--text-secondary);">(${getProviderName(i.phone)})</span></strong><span style="color: ${sc}; font-weight: 800;"><i class="fas ${ic}"></i> ${i.status}</span></div><div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 10px; margin-bottom: ${i.status === 'SUKSES' || i.status === 'MINTA ULANG' ? '6px' : '0'};"><span>ID: #${i.id}</span><span>${tStr}</span></div>${i.status === 'SUKSES' || i.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${sc}; color: ${sc}; padding: 4px; text-align: center; border-radius: 6px; font-weight: 900; letter-spacing: 2px; font-size: 14px;">${i.otp}</div>` : ''}`; ls.appendChild(c); }); }
 window.openHistoryModal = function() { document.getElementById('historyModal').classList.remove('hidden'); history.pushState(null, null, "#history"); }
 window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
-window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`virtual_history_${activeAccountName}`); renderHistory(); } }
-window.openNotesFromAnywhere = function() { if(notesListModal) notesListModal.classList.remove('hidden'); history.pushState(null, null, "#notes"); }; document.addEventListener('click', function(e) { const target = e.target.closest('button'); if (target && (target.id === 'btnOpenNotes' || (target.getAttribute('onclick') || '').includes('btnOpenNotes'))) { e.preventDefault(); e.stopPropagation(); window.openNotesFromAnywhere(); } }, true);
-function closeNotesListModal() { notesListModal.classList.add('hidden'); }
-function initNotesSync() { const grid = document.getElementById('notes-grid'); if (!grid) return; db.ref(DB_PATH).orderByChild('timestamp').on('value', snapshot => { grid.innerHTML = ''; let items = []; snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); }); if(notesCountDisplay) notesCountDisplay.innerText = `(${items.length})`; if(items.length === 0) { grid.innerHTML = '<div class="status-text">Belum ada catatan.</div>'; return; } items.reverse().forEach((d) => { const card = document.createElement('div'); card.className = 'note-card'; card.onclick = () => openNoteDetailModal(d.key, d); const previewText = escapeHTML(d.content).replace(/\n/g, ' '); card.innerHTML = `<div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div><div class="note-preview">${previewText}</div><div class="note-date">${formatDate(d.timestamp)}</div>`; grid.appendChild(card); }); }); }
-function formatDate(ts) { if(!ts) return "---"; const d = new Date(ts); const date = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`; const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; return `${date} - ${time}`; }
-function escapeHTML(str) { if(!str) return ""; return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
-function openAddNoteModal() { isEditingNote = false; document.getElementById('form-modal-title').innerText = "Catatan Baru"; document.getElementById('note-title').value = ""; document.getElementById('note-content').value = ""; notesListModal.classList.add('hidden'); noteFormModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); }
-function openNoteDetailModal(key, data) { selectedNoteKey = key; currentNoteRawContent = data.content; document.getElementById('view-tag').innerText = `Dibuat: ${formatDate(data.timestamp)}`; document.getElementById('view-title').value = data.title || "Tanpa Judul"; document.getElementById('view-content').innerText = data.content; notesListModal.classList.add('hidden'); noteDetailModal.classList.remove('hidden'); history.pushState(null, null, window.location.href); }
-function closeNoteDetailModal() { noteDetailModal.classList.add('hidden'); notesListModal.classList.add('hidden'); }
-function handleCancelNoteForm() { noteFormModal.classList.add('hidden'); if (isEditingNote) { noteDetailModal.classList.remove('hidden'); } else { notesListModal.classList.remove('hidden'); } }
-function editFromDetail() { const t = document.getElementById('view-title').value; const c = currentNoteRawContent; noteDetailModal.classList.add('hidden'); isEditingNote = true; document.getElementById('form-modal-title').innerText = "Edit Catatan"; document.getElementById('note-title').value = (t === "Tanpa Judul") ? "" : t; document.getElementById('note-content').value = c; noteFormModal.classList.remove('hidden'); }
-function handleSaveNote() { let t = document.getElementById('note-title').value.trim(); const c = document.getElementById('note-content').value.trim(); if(!c || c === "") return showToast("⚠️ Konten tidak boleh kosong!", "error"); db.ref(DB_PATH).once('value').then(snapshot => { let isDuplicate = false; let usedNumbers = new Set(); snapshot.forEach(child => { let exTitle = child.val().title; let exContent = child.val().content; if (exTitle && /^\d+$/.test(exTitle.toString().trim())) { usedNumbers.add(parseInt(exTitle.toString().trim())); } if (exContent && exContent.trim() === c) { if (!isEditingNote || selectedNoteKey !== child.key) { isDuplicate = true; } } }); if (isDuplicate) return showToast("⚠️ Gagal: Catatan sama sudah ada!", "error"); if (!t) { let nextNum = 1; while (usedNumbers.has(nextNum)) { nextNum++; } executeSaveNote(nextNum.toString(), c); } else { executeSaveNote(t, c); } }); }
-function executeSaveNote(title, content) { const data = { title: title, content: content, timestamp: Date.now() }; const promise = (isEditingNote && selectedNoteKey) ? db.ref(`${DB_PATH}/${selectedNoteKey}`).update(data) : db.ref(DB_PATH).push(data); promise.then(() => { noteFormModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); isEditingNote = false; showToast("Catatan tersimpan!"); }); }
-function confirmDeleteNote() { if(confirm("Hapus catatan ini?")) { db.ref(`${DB_PATH}/${selectedNoteKey}`).remove().then(() => { noteDetailModal.classList.add('hidden'); notesListModal.classList.remove('hidden'); showToast("Catatan dihapus."); }); } }
-function copyNoteContent() { copyToClipboard(currentNoteRawContent); }
+window.clearHistory = function() { if(confirm("Hapus semua riwayat?")) { orderHistory = []; localStorage.removeItem(`virtual_history_${activeAccountName}`); renderHistory(); } }
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
-    const blM = document.getElementById('blacklistModal'); const histM = document.getElementById('historyModal'); const statsM = document.getElementById('statsModal'); const setM = document.getElementById('settingsModal');
-    if (blM && !blM.classList.contains('hidden')) { window.closeBlacklistModal(); history.pushState(null, null, window.location.href); }
-    else if (histM && !histM.classList.contains('hidden')) { window.closeHistoryModal(); history.pushState(null, null, window.location.href); }
-    else if (statsM && !statsM.classList.contains('hidden')) { window.closeStatsModal(); history.pushState(null, null, window.location.href); }
-    else if (setM && !setM.classList.contains('hidden')) { window.closeSettingsModal(); history.pushState(null, null, window.location.href); }
-    else if (!noteFormModal.classList.contains('hidden')) { handleCancelNoteForm(); history.pushState(null, null, window.location.href); }
-    else if (!noteDetailModal.classList.contains('hidden')) { closeNoteDetailModal(); history.pushState(null, null, window.location.href); }
-    else if (!notesListModal.classList.contains('hidden')) { closeNotesListModal(); history.pushState(null, null, window.location.href); }
-    else if (isExitModalOpen) { document.getElementById('exitModal').classList.add('hidden'); isExitModalOpen = false; history.pushState(null, null, window.location.href); }
+    let mods = ['blacklistModal', 'historyModal', 'statsModal', 'settingsModal', 'iframeNoteModal']; let closedAny = false;
+    mods.forEach(m => { let el = document.getElementById(m); if (el && !el.classList.contains('hidden')) { el.classList.add('hidden'); closedAny = true; } });
+    if (closedAny) { history.pushState(null, null, window.location.href); return; }
+    if (isExitModalOpen) { document.getElementById('exitModal').classList.add('hidden'); isExitModalOpen = false; history.pushState(null, null, window.location.href); }
     else { document.getElementById('exitModal').classList.remove('hidden'); isExitModalOpen = true; history.pushState(null, null, window.location.href); }
 });
+window.closeExitModal = function() { document.getElementById('exitModal').classList.add('hidden'); isExitModalOpen = false; }
+window.confirmExit = function() { window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
 
-function confirmExit() { window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
-
-// INIT
 window.onload = async () => { 
-    relocateBalanceUI(); 
-    history.pushState(null, null, window.location.href); 
-    
+    relocateBalanceUI(); history.pushState(null, null, window.location.href); 
     if(document.getElementById('currentAccountName')) document.getElementById('currentAccountName').innerText = "Terhubung";
-
-    initNotesSync(); 
     initUsedNumbersSync(); 
-
-    const rawOrders = JSON.parse(localStorage.getItem(`virtual_orders_${activeAccountName}`)) || []; 
-    activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); 
+    const rO = JSON.parse(localStorage.getItem(`virtual_orders_${activeAccountName}`)) || []; activeOrders = rO.filter(o => o.expiresAt > Date.now()); 
     hiddenBadOrders = JSON.parse(localStorage.getItem(`virtual_hidden_bad_orders_${activeAccountName}`)) || []; 
-    
-    loadHistory(); 
-    renderMainButtons(); 
-    
-    fetchBalance(); 
-    await loadServices(); 
-    renderOrders(); 
-    startPollingAndTimer(); 
+    loadHistory(); renderMainButtons(); fetchBalance(); await loadServices(); renderOrders(); startPollingAndTimer(); 
 };
