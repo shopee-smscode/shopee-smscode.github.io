@@ -8,7 +8,7 @@ const db = firebase.database();
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
 let activeAccountName = "VirtualUser"; 
 let currentServiceId = null; 
-let currentCountryId = null; 
+let currentCountryId = 6; // Default Indonesia
 let activeOrders = []; let availableProducts = []; let selectedProductId = 'any'; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
@@ -43,7 +43,7 @@ window.closeIframeNoteModal = function() {
     document.getElementById('iframeNoteModal').classList.add('hidden');
 }
 
-// === FUNGSI API (DENGAN DETEKSI CLOUDFLARE/HTML BLOCKED) ===
+// === FUNGSI API ===
 async function apiCall(endpoint, method = "GET", body = null) { 
     try {
         const options = { method, headers: {} }; 
@@ -54,7 +54,6 @@ async function apiCall(endpoint, method = "GET", body = null) {
             return JSON.parse(textData); 
         } catch (err) {
             let lowerText = textData.toLowerCase();
-            // DETEKSI CLOUDFLARE ATAU HALAMAN HTML
             if (lowerText.includes("<html") || lowerText.includes("cloudflare") || lowerText.includes("blocked")) {
                 return { status: false, message: "Akses API diblokir keamanan server (Cloudflare)." };
             }
@@ -92,7 +91,11 @@ async function loadServices() {
     } catch (e) { serviceSelect.innerHTML = '<option value="">Gagal Jaringan</option>'; }
 }
 
-window.changeService = function() { currentServiceId = document.getElementById('serviceSelect').value; localStorage.setItem('virtual_selected_service', currentServiceId); loadVirtualSMSProducts(currentServiceId); }
+window.changeService = function() { 
+    currentServiceId = document.getElementById('serviceSelect').value; 
+    localStorage.setItem('virtual_selected_service', currentServiceId); 
+    loadVirtualSMSProducts(currentServiceId); 
+}
 
 async function loadVirtualSMSProducts(serviceId) {
     try {
@@ -100,12 +103,25 @@ async function loadVirtualSMSProducts(serviceId) {
         if (btnOrder) btnOrder.disabled = true;
         const res = await apiCall(`/v1/price/${serviceId}`);
         if (res && (res.status === true || res.status === "true") && Array.isArray(res.data)) {
-            let countryData = res.data.find(c => (c.countryName && c.countryName.toLowerCase().includes("indonesia")) || String(c.country) === "62" || String(c.country) === "1");
-            if (!countryData && res.data.length > 0) countryData = res.data[0];
-            if (!countryData) { productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Layanan tak tersedia.</div>`; document.getElementById('randomPriceBadge').innerText = "---"; return; }
             
-            currentCountryId = countryData.country || countryData.countryId || 1;
-            let ops = countryData.operators || []; let priceUsd = countryData.priceUsd || 0;
+            // KUNCI MATI KE NEGARA INDONESIA
+            let countryData = res.data.find(c => 
+                (c.countryName && c.countryName.toLowerCase().includes("indonesia")) || 
+                String(c.country) === "62" || 
+                String(c.country) === "6" || 
+                String(c.country) === "1"
+            );
+
+            // JIKA LAYANAN KOSONG DI INDONESIA, STOP DI SINI. (Tidak boleh fallback ke Rusia)
+            if (!countryData) { 
+                productList.innerHTML = `<div class="status-text-mini" style="color:var(--warning-color);">Stok layanan ini kosong untuk Indonesia.</div>`; 
+                document.getElementById('randomPriceBadge').innerText = "---"; 
+                if (btnOrder) btnOrder.disabled = true;
+                return; 
+            }
+            
+            currentCountryId = countryData.country || countryData.countryId || 6;
+            let ops = countryData.operators || []; let priceUsd = countryData.priceUsd || countryData.price || 0;
             document.getElementById('randomPriceBadge').innerText = usdFormatter.format(priceUsd);
             
             availableProducts = [{ id: 'any', code: 'any', name: 'Acak', price: priceUsd }];
@@ -141,6 +157,7 @@ window.toggleRandomOperator = function() {
     if (btnOrder) btnOrder.disabled = false;
 }
 
+// === ORDER LOGIC ===
 async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Banyak nomor bekas.", "error"); return null; }
     const res = await apiCall('/v1/order/', 'POST', { country: Number(currentCountryId), service: Number(currentServiceId), operator: operatorCode === 'any' ? 'any' : operatorCode, type: 1 });
@@ -193,7 +210,7 @@ function startPollingAndTimer() {
         });
     }, 1000);
     
-    // DELAY POLLING KE 10 DETIK MENCEGAH BLOKIR CLOUDFLARE
+    // DELAY POLLING KE 10 DETIK MENCEGAH BLOKIR
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
