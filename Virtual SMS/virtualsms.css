@@ -5,6 +5,7 @@
     --warning-color: #f59e0b;
     --info-color: #3b82f6;
     --base-font-size: clamp(14px, 4vw, 18px); 
+    --safe-gap: 12px; 
 }
 
 body.theme-virtual {
@@ -97,7 +98,6 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .btn-resend { background-color: var(--info-color); color: #fff; }
 .btn-danger { background-color: var(--danger-color); color: #fff; }
 .btn-success { background-color: var(--success-color); color: #fff; }
-
 .btn-primary { width: 100%; background: var(--primary-color); color: var(--bg-body); height: 50px !important; font-size: 15px !important; margin-top: 4px; border-radius: 12px !important; font-weight: 800; text-transform: uppercase; border: none; cursor: pointer; transition: 0.2s;}
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 

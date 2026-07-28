@@ -1,4 +1,4 @@
-lconst BASE_URL = "https://virtual-sms-proxy.masreno6pro.workers.dev"; 
+const BASE_URL = "https://virtual-sms-proxy.masreno6pro.workers.dev"; 
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
@@ -6,34 +6,69 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
 
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
-let activeAccountName = "VirtualUser"; let currentServiceId = null; let currentCountryId = null; 
+let activeAccountName = "VirtualUser"; 
+let currentServiceId = null; 
+let currentCountryId = null; 
 let activeOrders = []; let availableProducts = []; let selectedProductId = 'any'; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
-const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); 
+const productList = document.getElementById('productList'); 
+const btnOrder = document.getElementById('btnOrder'); 
+const activeOrdersContainer = document.getElementById('activeOrdersContainer'); 
 
-window.toggleAppDropdown = function() { document.getElementById("appDropdown").classList.toggle("show"); document.getElementById("menuDropdown").classList.remove("show"); }
-window.toggleMenuDropdown = function() { document.getElementById("menuDropdown").classList.toggle("show"); document.getElementById("appDropdown").classList.remove("show"); }
-window.onclick = function(event) { if (!event.target.matches('.dropbtn') && !event.target.matches('.dropbtn *') && !event.target.matches('.dropbtn-icon') && !event.target.matches('.dropbtn-icon *')) { let dropdowns = document.getElementsByClassName("dropdown-content"); for (let i = 0; i < dropdowns.length; i++) { if (dropdowns[i].classList.contains('show')) dropdowns[i].classList.remove('show'); } } }
-window.openIframeNoteModal = function() { document.getElementById('iframeNoteModal').classList.remove('hidden'); history.pushState(null, null, "#notes"); }
-window.closeIframeNoteModal = function() { document.getElementById('iframeNoteModal').classList.add('hidden'); }
+// === DROPDOWN & MENU LOGIC ===
+window.toggleAppDropdown = function() {
+    document.getElementById("appDropdown").classList.toggle("show");
+    document.getElementById("menuDropdown").classList.remove("show");
+}
+window.toggleMenuDropdown = function() {
+    document.getElementById("menuDropdown").classList.toggle("show");
+    document.getElementById("appDropdown").classList.remove("show");
+}
+window.onclick = function(event) {
+    if (!event.target.matches('.dropbtn') && !event.target.matches('.dropbtn *') && 
+        !event.target.matches('.dropbtn-icon') && !event.target.matches('.dropbtn-icon *')) {
+        let dropdowns = document.getElementsByClassName("dropdown-content");
+        for (let i = 0; i < dropdowns.length; i++) {
+            if (dropdowns[i].classList.contains('show')) dropdowns[i].classList.remove('show');
+        }
+    }
+}
+window.openIframeNoteModal = function() {
+    document.getElementById('iframeNoteModal').classList.remove('hidden');
+    history.pushState(null, null, "#notes");
+}
+window.closeIframeNoteModal = function() {
+    document.getElementById('iframeNoteModal').classList.add('hidden');
+}
 
+// === FUNGSI API (ANTI-CRASH PARSER) ===
 async function apiCall(endpoint, method = "GET", body = null) { 
     try {
         const options = { method, headers: {} }; 
         if (body) { options.headers["Content-Type"] = "application/json"; options.body = JSON.stringify(body); }
-        const response = await fetch(`${BASE_URL}${endpoint}`, options); const textData = await response.text();
+        const response = await fetch(`${BASE_URL}${endpoint}`, options); 
+        const textData = await response.text();
         try { return JSON.parse(textData); } 
-        catch (err) { let isErr = textData.toLowerCase().includes("wrong") || textData.toLowerCase().includes("error") || textData.toLowerCase().includes("fail"); return (response.ok && !isErr) ? { status: true, message: textData || "Success" } : { status: false, message: textData || `Error ${response.status}` }; }
+        catch (err) {
+            let isErr = textData.toLowerCase().includes("wrong") || textData.toLowerCase().includes("error") || textData.toLowerCase().includes("fail");
+            return (response.ok && !isErr) ? { status: true, message: textData || "Success" } : { status: false, message: textData || `Error ${response.status}` };
+        }
     } catch (err) { return { status: false, message: "Koneksi Proxy Gagal: " + err.message }; }
 }
 
 async function fetchBalance() { 
     const bDisplay = document.getElementById('balanceDisplay'); if (!bDisplay) return;
-    try { const res = await apiCall('/v1/profile/'); if (res && (res.status === true || res.status === "true") && res.data && typeof res.data.balance !== 'undefined') { bDisplay.innerText = usdFormatter.format(res.data.balance); bDisplay.style.color = "var(--primary-color)"; bDisplay.style.fontSize = "16px"; } } catch (error) {} 
+    try { 
+        const res = await apiCall('/v1/profile/'); 
+        if (res && (res.status === true || res.status === "true") && res.data && typeof res.data.balance !== 'undefined') {
+            bDisplay.innerText = usdFormatter.format(res.data.balance); bDisplay.style.color = "var(--primary-color)"; bDisplay.style.fontSize = "16px";
+        } 
+    } catch (error) {} 
 }
 
+// MEMUAT & MENGINGAT LAYANAN
 async function loadServices() {
     const serviceSelect = document.getElementById('serviceSelect'); if (!serviceSelect) return;
     try {
@@ -41,7 +76,10 @@ async function loadServices() {
         if (res && (res.status === true || res.status === "true") && Array.isArray(res.data)) {
             let services = res.data; services.sort((a, b) => (a.serviceName || "").localeCompare(b.serviceName || ""));
             serviceSelect.innerHTML = ''; let shopeeId = null;
-            services.forEach(svc => { const opt = document.createElement('option'); opt.value = svc.id; opt.textContent = svc.serviceName; serviceSelect.appendChild(opt); if (svc.serviceName && svc.serviceName.toLowerCase().includes('shopee')) shopeeId = svc.id; });
+            services.forEach(svc => {
+                const opt = document.createElement('option'); opt.value = svc.id; opt.textContent = svc.serviceName; serviceSelect.appendChild(opt);
+                if (svc.serviceName && svc.serviceName.toLowerCase().includes('shopee')) shopeeId = svc.id;
+            });
             let savedId = localStorage.getItem('virtual_selected_service'); let exists = services.find(s => String(s.id) === String(savedId));
             currentServiceId = exists ? savedId : (shopeeId ? shopeeId : services[0].id);
             serviceSelect.value = currentServiceId; localStorage.setItem('virtual_selected_service', currentServiceId); loadVirtualSMSProducts(currentServiceId);
@@ -51,9 +89,11 @@ async function loadServices() {
 
 window.changeService = function() { currentServiceId = document.getElementById('serviceSelect').value; localStorage.setItem('virtual_selected_service', currentServiceId); loadVirtualSMSProducts(currentServiceId); }
 
+// MEMUAT & MENGINGAT OPERATOR
 async function loadVirtualSMSProducts(serviceId) {
     try {
-        productList.innerHTML = '<div class="status-text-mini">Mencari Operator...</div>'; if (btnOrder) btnOrder.disabled = true;
+        productList.innerHTML = '<div class="status-text-mini">Mencari Operator...</div>';
+        if (btnOrder) btnOrder.disabled = true;
         const res = await apiCall(`/v1/price/${serviceId}`);
         if (res && (res.status === true || res.status === "true") && Array.isArray(res.data)) {
             let countryData = res.data.find(c => (c.countryName && c.countryName.toLowerCase().includes("indonesia")) || String(c.country) === "62" || String(c.country) === "1");
@@ -68,10 +108,12 @@ async function loadVirtualSMSProducts(serviceId) {
             ops.forEach(op => { let code = op.code || op.id; availableProducts.push({ id: code, code: code, name: op.name || op.operatorName || code, price: priceUsd }); });
             
             productList.innerHTML = ''; 
-            let savedOp = localStorage.getItem('virtual_selected_operator') || 'any'; let isOpExist = availableProducts.find(p => String(p.code) === String(savedOp));
-            selectedProductId = isOpExist ? savedOp : 'any'; localStorage.setItem('virtual_selected_operator', selectedProductId); 
+            let savedOp = localStorage.getItem('virtual_selected_operator') || 'any'; 
+            let isOpExist = availableProducts.find(p => String(p.code) === String(savedOp));
+            selectedProductId = isOpExist ? savedOp : 'any';
+            localStorage.setItem('virtual_selected_operator', selectedProductId);
             
-            const chkRandom = document.getElementById('chkRandomOp'); if (chkRandom) chkRandom.checked = (selectedProductId === 'any');
+            const chkRandom = document.getElementById('chkRandomOp'); if (chkRandom) { chkRandom.checked = (selectedProductId === 'any'); }
             if (btnOrder) btnOrder.disabled = false;
             if (ops.length === 0) { productList.innerHTML = `<div class="status-text-mini">Operator (Acak) tersedia.</div>`; return; }
             
@@ -95,6 +137,7 @@ window.toggleRandomOperator = function() {
     if (btnOrder) btnOrder.disabled = false;
 }
 
+// === ORDER LOGIC ===
 async function processOrderFreshNumber(operatorCode, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Banyak nomor bekas.", "error"); return null; }
     const res = await apiCall('/v1/order/', 'POST', { country: Number(currentCountryId), service: Number(currentServiceId), operator: operatorCode === 'any' ? 'any' : operatorCode, type: 1 });
@@ -133,7 +176,10 @@ function startPollingAndTimer() {
     if (timerInterval) clearInterval(timerInterval); if (pollingInterval) clearInterval(pollingInterval);
     timerInterval = setInterval(() => {
         const now = Date.now();
-        for (let j = hiddenBadOrders.length - 1; j >= 0; j--) { let bo = hiddenBadOrders[j]; if (now >= bo.cancelAt && !bo.isCanceling) { bo.isCanceling = true; apiCall(`/v1/order/${bo.id}/1`, 'PATCH').then(() => { hiddenBadOrders.splice(j, 1); localStorage.setItem(`virtual_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders)); }).catch(e => { bo.isCanceling = false; }); } }
+        for (let j = hiddenBadOrders.length - 1; j >= 0; j--) {
+            let bo = hiddenBadOrders[j];
+            if (now >= bo.cancelAt && !bo.isCanceling) { bo.isCanceling = true; apiCall(`/v1/order/${bo.id}/1`, 'PATCH').then(() => { hiddenBadOrders.splice(j, 1); localStorage.setItem(`virtual_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders)); }).catch(e => { bo.isCanceling = false; }); }
+        }
         activeOrders.forEach((o, i) => {
             const left = o.expiresAt - now; const el = document.getElementById(`timer-${o.id}`);
             if (left <= 0) { activeOrders.splice(i, 1); saveToStorage(); fetchBalance(); return; }
@@ -143,6 +189,7 @@ function startPollingAndTimer() {
             if (o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) { if (wait <= 0) { if (bC && bC.disabled) bC.disabled = false; if (bR && bR.disabled && !bR.innerHTML.includes('loader')) bR.disabled = false; if (bE && !bE.disabled) bE.disabled = true; } else { if (bC && !bC.disabled) bC.disabled = true; if (bR && !bR.disabled) bR.disabled = true; if (bE && !bE.disabled) bE.disabled = true; } }
         });
     }, 1000);
+    
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
@@ -213,6 +260,7 @@ window.replaceSpecificOrder = async function(orderId) {
     } catch (e) { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
 };
 
+// === RENDER UI & LOGO ===
 function getOperatorLogo(id) { const i = String(id).toLowerCase(); if (i.includes('telkomsel') || i.includes('tsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; if (i.includes('indosat') || i.includes('isat') || i.includes('im3')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg'; if (i.includes('three') || i.includes('tri') || i.includes('3')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; if (i.includes('smartfren') || i.includes('smart')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; if (i.includes('byu') || i.includes('by.u')) return 'https://www.byu.id/images/logo-byu.png'; return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; }
 function renderOrders() {
     const aCount = document.getElementById('activeCount'); if (aCount) aCount.innerText = activeOrders.length;
@@ -233,6 +281,7 @@ function renderOrders() {
 }
 function relocateBalanceUI() { const hc = document.querySelector('.app-header-container'); const bc = document.querySelector('.balance-container'); if(hc && bc && !document.getElementById('newBalanceDisplay')) { bc.style.display = 'none'; const nd = document.createElement('div'); nd.style.textAlign = 'right'; nd.innerHTML = `<span style="font-size: 10px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 16px; font-weight: 900; color: var(--primary-color);">...</span>`; hc.appendChild(nd); const ob = document.getElementById('balanceDisplay'); if(ob) ob.removeAttribute('id'); nd.querySelector('span:last-child').id = 'balanceDisplay'; } }
 
+// === MISC UTILS ===
 window.openSettingsModal = function() { document.getElementById('settingsPassword').value = appSettings.password; document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; document.getElementById('settingsModal').classList.remove('hidden'); history.pushState(null, null, "#settings"); }
 window.closeSettingsModal = function() { document.getElementById('settingsModal').classList.add('hidden'); }
 window.saveSettings = function() { appSettings.password = document.getElementById('settingsPassword').value; appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; localStorage.setItem('app_settings', JSON.stringify(appSettings)); closeSettingsModal(); showToast("Pengaturan disimpan!"); renderMainButtons(); }
