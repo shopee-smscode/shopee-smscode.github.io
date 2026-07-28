@@ -18,7 +18,6 @@ const idrFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currenc
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); 
 
-// === DROPDOWN & MENU LOGIC ===
 window.toggleAppDropdown = function() {
     document.getElementById("appDropdown").classList.toggle("show");
     document.getElementById("menuDropdown").classList.remove("show");
@@ -39,7 +38,6 @@ window.onclick = function(event) {
 window.openIframeNoteModal = function() { document.getElementById('iframeNoteModal').classList.remove('hidden'); history.pushState(null, null, "#notes"); }
 window.closeIframeNoteModal = function() { document.getElementById('iframeNoteModal').classList.add('hidden'); }
 
-// === FUNGSI API ===
 async function apiCall(endpoint, method = "GET", body = null) { 
     const options = { method: method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; 
     if (body) options.body = JSON.stringify(body); 
@@ -63,7 +61,6 @@ function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone)
 function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } return otpStr; }
 function getProviderName(phone) { let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2); const prefix = p.substring(0, 4); if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel"; if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat"; if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL/Axis"; if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Tri"; if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren"; return "Acak"; }
 
-// PENGATURAN LOGO LEBIH AKURAT
 function getOperatorLogo(id) { 
     const i = String(id).toLowerCase(); 
     if (i.includes('telkomsel') || i.includes('tsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; 
@@ -309,96 +306,103 @@ window.filterServices = function() {
     });
 }
 
-// === FUNGSI LOAD PRODUCTS (KARTU LOGO OPERATOR ASLI DARI V2) ===
+// === FUNGSI LOAD PRODUCTS & OPERATORS DARI API V2 ===
 async function loadProducts(serviceId) {
     try {
-        if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Stok & Operator...</div>';
+        if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Stok Operator...</div>';
         const btnOrder = document.getElementById('btnOrder');
         if (btnOrder) btnOrder.disabled = true;
 
-        // Panggil data produk dan data asli operator secara bersamaan
+        // BACA KEDUA API SEKALIGUS: PRODUCTS (UNTUK HARGA) DAN OPERATORS (UNTUK DAFTAR JARINGAN)
         const [productsRes, operatorsRes] = await Promise.all([
             apiCall(`/catalog/products?country_id=${currentCountryId}&platform_id=${serviceId}`),
             apiCall(`/catalog/operators?country_id=${currentCountryId}&platform_id=${serviceId}`)
         ]);
 
+        let baseProduct = null;
         if (productsRes.success && productsRes.data && productsRes.data.length > 0) {
-            
-            // Siapkan peta nama asli operator
-            let operatorsMap = {};
-            if (operatorsRes.success && operatorsRes.data) {
-                operatorsRes.data.forEach(op => {
-                    if(op.operator_id !== null) {
-                        operatorsMap[op.operator_id] = op.name || op.local_name || op.code;
-                    }
-                });
-            }
-
-            let ops = productsRes.data.map(p => {
-                // Temukan nama asli operator jika ada, jika tidak, gunakan nama produknya
-                let mappedName = operatorsMap[p.operator_id];
-                if (!mappedName) mappedName = p.operator_name || p.name || `Server ${p.id}`;
-                
-                return {
-                    id: p.id,
-                    name: mappedName,
-                    operator_id: p.operator_id,
-                    price: (p.price && typeof p.price.canonical_amount !== 'undefined') ? p.price.canonical_amount : (p.price || 0),
-                    available: p.available
-                };
-            }).sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-            
-            let anyOp = ops.find(p => p.operator_id === null);
-            let specificOps = ops.filter(p => p.operator_id !== null);
-
-            if (!anyOp && ops.length > 0) {
-                anyOp = { id: 'any', name: 'Acak', price: ops[0].price, available: 'Auto' };
-            } else if (anyOp) {
-                anyOp.id = 'any'; 
-                anyOp.name = 'Acak';
-            }
-
-            availableProducts = anyOp ? [anyOp, ...specificOps] : specificOps;
-            
-            if (productList) productList.innerHTML = ''; 
-            let savedOp = localStorage.getItem('smscode_selected_server') || 'any';
-            let isOpExist = availableProducts.find(p => String(p.id) === String(savedOp));
-            selectedProductId = isOpExist ? savedOp : 'any'; 
-            localStorage.setItem('smscode_selected_server', selectedProductId);
-
-            const chkRandom = document.getElementById('chkRandomOp'); 
-            if (chkRandom) chkRandom.checked = (selectedProductId === 'any');
-
-            if (btnOrder) btnOrder.disabled = false;
-            
-            availableProducts.forEach(product => {
-                if (product.id === 'any') return; 
-                
-                let opCode = product.id;
-                let opName = product.name.toUpperCase();
-                
-                const card = document.createElement("div"); card.className = "product-card"; card.id = `op-card-${opCode}`;
-                if (selectedProductId === String(opCode)) card.classList.add('selected');
-                
-                let logoImg = getOperatorLogo(opName); 
-                let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
-                const displayPrice = idrFormatter.format(product.price);
-                
-                card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4><p style="font-size:9px; margin:0; color:var(--text-secondary);">Stok: ${product.available}</p></div><div class="product-price">${displayPrice}</div>`;
-                
-                card.onclick = () => { 
-                    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
-                    card.classList.add('selected'); 
-                    const chk = document.getElementById('chkRandomOp'); 
-                    if (chk) chk.checked = false;
-                    selectedProductId = String(opCode); 
-                    localStorage.setItem('smscode_selected_server', selectedProductId); 
-                    if (btnOrder) btnOrder.disabled = false; 
-                };
-                if (productList) productList.appendChild(card);
+            let sortedProducts = productsRes.data.sort((a, b) => {
+                let priceA = (a.price && typeof a.price.canonical_amount !== 'undefined') ? a.price.canonical_amount : (a.price || 0);
+                let priceB = (b.price && typeof b.price.canonical_amount !== 'undefined') ? b.price.canonical_amount : (b.price || 0);
+                return priceA - priceB;
             });
-        } else { if (productList) productList.innerHTML = '<div class="status-text-mini" style="color:var(--warning-color);">Stok kosong untuk layanan ini.</div>'; }
-    } catch (error) { if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error muat data.</div>`; }
+            baseProduct = sortedProducts[0];
+        }
+
+        if (!baseProduct) {
+            if (productList) productList.innerHTML = '<div class="status-text-mini" style="color:var(--warning-color);">Stok kosong untuk layanan ini.</div>';
+            return;
+        }
+
+        let catalogProductId = baseProduct.catalog_product_id || baseProduct.id;
+        let basePrice = (baseProduct.price && typeof baseProduct.price.canonical_amount !== 'undefined') ? baseProduct.price.canonical_amount : (baseProduct.price || 0);
+        let baseStock = baseProduct.available || 'Auto';
+
+        let ops = [];
+        if (operatorsRes.success && operatorsRes.data && operatorsRes.data.length > 0) {
+            // MERUBAH DATA OPERATORS MENJADI KOTAK GRID
+            ops = operatorsRes.data.map(op => {
+                let isAny = op.operator_id === null;
+                return {
+                    id: isAny ? 'any' : op.operator_id,
+                    name: isAny ? 'Acak (Semua Jaringan)' : (op.name || op.local_name || op.code),
+                    catalog_product_id: catalogProductId,
+                    price: basePrice,
+                    available: isAny ? baseStock : 'Cek Server'
+                };
+            });
+        } else {
+            // JAGA JAGA JIKA API OPERATORS KOSONG
+            ops = [{
+                id: 'any',
+                name: 'Acak (Semua Jaringan)',
+                catalog_product_id: catalogProductId,
+                price: basePrice,
+                available: baseStock
+            }];
+        }
+
+        availableProducts = ops;
+        
+        if (productList) productList.innerHTML = ''; 
+        let savedOp = localStorage.getItem('smscode_selected_server') || 'any';
+        let isOpExist = availableProducts.find(p => String(p.id) === String(savedOp));
+        selectedProductId = isOpExist ? savedOp : 'any'; 
+        localStorage.setItem('smscode_selected_server', selectedProductId);
+
+        const chkRandom = document.getElementById('chkRandomOp'); 
+        if (chkRandom) chkRandom.checked = (selectedProductId === 'any');
+
+        if (btnOrder) btnOrder.disabled = false;
+        
+        availableProducts.forEach(product => {
+            let opCode = product.id;
+            let opName = product.name.toUpperCase();
+            if(opName === 'ANY') opName = 'ACAK (SEMUA JARINGAN)';
+            
+            const card = document.createElement("div"); card.className = "product-card"; card.id = `op-card-${opCode}`;
+            if (selectedProductId === String(opCode)) card.classList.add('selected');
+            
+            let logoImg = getOperatorLogo(opName); 
+            let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
+            const displayPrice = idrFormatter.format(product.price);
+            
+            card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4><p style="font-size:9px; margin:0; color:var(--text-secondary);">Stok: ${product.available}</p></div><div class="product-price">${displayPrice}</div>`;
+            
+            card.onclick = () => { 
+                document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
+                card.classList.add('selected'); 
+                const chk = document.getElementById('chkRandomOp'); 
+                if (chk) chk.checked = (opCode === 'any');
+                selectedProductId = String(opCode); 
+                localStorage.setItem('smscode_selected_server', selectedProductId); 
+                if (btnOrder) btnOrder.disabled = false; 
+            };
+            if (productList) productList.appendChild(card);
+        });
+    } catch (error) {
+        if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error muat data.</div>`;
+    }
 }
 
 window.toggleRandomOperator = function() {
@@ -421,27 +425,35 @@ window.toggleRandomOperator = function() {
     if (btn) btn.disabled = false;
 }
 
-async function processOrderFreshNumber(productId, maxRetries = 5) {
+// LOGIKA PEMESANAN BARU (MENGGABUNGKAN CATALOG ID DAN OPERATOR ID)
+async function processOrderFreshNumber(selectedId, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas.", "error"); return null; }
     
-    let finalProductId = productId;
-    if (finalProductId === 'any') {
-        const validOps = availableProducts.filter(p => p.id !== 'any' && p.available > 0);
-        if (validOps.length > 0) finalProductId = validOps[0].id; 
-        else finalProductId = availableProducts.find(p => p.id !== 'any')?.id;
-    }
-    if(!finalProductId) return null;
+    const selectedOpInfo = availableProducts.find(p => String(p.id) === String(selectedId));
+    if (!selectedOpInfo) return null;
 
-    const res = await apiCall('/orders/create', 'POST', { product_id: parseInt(finalProductId), quantity: 1 });
+    const reqBody = {
+        catalog_product_id: selectedOpInfo.catalog_product_id,
+        quantity: 1
+    };
+    
+    if (selectedId !== 'any') {
+        reqBody.operator_id = parseInt(selectedId);
+    }
+
+    const res = await apiCall('/orders/create', 'POST', reqBody);
     if (res.success && res.data && res.data.orders && res.data.orders.length > 0) {
-        const o = res.data.orders[0]; const rawPhone = String(o.phone_number); const phoneStr = normalizePhone(rawPhone);
+        const o = res.data.orders[0]; 
+        const rawPhone = String(o.phone_number); 
+        const phoneStr = normalizePhone(rawPhone);
         if (usedNumbersDB.has(phoneStr)) {
             showToast(`⚠️ Nomor ${rawPhone} bekas. Mencari lagi...`, "warning");
             hiddenBadOrders.push({ id: o.id, cancelAt: Date.now() + (3 * 60 * 1000), isCanceling: false });
             localStorage.setItem(`smscode_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders));
-            return await processOrderFreshNumber(productId, maxRetries - 1);
+            return await processOrderFreshNumber(selectedId, maxRetries - 1);
         } else { 
-            o.finalProductId = finalProductId; 
+            o.finalOperatorId = selectedId; 
+            o.catalog_product_id = reqBody.catalog_product_id;
             return o; 
         }
     } else { 
@@ -454,7 +466,7 @@ window.onOrderButtonClicked = async function() {
     const btn = document.getElementById('btnOrder');
     if (!btn) return;
     
-    if (!isUsedNumbersLoaded) { showToast("Sabar, sedang sinkronisasi database...", "warning"); return; }
+    if (!isUsedNumbersLoaded) { showToast("Sabar, sinkronisasi blacklist...", "warning"); return; }
     if (!selectedProductId) { showToast("Silakan pilih server operator!", "error"); return; }
     
     btn.disabled = true; 
@@ -464,8 +476,8 @@ window.onOrderButtonClicked = async function() {
     try {
         const o = await processOrderFreshNumber(selectedProductId, 5); 
         if (o) {
-            const actualProductId = o.finalProductId || selectedProductId;
-            const opInfo = availableProducts.find(p => String(p.id) === String(actualProductId)); 
+            const actualOpId = o.finalOperatorId || selectedProductId;
+            const opInfo = availableProducts.find(p => String(p.id) === String(actualOpId)); 
             
             let opPrice = 0;
             if (o.amount && typeof o.amount.canonical_amount !== 'undefined') { opPrice = o.amount.canonical_amount; } 
@@ -476,7 +488,7 @@ window.onOrderButtonClicked = async function() {
             
             activeOrders.unshift({ 
                 id: o.id, 
-                productId: parseInt(actualProductId), 
+                productId: String(actualOpId), // MENYIMPAN OPERATOR ID SEBAGAI PRODUCT ID UNTUK RENDER LOGO
                 phone: o.phone_number, 
                 price: opPrice, 
                 otp: null, 
@@ -506,10 +518,15 @@ function renderOrders() {
         let isSuccess = (order.status === "OTP_RECEIVED" && order.otp); const wait = order.cancelUnlockTime - now;
         let otpHtml = isSuccess ? `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
         
+        let opTag = 'Acak';
         const matchedProduct = availableProducts.find(p => String(p.id) === String(order.productId));
-        let opTag = matchedProduct && matchedProduct.name ? matchedProduct.name : (order.productId || 'Acak');
-        if (opTag === 'Acak') opTag = getProviderName(order.phone);
+        if (matchedProduct && matchedProduct.name) {
+            opTag = matchedProduct.name;
+        } else {
+            opTag = getProviderName(order.phone);
+        }
         opTag = String(opTag).toUpperCase();
+        if(opTag === 'ANY') opTag = 'ACAK';
         
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
         if (isSuccess) { finishBtnAttr = ""; resendBtnAttr = ""; cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; } else if (wait <= 0 && !order.isAutoCanceling) { cancelBtnAttr = ""; replaceBtnAttr = ""; resendBtnAttr = "disabled"; } else if (order.isAutoCanceling) { cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; }
@@ -576,11 +593,12 @@ async function syncServerOrders() {
                 if (!activeOrders.find(o => o.id === order.id)) {
                     let syncedPrice = 0;
                     if (order.amount && typeof order.amount.canonical_amount !== 'undefined') { syncedPrice = order.amount.canonical_amount; } 
-                    else if (order.product_id && availableProducts.length > 0) { const matchProduct = availableProducts.find(p => String(p.id) === String(order.product_id)); if (matchProduct) syncedPrice = matchProduct.price; }
+                    
+                    let opId = order.operator_id !== null ? String(order.operator_id) : 'any';
                     
                     const exp = order.expires_at ? new Date(order.expires_at).getTime() : Date.now() + (20*60*1000);
                     const cTime = order.created_at ? new Date(order.created_at).getTime() : (exp - (20*60*1000));
-                    activeOrders.unshift({ id: order.id, productId: order.product_id || order.catalog_product_id, phone: order.phone_number || order.phone, price: syncedPrice, otp: order.otp_code, status: order.status, expiresAt: exp, cancelUnlockTime: cTime + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
+                    activeOrders.unshift({ id: order.id, productId: opId, phone: order.phone_number || order.phone, price: syncedPrice, otp: order.otp_code, status: order.status, expiresAt: exp, cancelUnlockTime: cTime + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
                 }
             });
             saveToStorage(); startPollingAndTimer(); fetchBalance();
@@ -608,12 +626,11 @@ window.replaceSpecificOrder = async function(orderId) {
                 activeOrders = activeOrders.filter(o => String(o.id) !== idStr);
                 const n = await processOrderFreshNumber(opToUse, 5);
                 if (n) {
-                    const actualProductId = n.finalProductId || opToUse;
-                    const pInfo = availableProducts.find(p => String(p.id) === String(actualProductId)); 
-                    let finalPrice = 0; if (n.amount && typeof n.amount.canonical_amount !== 'undefined') { finalPrice = n.amount.canonical_amount; } else if (pInfo && pInfo.price) { finalPrice = pInfo.price; }
+                    const actualOpId = n.finalOperatorId || opToUse;
+                    let finalPrice = 0; if (n.amount && typeof n.amount.canonical_amount !== 'undefined') { finalPrice = n.amount.canonical_amount; } 
                     
                     const expiresAtMs = n.expires_at ? new Date(n.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
-                    activeOrders.unshift({ id: n.id, productId: parseInt(actualProductId), phone: n.phone_number || n.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
+                    activeOrders.unshift({ id: n.id, productId: String(actualOpId), phone: n.phone_number || n.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
                     saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(n.phone_number || n.phone); showToast("Nomor diganti!");
                 } else { saveToStorage(); fetchBalance(); }
             });
