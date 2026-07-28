@@ -3,7 +3,7 @@ const BASE_URL = "https://hero-sms-proxy.masreno6pro.workers.dev";
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+const db = firebase.database(); 
 
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
 let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
@@ -38,11 +38,30 @@ window.closeIframeNoteModal = function() {
     document.getElementById('iframeNoteModal').classList.add('hidden');
 }
 
-// === MISC UTILS ===
+// === FUNGSI API (DENGAN DETEKSI CLOUDFLARE/HTML BLOCKED) ===
+async function apiCall(endpoint, method = "GET", body = null) { 
+    const options = { method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; 
+    if (body) options.body = JSON.stringify(body); 
+    try {
+        const response = await fetch(`${BASE_URL}${endpoint}`, options); 
+        const textData = await response.text();
+        try { 
+            return JSON.parse(textData); 
+        } catch (err) {
+            let lowerText = textData.toLowerCase();
+            // DETEKSI CLOUDFLARE ATAU HALAMAN HTML
+            if (lowerText.includes("<html") || lowerText.includes("cloudflare") || lowerText.includes("blocked")) {
+                return { success: false, error: { message: "Akses diblokir (Cloudflare)." } };
+            }
+            return { success: false, error: { message: `Data tidak valid/Error ${response.status}` } };
+        }
+    } catch (err) { return { success: false, error: { message: "Koneksi Proxy Gagal: " + err.message } }; }
+}
+
 function openSettingsModal() { document.getElementById('settingsPassword').value = appSettings.password; document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; document.getElementById('settingsModal').classList.remove('hidden'); history.pushState(null, null, "#settings"); }
 function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
 window.saveSettings = function() { appSettings.password = document.getElementById('settingsPassword').value; appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; localStorage.setItem('app_settings', JSON.stringify(appSettings)); closeSettingsModal(); showToast("Pengaturan disimpan!"); renderMainButtons(); }
-function renderMainButtons() { const extraBtnWrapper = document.getElementById('extraBtnWrapper'); if (!extraBtnWrapper) return; if (appSettings.autoCopy) { extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 8px;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 8px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
+function renderMainButtons() { const extraBtnWrapper = document.getElementById('extraBtnWrapper'); if (!extraBtnWrapper) return; if (appSettings.autoCopy) { extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
 function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("0")) { p = "62" + p.substring(1); } return p; }
 function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
 function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } return otpStr; }
@@ -59,14 +78,13 @@ window.addEventListener('popstate', (e) => {
         if (el && !el.classList.contains('hidden')) { el.classList.add('hidden'); closedAny = true; } 
     });
     if (closedAny) { history.pushState(null, null, window.location.href); return; }
-    
     if (isExitModalOpen) { closeExitModal(); history.pushState(null, null, window.location.href); }
     else { exitModal.classList.remove('hidden'); isExitModalOpen = true; history.pushState(null, null, window.location.href); }
 });
 
 function closeExitModal() { exitModal.classList.add('hidden'); isExitModalOpen = false; }
 function confirmExit() { setAccountViewingStatus(false); window.close(); if (navigator.app) navigator.app.exitApp(); else if (navigator.device) navigator.device.exitApp(); else window.history.go(-2); }
-async function apiCall(endpoint, method = "GET", body = null) { const options = { method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; if (body) options.body = JSON.stringify(body); const response = await fetch(`${BASE_URL}${endpoint}`, options); return await response.json(); }
+
 function saveToStorage() { localStorage.setItem(`hero_orders_${activeAccountName}`, JSON.stringify(activeOrders)); updateAccountOrdersStatus(); renderOrders(); }
 function showToast(pesan, type = "success") { const t = document.getElementById("toast"); if(!t) return; t.innerHTML = pesan; if (type === "error") { t.style.backgroundColor = "var(--danger-color)"; t.style.color = "#ffffff"; } else if (type === "warning") { t.style.backgroundColor = "var(--warning-color)"; t.style.color = "#000000"; } else { t.style.backgroundColor = "var(--success-color)"; t.style.color = "#ffffff"; } t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 4000); }
 function copyToClipboard(t) { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(t).then(() => { showToast("Berhasil disalin!"); }).catch(err => { copyFallback(t); }); } else { copyFallback(t); } }
@@ -180,11 +198,13 @@ async function loadShopeeIndonesia() {
             } else { specificOps.sort((a, b) => parseFloat(a.price) - parseFloat(b.price)); }
             
             availableProducts = [anyOp, ...specificOps]; 
-            
             if (productList) productList.innerHTML = ''; 
             
             let savedOp = localStorage.getItem('hero_selected_operator');
-            if (savedOp && availableProducts.find(p => p.id === savedOp)) { selectedProductId = savedOp; } else { selectedProductId = 'any'; }
+            let isOpExist = availableProducts.find(p => String(p.id) === String(savedOp));
+            selectedProductId = isOpExist ? savedOp : 'any'; 
+            localStorage.setItem('hero_selected_operator', selectedProductId);
+
             if (btnOrder) btnOrder.disabled = false;
             availableProducts.forEach(product => {
                 const card = document.createElement("div"); card.className = "product-card"; 
@@ -258,6 +278,7 @@ function startPollingAndTimer() {
         });
     }, 1000);
     
+    // DELAY POLLING KE 10 DETIK MENCEGAH BLOKIR CLOUDFLARE
     pollingInterval = setInterval(async () => {
         if (activeOrders.length === 0) return;
         for(let i=0; i<activeOrders.length; i++) {
@@ -268,37 +289,16 @@ function startPollingAndTimer() {
                     notifSound.play().catch(e => console.log("Sound error:", e));
                     activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; saveToStorage(); fetchBalance();
                     const phoneStr = normalizePhone(activeOrders[i].phone);
-                    if (!usedNumbersDB.has(phoneStr)) { db.ref('used_numbers/hero_sms').push({ phone: phoneStr, timestamp: Date.now() }); usedNumbersDB.add(phoneStr); }
+                    if (!usedNumbersDB.has(phoneStr)) { db.ref('used_numbers/hero_sms').push({ phone: pStr, timestamp: Date.now() }); usedNumbersDB.add(phoneStr); }
                 } else if (res.success && res.data.status === "CANCELLED") { activeOrders = activeOrders.filter(ord => String(ord.id) !== String(o.id)); saveToStorage(); fetchBalance(); }
             } catch(e) {}
         }
-    }, 5000);
-}
-
-if (btnOrder) {
-    btnOrder.onclick = async () => {
-        if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
-        btnOrder.disabled = true; const originalText = btnOrder.innerText; btnOrder.innerText = "Memproses...";
-        try {
-            const o = await processOrderFreshNumber(selectedProductId, 5); 
-            if (o) {
-                const opInfo = availableProducts.find(p => p.id === selectedProductId); const opPrice = o.price || o.cost || o.amount || (opInfo ? opInfo.price : 0);
-                activeOrders.unshift({ id: o.id, productId: selectedProductId, phone: o.phone_number, price: opPrice, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false });
-                saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(o.phone_number); window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
-        } catch (e) { showToast("Gagal terhubung.", "error"); }
-        btnOrder.disabled = false; btnOrder.innerText = originalText;
-    };
+    }, 10000);
 }
 
 function removeOrderWithAnimation(idStr, callback) {
     const card = document.getElementById(`order-card-${idStr}`);
-    if (card) {
-        card.classList.add('removing');
-        setTimeout(() => { callback(); }, 300);
-    } else {
-        callback();
-    }
+    if (card) { card.classList.add('removing'); setTimeout(() => { callback(); }, 300); } else { callback(); }
 }
 
 window.cancelSpecificOrder = async function(id, auto = false) {
@@ -332,8 +332,7 @@ window.finishSpecificOrder = async function(id) {
     
     const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
     if (oldOrder) saveToHistory(oldOrder, "SUKSES");
-    if (appSettings.autoCopy) { copyToClipboard(appSettings.password); }
-    recordStat('success');
+    if (appSettings.autoCopy) { copyToClipboard(appSettings.password); } recordStat('success');
     
     try { await apiCall('/orders/finish', 'POST', { id: id }); } catch (e) {} 
     
@@ -344,64 +343,37 @@ window.finishSpecificOrder = async function(id) {
 };
 
 window.resendSpecificOrder = async function(orderId) {
-    const idStr = String(orderId); 
-    const btn = document.getElementById(`btn-resend-${idStr}`); 
+    const idStr = String(orderId); const btn = document.getElementById(`btn-resend-${idStr}`); 
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         const res = await apiCall('/orders/resend', 'POST', { id: idStr });
         if (res.success) { 
-            showToast("Meminta kode baru..."); 
-            let idx = activeOrders.findIndex(o => String(o.id) === idStr);
+            showToast("Meminta kode baru..."); let idx = activeOrders.findIndex(o => String(o.id) === idStr);
             if (idx !== -1) { saveToHistory(activeOrders[idx], "MINTA ULANG"); activeOrders[idx].status = "ACTIVE"; activeOrders[idx].otp = null; saveToStorage(); }
-        } else { 
-            showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); 
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } 
-        }
-    } catch (e) { 
-        showToast("Kesalahan jaringan.", "error"); 
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } 
-    }
+        } else { showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
+    } catch (e) { showToast("Kesalahan jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
 };
 
 window.replaceSpecificOrder = async function(orderId) {
     if (!isUsedNumbersLoaded) { showToast("Sabar, sinkronisasi database...", "warning"); return; }
-    const btn = document.getElementById(`btn-replace-${orderId}`); 
-    const oldOrder = activeOrders.find(o => String(o.id) === String(orderId)); 
-    const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
-    
-    if (!opToUse) return showToast("Pilih operator/server.", "error"); 
-    if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
-    
+    const btn = document.getElementById(`btn-replace-${orderId}`); const oldOrder = activeOrders.find(o => String(o.id) === String(orderId)); const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
+    if (!opToUse) return showToast("Pilih operator/server.", "error"); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
         const c = await apiCall('/orders/cancel', 'POST', { id: orderId });
         if (c.success || (c.error && c.error.code === 'NOT_FOUND')) {
-            if (oldOrder) saveToHistory(oldOrder, "GANTI");
-            recordStat('failed');
-
+            if (oldOrder) saveToHistory(oldOrder, "GANTI"); recordStat('failed');
             removeOrderWithAnimation(orderId, async () => {
                 activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId));
-                
                 const n = await apiCall('/orders/create', 'POST', { operator: opToUse });
                 if (n.success) {
-                    const od = n.data.orders[0]; 
-                    const pInfo = availableProducts.find(p => String(p.id) === String(opToUse)); 
-                    const finalPrice = od.price || od.cost || od.amount || (pInfo ? pInfo.price : 0);
+                    const od = n.data.orders[0]; const pInfo = availableProducts.find(p => String(p.id) === String(opToUse)); const finalPrice = od.price || od.cost || od.amount || (pInfo ? pInfo.price : 0);
                     const expiresAtMs = od.expires_at ? new Date(od.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
-                    
                     activeOrders.unshift({ id: od.id, productId: opToUse, phone: od.phone_number || od.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false });
                     saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(od.phone_number || od.phone); showToast("Nomor diganti!");
-                } else { 
-                    saveToStorage(); fetchBalance(); showToast("Gagal pesan baru.", "error"); 
-                }
+                } else { saveToStorage(); fetchBalance(); showToast("Gagal pesan baru.", "error"); }
             });
-        } else { 
-            showToast("Gagal batal lama.", "error"); 
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } 
-        }
-    } catch (e) { 
-        showToast("Error Jaringan.", "error"); 
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } 
-    }
+        } else { showToast("Gagal batal lama.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
+    } catch (e) { showToast("Error Jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
 };
 
 async function initMainApp() { fetchBalance(); await loadShopeeIndonesia(); renderOrders(); startPollingAndTimer(); }
