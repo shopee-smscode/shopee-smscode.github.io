@@ -12,14 +12,13 @@
 <body class="theme-smscode">
     <div id="appView" class="container">
         
-        <!-- TOP ACTIONS BAR (1 BARIS PENUH) -->
+        <!-- TOP ACTIONS BAR (1 BARIS PENUH DENGAN 3 APLIKASI) -->
         <div class="top-bar-modern">
-            <!-- App Switcher -->
             <div class="app-tabs">
                 <a href="https://shopee-smscode.github.io/Hero%20SMS/herosms.html" class="app-tab"><i class="fas fa-bolt"></i> Hero</a>
                 <a href="https://shopee-smscode.github.io/SMS%20Code/smscode.html" class="app-tab active"><i class="fas fa-sms"></i> SMSCode</a>
+                <a href="https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html" class="app-tab"><i class="fas fa-globe"></i> Virtual</a>
             </div>
-            <!-- Action Icons -->
             <div class="action-icons">
                 <button onclick="openStatsModal()" class="btn-switch-sm"><i class="fas fa-chart-bar"></i></button>
                 <button onclick="openBlacklistModal()" class="btn-switch-sm"><i class="fas fa-ban"></i><span id="blacklistBadge" class="badge">0</span></button>
@@ -36,11 +35,9 @@
                 <h1>Shopee OTP 🇮🇩</h1>
                 <p class="subtitle">Provider Tercepat</p>
             </div>
-            <!-- ACCOUNT SWITCHER (Hanya untuk SMSCode) -->
             <button onclick="openAccountModal()" class="account-selector-btn">
                 👤 <span id="currentAccountBadge">Memuat...</span> <i class="fas fa-chevron-down"></i>
             </button>
-            <!-- Menyembunyikan nama original agar tidak error di js -->
             <span id="currentAccountName" style="display:none;"></span>
         </div>
         
@@ -62,7 +59,6 @@
                 <div class="status-text">Memuat data Server...</div>
             </div>
             <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
-            <!-- Wrapper dinamis untuk tombol Salin Sandi / Selesai -->
             <div id="extraBtnWrapper"></div>
         </div>
     </div>
@@ -75,7 +71,6 @@
                 <button onclick="closeAccountModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
             <div id="accountListContainer" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; text-align: left;">
-                <!-- List akun & Saldo masuk ke sini -->
             </div>
         </div>
     </div>
