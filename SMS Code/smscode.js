@@ -306,10 +306,10 @@ window.filterServices = function() {
     });
 }
 
-// === FUNGSI LOAD PRODUCTS & OPERATORS DARI API V2 ===
+// === FUNGSI LOAD PRODUCTS (DIHAPUS BAGIAN STOK) ===
 async function loadProducts(serviceId) {
     try {
-        if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Stok Operator...</div>';
+        if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Operator...</div>';
         const btnOrder = document.getElementById('btnOrder');
         if (btnOrder) btnOrder.disabled = true;
 
@@ -335,7 +335,6 @@ async function loadProducts(serviceId) {
 
         let catalogProductId = baseProduct.catalog_product_id || baseProduct.id;
         let basePrice = (baseProduct.price && typeof baseProduct.price.canonical_amount !== 'undefined') ? baseProduct.price.canonical_amount : (baseProduct.price || 0);
-        let baseStock = baseProduct.available || 'Auto';
 
         let ops = [];
         if (operatorsRes.success && operatorsRes.data && operatorsRes.data.length > 0) {
@@ -345,8 +344,7 @@ async function loadProducts(serviceId) {
                     id: isAny ? 'any' : op.operator_id,
                     name: isAny ? 'Acak' : (op.name || op.local_name || op.code),
                     catalog_product_id: catalogProductId,
-                    price: basePrice,
-                    available: isAny ? baseStock : 'Cek Server'
+                    price: basePrice
                 };
             });
         } else {
@@ -354,8 +352,7 @@ async function loadProducts(serviceId) {
                 id: 'any',
                 name: 'Acak',
                 catalog_product_id: catalogProductId,
-                price: basePrice,
-                available: baseStock
+                price: basePrice
             }];
         }
 
@@ -383,7 +380,7 @@ async function loadProducts(serviceId) {
             let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
             const displayPrice = idrFormatter.format(product.price);
             
-            card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4><p style="font-size:9px; margin:0; color:var(--text-secondary);">Stok: ${product.available}</p></div><div class="product-price">${displayPrice}</div>`;
+            card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${displayPrice}</div>`;
             
             card.onclick = () => { 
                 document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
@@ -522,23 +519,19 @@ function renderOrders() {
         }
         opTag = String(opTag).toUpperCase();
         
-        // PENGATURAN LOGIKA TOMBOL (GANTI, BATAL, ULANG, SELESAI)
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
         
-        // Jika OTP Sukses, Hanya Selesai dan Ulang (Untuk minta SMS Ke-2) yang aktif
         if (isSuccess) { 
             finishBtnAttr = ""; 
             resendBtnAttr = ""; 
             cancelBtnAttr = "disabled"; 
             replaceBtnAttr = "disabled"; 
         } 
-        // Jika Menunggu OTP dan Kunci Waktu 2 menit sudah lewat, Batal/Ganti aktif
         else if (wait <= 0 && !order.isAutoCanceling) { 
             cancelBtnAttr = ""; 
             replaceBtnAttr = ""; 
             resendBtnAttr = "disabled"; 
         } 
-        // Jika Sedang Batal Otomatis atau baru selesai minta "Ulang"
         else if (order.isAutoCanceling) { 
             cancelBtnAttr = "disabled"; 
             replaceBtnAttr = "disabled"; 
@@ -548,7 +541,7 @@ function renderOrders() {
         const displayPrice = (order.price && order.price != 0) ? idrFormatter.format(order.price) : idrFormatter.format(matchedProduct?.price || 0);
         let headerLogoUrl = getOperatorLogo(opTag); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
         
-        // MEMUNCULKAN NAMA OPERATOR DI KOTAK OTP (CONTOH: #1005 - TELKOMSEL)
+        // Menampilkan nama operator di sebelah ID (Misal: #1005 (TELKOMSEL))
         card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id} (${opTag})</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id})" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder(${order.id})" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder(${order.id})" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder(${order.id})" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
         if (activeOrdersContainer) activeOrdersContainer.appendChild(card);
     });
@@ -623,7 +616,6 @@ async function syncServerOrders() {
 
 function removeOrderWithAnimation(idStr, callback) { const card = document.getElementById(`order-card-${idStr}`); if (card) { card.classList.add('removing'); setTimeout(() => { callback(); }, 300); } else { callback(); } }
 
-// SEMUA FUNGSI API DI BAWAH INI SEKARANG MENGGUNAKAN parseInt() AGAR TIDAK GAGAL
 window.replaceSpecificOrder = async function(orderId) {
     if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
     const btn = document.getElementById(`btn-replace-${orderId}`); 
@@ -663,10 +655,10 @@ window.resendSpecificOrder = async function(orderId) {
             let idx = activeOrders.findIndex(o => String(o.id) === String(orderId));
             if (idx !== -1) { 
                 saveToHistory(activeOrders[idx], "MINTA ULANG"); 
-                activeOrders[idx].status = "ACTIVE"; // Kembalikan ke mode menunggu
+                activeOrders[idx].status = "ACTIVE"; 
                 activeOrders[idx].otp = null; 
-                activeOrders[idx].disableAutoCancel = true; // Matikan pembatalan otomatis 10 menit
-                activeOrders[idx].cancelUnlockTime = Date.now() + (60 * 1000); // Kunci tombol batal/ganti 1 menit
+                activeOrders[idx].disableAutoCancel = true; 
+                activeOrders[idx].cancelUnlockTime = Date.now() + (60 * 1000); 
                 saveToStorage(); 
             }
         } else { showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } }
