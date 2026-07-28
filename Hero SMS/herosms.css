@@ -1,6 +1,6 @@
-/* --- SISTEM TEMA HERO SMS --- */
+/* --- SISTEM TEMA HERO SMS (DARK MODE) --- */
 :root {
-    --success-color: #22c55e;
+    --success-color: #96D400;   /* Hijau khas Hero */
     --danger-color: #ef4444;
     --warning-color: #f59e0b;
     --info-color: #3b82f6;
@@ -9,22 +9,22 @@
 }
 
 body.theme-hero {
-    --bg-body: #000000;         
-    --bg-container: #0a0a0a;    
-    --bg-card: #121212;         
-    --bg-card-hover: #1c1c1c;
+    --bg-body: #000000;         /* Background paling bawah Hitam Pekat */
+    --bg-container: #10120b;    /* Wadah utama hijau sangat gelap */
+    --bg-card: #181a13;         /* Warna kartu */
+    --bg-card-hover: #22251c;
     --text-primary: #ffffff;
-    --text-secondary: #a1a1aa;
-    --border-color: #27272a;
+    --text-secondary: #94a3b8;
+    --border-color: #2b3021;
     --border-hover: #96D400;    
     --primary-color: #96D400;   
-    --primary-color-hover: #A8ED00; 
-    --otp-bg: #051000;          
-    --otp-border: #4D6B00;      
-    --otp-text: #A8ED00;        
-    --btn-bg: #121212;
+    --primary-color-hover: #b1f016; 
+    --otp-bg: #090a06;          
+    --otp-border: #567a00;      
+    --otp-text: #96D400;        
+    --btn-bg: #181a13;
     --btn-text: #ffffff;
-    --shadow-color: rgba(150, 212, 0, 0.4); 
+    --shadow-color: rgba(150, 212, 0, 0.25); 
     --modal-overlay: rgba(0,0,0,0.8);
 }
 
@@ -59,7 +59,6 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .header-titles h1 { font-size: clamp(20px, 5vw, 24px); font-weight: 900; color: var(--primary-color); margin: 0 0 2px 0; letter-spacing: -0.5px; white-space: nowrap; }
 .header-titles .subtitle { font-size: 12px; color: var(--text-secondary); margin: 0; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 
-/* SPACING DIKURANGI AGAR NAIK KE ATAS */
 #activeOrdersContainer { margin-bottom: 4px; min-height: 20px; }
 .status-text-mini { font-size: 12px; padding: 4px; font-weight: 600; color: var(--text-secondary); text-align: center;}
 
@@ -87,7 +86,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .otp-display { background: var(--otp-bg); padding: 15px 10px !important; border-radius: 10px !important; border: 2px solid var(--otp-border); margin: 10px 0 !important; text-align: center; position: relative; overflow: hidden; }
 .otp-title { font-size: 11px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 6px; }
 .otp-code { font-size: clamp(28px, 8vw, 40px) !important; letter-spacing: 4px !important; font-weight: 900; color: var(--otp-text); text-shadow: 0 0 10px var(--shadow-color); }
-.success-glow { border-color: var(--success-color) !important; box-shadow: 0 0 15px rgba(34, 197, 94, 0.3); }
+.success-glow { border-color: var(--success-color) !important; box-shadow: 0 0 15px rgba(150, 212, 0, 0.3); }
 
 /* --- TOMBOL AKSI --- */
 .action-buttons-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
@@ -97,12 +96,11 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .btn-replace { background-color: var(--warning-color); color: #000; }
 .btn-resend { background-color: var(--info-color); color: #fff; }
 .btn-danger { background-color: var(--danger-color); color: #fff; }
-.btn-success { background-color: var(--success-color); color: #fff; }
-
-.btn-primary { width: 100%; background: var(--primary-color); color: var(--bg-body); height: 50px !important; font-size: 15px !important; margin-top: 4px; border-radius: 12px !important; font-weight: 800; text-transform: uppercase; border: none; cursor: pointer; transition: 0.2s;}
+.btn-success { background-color: var(--success-color); color: #000; }
+.btn-primary { width: 100%; background: var(--primary-color); color: #000; height: 50px !important; font-size: 15px !important; margin-top: 4px; border-radius: 12px !important; font-weight: 800; text-transform: uppercase; border: none; cursor: pointer; transition: 0.2s;}
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* --- DAFTAR PRODUK (DENGAN PADDING AGAR MARK TIDAK TERPOTONG) --- */
+/* --- DAFTAR PRODUK --- */
 .product-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; max-height: 250px; overflow-y: auto; padding: 8px; margin-left: -8px; margin-right: -8px; }
 .product-card { padding: 10px 4px; border-width: 2px; border-style: solid; border-color: var(--border-color); border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background-color: var(--bg-card); cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15); text-align: center; }
 .product-card:hover { background-color: var(--bg-card-hover); transform: translateY(-2px); }
@@ -139,7 +137,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 @keyframes dotPulse { 0%, 80%, 100% { transform: scale(0); opacity: 0.3; } 40% { transform: scale(1); opacity: 1; } }
 .waiting-text { font-size: 13px; color: var(--primary-color); font-weight: 800; letter-spacing: 2px; animation: textPulse 1.5s infinite; }
 @keyframes textPulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
-.loader { border: 3px solid var(--border-color); border-top: 3px solid var(--primary-color); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; margin: 0 auto; }
+.loader { border: 3px solid var(--border-color); border-top: 3px solid #000; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; margin: 0 auto; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-.toast { visibility: hidden; min-width: 250px; background-color: var(--primary-color); color: var(--bg-body); text-align: center; border-radius: 30px; padding: 10px 16px; position: fixed; z-index: 99999; left: 50%; transform: translateX(-50%); bottom: 20px; font-size: 14px; font-weight: 800; opacity: 0; transition: opacity 0.3s, bottom 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+.toast { visibility: hidden; min-width: 250px; background-color: var(--primary-color); color: #000; text-align: center; border-radius: 30px; padding: 10px 16px; position: fixed; z-index: 99999; left: 50%; transform: translateX(-50%); bottom: 20px; font-size: 14px; font-weight: 800; opacity: 0; transition: opacity 0.3s, bottom 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
 .toast.show { visibility: visible; opacity: 1; bottom: 40px; }
