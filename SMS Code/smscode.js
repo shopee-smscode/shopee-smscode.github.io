@@ -8,8 +8,9 @@ const db = firebase.database();
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
 let cachedAccounts = [];
 
-let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; 
-let currentCountryId = 7; // HARDCODE 7 = INDONESIA UNTUK MENCEGAH ERROR API
+let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; 
+let allServices = []; let availableProducts = []; 
+let currentCountryId = 7; 
 let currentServiceId = null; let selectedProductId = 'any'; 
 let timerInterval = null; let pollingInterval = null; let orderHistory = []; let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 
@@ -61,11 +62,21 @@ function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).re
 function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
 function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } return otpStr; }
 function getProviderName(phone) { let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2); const prefix = p.substring(0, 4); if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel"; if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat"; if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL/Axis"; if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Tri"; if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren"; return "Acak"; }
-function getOperatorLogo(id) { const i = String(id).toLowerCase(); if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; if (i.includes('indosat') || i.includes('isat') || i.includes('im3')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; if (i.includes('xl') || i.includes('axis')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; if (i.includes('three') || i.includes('tri') || i.includes('hutchison')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; if (i.includes('smartfren') || i.includes('smart')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; }
+
+// PENGATURAN LOGO LEBIH AKURAT
+function getOperatorLogo(id) { 
+    const i = String(id).toLowerCase(); 
+    if (i.includes('telkomsel') || i.includes('tsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; 
+    if (i.includes('indosat') || i.includes('isat') || i.includes('im3') || i.includes('ooredoo')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; 
+    if (i.includes('xl') || i.includes('axis') || i.includes('axiata')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; 
+    if (i.includes('three') || i.includes('tri') || i.includes('hutchison')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; 
+    if (i.includes('smartfren') || i.includes('smart')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; 
+    return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; 
+}
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
-    let mods = ['blacklistModal', 'historyModal', 'statsModal', 'settingsModal', 'accountModal', 'iframeNoteModal']; 
+    let mods = ['blacklistModal', 'historyModal', 'statsModal', 'settingsModal', 'accountModal', 'serviceModal', 'iframeNoteModal']; 
     let closedAny = false;
     mods.forEach(m => { let el = document.getElementById(m); if (el && !el.classList.contains('hidden')) { el.classList.add('hidden'); closedAny = true; } });
     if (closedAny) { history.pushState(null, null, window.location.href); return; }
@@ -135,7 +146,6 @@ window.openHistoryModal = function() { document.getElementById('historyModal').c
 window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
 window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`smscode_history_${activeAccountName}`); renderHistory(); } }
 
-// === FUNGSI FETCH ACCOUNTS DENGAN ERROR HANDLING YANG KUAT ===
 async function fetchAccounts() {
     const accNameEl = document.getElementById('currentAccountName');
     const accBadgeEl = document.getElementById('currentAccountBadge');
@@ -155,7 +165,7 @@ async function fetchAccounts() {
             showToast("Tidak ada akun di Server API", "error"); 
         }
     } catch (error) { 
-        if (accNameEl) accNameEl.innerHTML = `<span style="color:var(--danger-color);">Proxy Error / Terputus</span>`;
+        if (accNameEl) accNameEl.innerHTML = `<span style="color:var(--danger-color);">Proxy Error</span>`;
         if (accBadgeEl) accBadgeEl.innerText = "Error API"; 
         showToast("Gagal terhubung ke Proxy Cloudflare!", "error"); 
     }
@@ -229,60 +239,114 @@ async function fetchBalance() {
     } 
 }
 
-// === FUNGSI LOAD SERVICES ===
+// === FUNGSI LOAD SERVICES & MODAL SEARCH ===
 async function loadServices() {
-    const serviceSelect = document.getElementById('serviceSelect'); if (!serviceSelect) return;
+    const btnSvc = document.getElementById('btnServiceSelect');
+    if (!btnSvc) return;
     try {
-        serviceSelect.innerHTML = '<option value="">Menyambung API...</option>';
-        
-        // Sengaja melewati panggilan /catalog/countries agar lebih cepat, langsung pakai ID 7
+        btnSvc.innerHTML = `<span>Menyambung API...</span><i class="fas fa-spinner fa-spin"></i>`;
         currentCountryId = 7; // Indonesia
 
         const servicesRes = await apiCall(`/catalog/services?country_id=${currentCountryId}`);
         if (servicesRes.success && servicesRes.data) {
-            let services = servicesRes.data; 
-            services.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-            serviceSelect.innerHTML = ''; 
-            let shopeeId = null;
-            services.forEach(svc => {
-                const opt = document.createElement('option'); opt.value = svc.id; opt.textContent = (svc.name || svc.id).toUpperCase(); serviceSelect.appendChild(opt);
-                if (svc.name && svc.name.toLowerCase().includes('shopee')) shopeeId = svc.id;
-            });
+            allServices = servicesRes.data; 
+            allServices.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+            
+            let shopeeObj = allServices.find(s => s.name && s.name.toLowerCase().includes('shopee'));
             let savedId = localStorage.getItem('smscode_selected_service'); 
-            let exists = services.find(s => String(s.id) === String(savedId));
-            currentServiceId = exists ? savedId : (shopeeId ? shopeeId : services[0].id);
-            serviceSelect.value = currentServiceId; 
+            let exists = allServices.find(s => String(s.id) === String(savedId));
+            
+            let selectedSvc = exists ? exists : (shopeeObj ? shopeeObj : allServices[0]);
+            currentServiceId = selectedSvc.id; 
+            
             localStorage.setItem('smscode_selected_service', currentServiceId); 
+            btnSvc.innerHTML = `<span>${selectedSvc.name.toUpperCase()}</span><i class="fas fa-search"></i>`;
+            
             loadProducts(currentServiceId);
         } else {
-            serviceSelect.innerHTML = `<option value="">Error Server Pusat</option>`;
+            btnSvc.innerHTML = `<span style="color:var(--danger-color);">Error Server Pusat</span><i class="fas fa-exclamation-triangle" style="color:var(--danger-color);"></i>`;
         }
-    } catch (e) { serviceSelect.innerHTML = '<option value="">Gagal Jaringan API</option>'; }
+    } catch (e) { 
+        btnSvc.innerHTML = `<span style="color:var(--danger-color);">Gagal Jaringan API</span><i class="fas fa-wifi" style="color:var(--danger-color);"></i>`; 
+    }
 }
 
-window.changeService = function() { 
-    currentServiceId = document.getElementById('serviceSelect').value; 
-    localStorage.setItem('smscode_selected_service', currentServiceId); 
-    loadProducts(currentServiceId); 
+window.openServiceModal = function() {
+    document.getElementById('serviceModal').classList.remove('hidden');
+    document.getElementById('searchServiceInput').value = '';
+    filterServices(); 
+    history.pushState(null, null, "#services");
+}
+window.closeServiceModal = function() {
+    document.getElementById('serviceModal').classList.add('hidden');
+}
+window.filterServices = function() {
+    const query = document.getElementById('searchServiceInput').value.toLowerCase();
+    const container = document.getElementById('serviceListContainer');
+    container.innerHTML = '';
+    
+    const filtered = allServices.filter(s => (s.name || "").toLowerCase().includes(query));
+    
+    if(filtered.length === 0) {
+        container.innerHTML = '<div class="status-text-mini">Layanan tidak ditemukan.</div>';
+        return;
+    }
+
+    filtered.forEach(svc => {
+        const btn = document.createElement('button');
+        const isActive = (String(svc.id) === String(currentServiceId));
+        btn.style = `width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 13px; font-weight: bold; text-align: left; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15);`;
+        btn.innerHTML = `<span>${(svc.name||svc.id).toUpperCase()}</span> ${isActive ? '<i class="fas fa-check-circle"></i>' : '<i class="fas fa-chevron-right" style="font-size:10px; color:var(--text-secondary);"></i>'}`;
+        btn.onclick = () => {
+            currentServiceId = svc.id;
+            localStorage.setItem('smscode_selected_service', currentServiceId);
+            const btnSvc = document.getElementById('btnServiceSelect');
+            if (btnSvc) btnSvc.innerHTML = `<span>${svc.name.toUpperCase()}</span><i class="fas fa-search"></i>`;
+            closeServiceModal();
+            loadProducts(currentServiceId);
+        };
+        container.appendChild(btn);
+    });
 }
 
-// === FUNGSI LOAD PRODUCTS ===
+// === FUNGSI LOAD PRODUCTS (KARTU LOGO OPERATOR ASLI DARI V2) ===
 async function loadProducts(serviceId) {
     try {
-        if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Stok Operator...</div>';
+        if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Stok & Operator...</div>';
         const btnOrder = document.getElementById('btnOrder');
         if (btnOrder) btnOrder.disabled = true;
 
-        const productsRes = await apiCall(`/catalog/products?country_id=${currentCountryId}&platform_id=${serviceId}`);
+        // Panggil data produk dan data asli operator secara bersamaan
+        const [productsRes, operatorsRes] = await Promise.all([
+            apiCall(`/catalog/products?country_id=${currentCountryId}&platform_id=${serviceId}`),
+            apiCall(`/catalog/operators?country_id=${currentCountryId}&platform_id=${serviceId}`)
+        ]);
+
         if (productsRes.success && productsRes.data && productsRes.data.length > 0) {
             
-            let ops = productsRes.data.map(p => ({
-                id: p.id,
-                name: p.operator_name || p.name || `Server ${p.id}`,
-                operator_id: p.operator_id,
-                price: (p.price && typeof p.price.canonical_amount !== 'undefined') ? p.price.canonical_amount : (p.price || 0),
-                available: p.available
-            })).sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+            // Siapkan peta nama asli operator
+            let operatorsMap = {};
+            if (operatorsRes.success && operatorsRes.data) {
+                operatorsRes.data.forEach(op => {
+                    if(op.operator_id !== null) {
+                        operatorsMap[op.operator_id] = op.name || op.local_name || op.code;
+                    }
+                });
+            }
+
+            let ops = productsRes.data.map(p => {
+                // Temukan nama asli operator jika ada, jika tidak, gunakan nama produknya
+                let mappedName = operatorsMap[p.operator_id];
+                if (!mappedName) mappedName = p.operator_name || p.name || `Server ${p.id}`;
+                
+                return {
+                    id: p.id,
+                    name: mappedName,
+                    operator_id: p.operator_id,
+                    price: (p.price && typeof p.price.canonical_amount !== 'undefined') ? p.price.canonical_amount : (p.price || 0),
+                    available: p.available
+                };
+            }).sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
             
             let anyOp = ops.find(p => p.operator_id === null);
             let specificOps = ops.filter(p => p.operator_id !== null);
@@ -390,7 +454,7 @@ window.onOrderButtonClicked = async function() {
     const btn = document.getElementById('btnOrder');
     if (!btn) return;
     
-    if (!isUsedNumbersLoaded) { showToast("Sabar, sinkronisasi blacklist...", "warning"); return; }
+    if (!isUsedNumbersLoaded) { showToast("Sabar, sedang sinkronisasi database...", "warning"); return; }
     if (!selectedProductId) { showToast("Silakan pilih server operator!", "error"); return; }
     
     btn.disabled = true; 
