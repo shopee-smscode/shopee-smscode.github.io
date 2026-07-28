@@ -127,6 +127,26 @@ document.getElementById('statDate').addEventListener('change', loadStatsData);
 window.openBlacklistModal = function() { document.getElementById('blacklistModal').classList.remove('hidden'); history.pushState(null, null, "#blacklist"); }
 window.closeBlacklistModal = function() { document.getElementById('blacklistModal').classList.add('hidden'); }
 
+// FUNGSI FETCH BALANCE DENGAN INDIKATOR ERROR
+async function fetchBalance() { 
+    try { 
+        const bDisplay = document.getElementById('balanceDisplay'); 
+        if (bDisplay) bDisplay.innerText = "Menghitung..."; 
+        const res = await apiCall('/balance'); 
+        if (res.success) { 
+            if (bDisplay) bDisplay.innerText = usdFormatter.format(res.data.balance); 
+        } else { 
+            if (bDisplay) bDisplay.innerText = "Gagal"; 
+            if (res.error && res.error.message) {
+                showToast("Saldo: " + res.error.message, "error");
+            }
+        } 
+    } catch (error) { 
+        const bDisplay = document.getElementById('balanceDisplay'); 
+        if (bDisplay) bDisplay.innerText = "Error"; 
+    } 
+}
+
 async function processOrderFreshNumber(operatorId, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas. Silakan coba lagi.", "error"); return null; }
     const res = await apiCall('/orders/create', 'POST', { operator: operatorId });
@@ -180,12 +200,16 @@ window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) {
 async function fetchAccounts() { try { const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json(); if (data.accounts && data.accounts.length > 0) { loginAccount(data.accounts[0]); } else { if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; showToast("Tidak ada akun", "error"); } } catch (error) { if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; showToast("Gagal terhubung", "error"); } }
 function loginAccount(accountName) { activeAccountName = accountName; if(currentAccountName) currentAccountName.innerText = accountName; setAccountViewingStatus(true); const rawOrders = JSON.parse(localStorage.getItem(`hero_orders_${accountName}`)) || []; activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); if (rawOrders.length !== activeOrders.length) saveToStorage(); hiddenBadOrders = JSON.parse(localStorage.getItem(`hero_hidden_bad_orders_${accountName}`)) || []; loadHistory(); initMainApp(); }
 
-async function fetchBalance() { try { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "Menghitung..."; const res = await apiCall('/balance'); if (res.success) { if (bDisplay) bDisplay.innerText = usdFormatter.format(res.data.balance); } else { if (bDisplay) bDisplay.innerText = "Gagal"; } } catch (error) { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "Error"; } }
 
 async function loadShopeeIndonesia() {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Operator...</div>';
         const productsRes = await apiCall(`/catalog/products`);
+        
+        if (productsRes.error && productsRes.error.message) {
+            showToast("Server: " + productsRes.error.message, "error");
+        }
+
         if (productsRes.success && productsRes.data.length > 0) {
             let ops = productsRes.data; let anyOp = ops.find(o => o.id === 'any'); 
             if (!anyOp) anyOp = { id: 'any', price: ops[0]?.price || 0, available: 'Cek Server' };
@@ -260,21 +284,15 @@ function startPollingAndTimer() {
         const now = Date.now();
         for (let j = hiddenBadOrders.length - 1; j >= 0; j--) {
             let bo = hiddenBadOrders[j];
-            if (now >= bo.cancelAt && !bo.isCanceling) {
-                bo.isCanceling = true;
-                apiCall('/orders/cancel', 'POST', { id: bo.id }).then(res => { hiddenBadOrders.splice(j, 1); localStorage.setItem(`hero_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders)); }).catch(e => { bo.isCanceling = false; });
-            }
+            if (now >= bo.cancelAt && !bo.isCanceling) { bo.isCanceling = true; apiCall(`/orders/cancel`, 'POST', { id: bo.id }).then(res => { hiddenBadOrders.splice(j, 1); localStorage.setItem(`hero_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders)); }).catch(e => { bo.isCanceling = false; }); }
         }
         activeOrders.forEach((o, i) => {
             const left = o.expiresAt - now; const el = document.getElementById(`timer-${o.id}`);
             if (left <= 0) { activeOrders.splice(i, 1); saveToStorage(); fetchBalance(); return; }
             if (el) { const m = Math.floor(left/60000); const s = Math.floor((left%60000)/1000); el.innerText = `${m}:${s<10?'0':''}${s}`; if (left <= 12 * 60000) { el.style.color = "var(--danger-color)"; } else if (left <= 18 * 60000) { el.style.color = "var(--warning-color)"; } else { el.style.color = "#ffffff"; } }
             if (left <= 600000 && o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) { o.isAutoCanceling = true; cancelSpecificOrder(o.id, true); }
-            const wait = o.cancelUnlockTime - now; const btnCancel = document.getElementById(`btn-cancel-${o.id}`); const btnReplace = document.getElementById(`btn-replace-${o.id}`); const btnResend = document.getElementById(`btn-resend-${o.id}`); 
-            if (o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) {
-                if (wait <= 0) { if (btnCancel && btnCancel.disabled) btnCancel.disabled = false; if (btnReplace && btnReplace.disabled && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false; if (btnResend && !btnResend.disabled) btnResend.disabled = true; } 
-                else { if (btnCancel && !btnCancel.disabled) btnCancel.disabled = true; if (btnReplace && !btnReplace.disabled) btnReplace.disabled = true; if (btnResend && !btnResend.disabled) btnResend.disabled = true; }
-            }
+            const wait = o.cancelUnlockTime - now; const bC = document.getElementById(`btn-cancel-${o.id}`); const bR = document.getElementById(`btn-replace-${o.id}`); const bE = document.getElementById(`btn-resend-${o.id}`); 
+            if (o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) { if (wait <= 0) { if (bC && bC.disabled) bC.disabled = false; if (bR && bR.disabled && !bR.innerHTML.includes('loader')) bR.disabled = false; if (bE && !bE.disabled) bE.disabled = true; } else { if (bC && !bC.disabled) bC.disabled = true; if (bR && !bR.disabled) bR.disabled = true; if (bE && !bE.disabled) bE.disabled = true; } }
         });
     }, 1000);
     
@@ -289,7 +307,7 @@ function startPollingAndTimer() {
                     notifSound.play().catch(e => console.log("Sound error:", e));
                     activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; saveToStorage(); fetchBalance();
                     const phoneStr = normalizePhone(activeOrders[i].phone);
-                    if (!usedNumbersDB.has(phoneStr)) { db.ref('used_numbers/hero_sms').push({ phone: pStr, timestamp: Date.now() }); usedNumbersDB.add(phoneStr); }
+                    if (!usedNumbersDB.has(phoneStr)) { db.ref('used_numbers/hero_sms').push({ phone: phoneStr, timestamp: Date.now() }); usedNumbersDB.add(phoneStr); }
                 } else if (res.success && res.data.status === "CANCELLED") { activeOrders = activeOrders.filter(ord => String(ord.id) !== String(o.id)); saveToStorage(); fetchBalance(); }
             } catch(e) {}
         }
