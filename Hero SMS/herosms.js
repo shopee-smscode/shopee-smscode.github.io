@@ -61,7 +61,18 @@ function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).re
 function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
 function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } return otpStr; }
 function getProviderName(phone) { let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2); const prefix = p.substring(0, 4); if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel"; if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat"; if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL"; if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Three"; if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren"; return "Acak"; }
-function getOperatorLogo(id) { const i = String(id).toLowerCase(); if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; if (i.includes('indosat') || i.includes('isat') || i.includes('im3')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg'; if (i.includes('three') || i.includes('tri')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; if (i.includes('smartfren')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; }
+
+// PENGGANTIAN LOGO XL SESUAI PERMINTAAN
+function getOperatorLogo(id) { 
+    const i = String(id).toLowerCase(); 
+    if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; 
+    if (i.includes('indosat') || i.includes('isat') || i.includes('im3')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; 
+    if (i.includes('xl')) return 'https://iconlogovector.com/uploads/images/2024/09/lg-66ef50c24df06-XL-Axiata-operator-telekomunik.webp'; 
+    if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg'; 
+    if (i.includes('three') || i.includes('tri')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; 
+    if (i.includes('smartfren')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; 
+    return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; 
+}
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
@@ -135,9 +146,6 @@ async function fetchBalance() {
     } 
 }
 
-// ========================================================
-// FUNGSI REFRESH STOK REAL-TIME
-// ========================================================
 window.refreshStock = function() {
     const btn = document.getElementById('btnRefreshStock');
     if(btn) {
@@ -147,7 +155,7 @@ window.refreshStock = function() {
     }
     if (currentServiceId) {
         loadProducts(currentServiceId);
-        fetchBalance(); // Sekaligus update saldo
+        fetchBalance(); 
     }
 };
 
@@ -219,9 +227,7 @@ window.toggleFavorite = function(id, event) {
     localStorage.setItem('hero_favorite_services', JSON.stringify(favoriteServices)); filterServices(); 
 }
 
-// ========================================================
-// LOGIKA PEMUATAN STOK CERDAS (MEMPERBAIKI BUG "HABIS")
-// ========================================================
+// LOGIKA PEMUATAN PRODUK (DIKEMBALIKAN KE MODE BERSIH TANPA STOK)
 async function loadProducts(serviceId) {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
@@ -234,24 +240,20 @@ async function loadProducts(serviceId) {
         if (productsRes.success && productsRes.data.length > 0) {
             let opsList = productsRes.data; 
             
-            // Server kadang hanya merespon stok total (any). Kita amankan datanya.
-            let anyOp = opsList.find(o => o.id === 'any') || { id: 'any', price: opsList[0]?.price || 0, available: 0 };
+            let anyOp = opsList.find(o => o.id === 'any') || { id: 'any', price: opsList[0]?.price || 0 };
             
+            // PAKSA MENAMPILKAN SEMUA OPERATOR UTAMA TERMASUK XL
             const standardOps = ['telkomsel', 'indosat', 'xl', 'axis', 'three', 'smartfren'];
             
             let specificOps = standardOps.map(opId => {
                 let found = opsList.find(o => o.id === opId);
-                // Jika API menyediakan stok per operator, gunakan itu.
-                if (found) return { id: opId, price: found.price, available: parseInt(found.available) || 0 };
-                
-                // PERBAIKAN: Jika API malas dan hanya kasih stok "any", bagikan stok "any" ke semua tombol agar tidak mati!
-                return { id: opId, price: anyOp.price, available: anyOp.available }; 
+                // Kembalikan ke mode normal tanpa mempedulikan data stok (available)
+                return { id: opId, price: found ? found.price : anyOp.price }; 
             });
             
-            // Tambahkan operator eksotis lain jika ada
             opsList.forEach(o => {
                 if (o.id !== 'any' && o.id !== '' && !standardOps.includes(o.id)) {
-                    specificOps.push({ id: o.id, price: o.price, available: parseInt(o.available) || 0 });
+                    specificOps.push({ id: o.id, price: o.price });
                 }
             });
             
@@ -261,63 +263,44 @@ async function loadProducts(serviceId) {
             let savedOp = localStorage.getItem('hero_selected_operator') || 'any';
             const chkRandom = document.getElementById('chkRandomOp'); 
             
-            // LOMPATKAN KURSOR JIKA OPERATOR YANG DISIMPAN BENAR-BENAR HABIS
-            if (savedOp !== 'any') {
-                let targetOp = availableProducts.find(p => p.id === savedOp);
-                if (!targetOp || targetOp.available <= 0) {
-                    let nextAvail = specificOps.find(p => p.available > 0);
-                    if (nextAvail) {
-                        savedOp = nextAvail.id; 
-                    } else {
-                        savedOp = 'any'; 
-                    }
-                }
-            }
-            
-            selectedProductId = savedOp;
+            let isOpExist = availableProducts.find(p => String(p.id) === String(savedOp));
+            selectedProductId = isOpExist ? savedOp : 'any'; 
             localStorage.setItem('hero_selected_operator', selectedProductId);
-            if (chkRandom) chkRandom.checked = (selectedProductId === 'any');
 
+            if (chkRandom) chkRandom.checked = (selectedProductId === 'any');
             if (btnOrder) btnOrder.disabled = false;
             
             specificOps.forEach(product => {
                 let opCode = product.id; let opName = opCode.toUpperCase();
-                const isOutOfStock = product.available <= 0;
-                
                 const card = document.createElement("div"); 
                 card.className = "product-card"; 
                 card.id = `op-card-${opCode}`;
                 
-                if (isOutOfStock) {
-                    card.style.opacity = "0.4"; card.style.pointerEvents = "none"; card.style.filter = "grayscale(100%)";
-                } else if (selectedProductId === String(opCode)) {
+                if (selectedProductId === String(opCode)) {
                     card.classList.add('selected');
                 }
                 
                 let logoImg = getOperatorLogo(opCode); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
                 
-                let priceDisplay = isOutOfStock 
-                    ? `<span style="color:var(--danger-color); font-size:9px;">HABIS</span>`
-                    : `<span>${usdFormatter.format(product.price)}</span><span style="color:var(--text-secondary); font-size:9px; font-weight:700;">| ${product.available}</span>`;
+                // KEMBALI KE TAMPILAN NORMAL (Hanya harga)
+                card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
                 
-                card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${priceDisplay}</div>`;
+                card.onclick = () => { 
+                    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
+                    card.classList.add('selected'); 
+                    if (chkRandom) chkRandom.checked = false;
+                    selectedProductId = String(opCode); 
+                    localStorage.setItem('hero_selected_operator', selectedProductId); 
+                    if (btnOrder) btnOrder.disabled = false; 
+                };
                 
-                if (!isOutOfStock) {
-                    card.onclick = () => { 
-                        document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
-                        card.classList.add('selected'); 
-                        if (chkRandom) chkRandom.checked = false;
-                        selectedProductId = String(opCode); 
-                        localStorage.setItem('hero_selected_operator', selectedProductId); 
-                        if (btnOrder) btnOrder.disabled = false; 
-                    };
-                }
                 if (productList) productList.appendChild(card);
             });
         } else { if (productList) productList.innerHTML = '<div class="status-text-mini">Stok sedang kosong.</div>'; }
     } catch (error) { if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error muat data.</div>`; }
 }
 
+// LOGIKA TOMBOL ACAK DIKEMBALIKAN SEPERTI SEMULA
 window.toggleRandomOperator = function() {
     const chk = document.getElementById('chkRandomOp');
     if (chk.checked) { 
@@ -325,15 +308,12 @@ window.toggleRandomOperator = function() {
         selectedProductId = 'any'; 
         localStorage.setItem('hero_selected_operator', 'any'); 
     } else { 
-        let nextAvail = availableProducts.find(p => p.id !== 'any' && p.available > 0);
+        let nextAvail = availableProducts.find(p => p.id !== 'any');
         if (nextAvail) { 
             selectedProductId = String(nextAvail.id); 
             document.getElementById(`op-card-${nextAvail.id}`).classList.add('selected'); 
             localStorage.setItem('hero_selected_operator', selectedProductId); 
-        } else {
-            showToast("Semua operator spesifik sedang kosong!", "warning");
-            chk.checked = true; selectedProductId = 'any'; localStorage.setItem('hero_selected_operator', 'any');
-        }
+        } 
     }
     const btn = document.getElementById('btnOrder');
     if (btn) btn.disabled = false;
