@@ -13,7 +13,6 @@ let timerInterval = null; let orderHistory = [];
 let activeWebhookListeners = {}; 
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 
-// MENYIMPAN DAFTAR FAVORIT (Default 'ka' Shopee)
 let favoriteServices = JSON.parse(localStorage.getItem('hero_favorite_services')) || ["ka"];
 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 });
@@ -162,9 +161,6 @@ async function fetchBalance() {
     } 
 }
 
-// ========================================================
-// SISTEM PEMILIHAN LAYANAN (MODAL SEARCH + FAVORIT)
-// ========================================================
 async function loadServices() {
     const btnSvc = document.getElementById('btnServiceSelect');
     if (!btnSvc) return;
@@ -276,7 +272,6 @@ window.toggleFavorite = function(id, event) {
     localStorage.setItem('hero_favorite_services', JSON.stringify(favoriteServices));
     filterServices(); 
 }
-// ========================================================
 
 async function loadProducts(serviceId) {
     try {
@@ -364,7 +359,6 @@ window.toggleRandomOperator = function() {
 async function processOrderFreshNumber(operatorId, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas.", "error"); return null; }
     
-    // MENYERTAKAN CURRENT SERVICE ID SAAT MEMESAN
     const res = await apiCall('/orders/create', 'POST', { operator: operatorId, service: currentServiceId });
     
     if (res.success && res.data && res.data.orders && res.data.orders.length > 0) {
@@ -437,13 +431,11 @@ function renderOrders() {
         const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || availableProducts[0]?.price || 0);
         const wait = order.cancelUnlockTime - now; 
         
-        // MENYEMATKAN TOMBOL SALIN PADA KOTAK OTP
+        // PENGATURAN TOMBOL COPY OTP AGAR SEJAJAR MENGGUNAKAN POSITION ABSOLUTE
         let otpHtml = isSuccess 
             ? `<div class="otp-title">KODE OTP</div>
-               <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
-                   <div class="otp-code" style="margin:0 !important; letter-spacing: 2px !important;">${formatOTP(order.otp)}</div>
-                   <button class="btn-copy" onclick="copyToClipboard('${order.otp}')" style="height: 34px !important; padding: 0 12px !important; border-radius: 8px !important; background: var(--success-color); color: #000; font-size: 14px !important; border:none; cursor:pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-copy"></i></button>
-               </div>` 
+               <div class="otp-code" style="margin:0 !important; letter-spacing: 4px !important;">${formatOTP(order.otp)}</div>
+               <button class="btn-copy" onclick="copyToClipboard('${order.otp}')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: var(--success-color); color: #000; box-shadow: 0 2px 8px rgba(150,212,0,0.4);"><i class="fas fa-copy"></i></button>` 
             : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
             
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
