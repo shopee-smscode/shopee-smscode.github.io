@@ -6,11 +6,16 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
 
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
-let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; 
-let selectedProductId = 'any'; 
+let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; 
+let allServices = []; let availableProducts = []; 
+let currentServiceId = null; let selectedProductId = 'any'; 
 let timerInterval = null; let orderHistory = [];
-let activeWebhookListeners = {}; // Penyimpanan listener Webhook
+let activeWebhookListeners = {}; 
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
+
+// MENYIMPAN DAFTAR FAVORIT (Default 'ka' Shopee)
+let favoriteServices = JSON.parse(localStorage.getItem('hero_favorite_services')) || ["ka"];
+
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); 
@@ -66,12 +71,21 @@ function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).re
 function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
 function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } return otpStr; }
 function getProviderName(phone) { let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2); const prefix = p.substring(0, 4); if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel"; if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat"; if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL"; if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Three"; if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren"; return "Acak"; }
-function getOperatorLogo(id) { const i = String(id).toLowerCase(); if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; if (i.includes('indosat') || i.includes('isat') || i.includes('im3')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg'; if (i.includes('three') || i.includes('tri')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; if (i.includes('smartfren')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; }
-function relocateBalanceUI() { const headerContainer = document.querySelector('.app-header-container'); const balanceContainer = document.querySelector('.balance-container'); if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) { balanceContainer.style.display = 'none'; const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right'; newBalanceDiv.innerHTML = `<span style="font-size: 10px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 16px; font-weight: 900; color: var(--primary-color);">...</span>`; headerContainer.appendChild(newBalanceDiv); const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id'); newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay'; } }
+
+function getOperatorLogo(id) { 
+    const i = String(id).toLowerCase(); 
+    if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; 
+    if (i.includes('indosat') || i.includes('isat') || i.includes('im3')) return 'https://im3-img.indosatooredoo.com/indosatassets/images/myim3_app_footer.svg'; 
+    if (i.includes('xl')) return 'https://d17e22l2uh4h4n.cloudfront.net/corpweb/pub-xlaxiata/2019-03/xl-logo.png'; 
+    if (i.includes('axis')) return 'https://www.axis.co.id/img/common/logo.svg'; 
+    if (i.includes('three') || i.includes('tri')) return 'https://www.three.co.uk/content/dam/threedigital/static-files/components/header/three-logo.svg'; 
+    if (i.includes('smartfren')) return 'https://down-id.img.susercontent.com/file/id-11134207-8224s-mkkmirlvdurn5d@resize_w900_nl.webp'; 
+    return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; 
+}
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
-    let mods = ['blacklistModal', 'historyModal', 'statsModal', 'settingsModal', 'iframeNoteModal']; 
+    let mods = ['blacklistModal', 'historyModal', 'statsModal', 'settingsModal', 'serviceModal', 'iframeNoteModal']; 
     let closedAny = false;
     mods.forEach(m => { 
         let el = document.getElementById(m); 
@@ -91,6 +105,8 @@ function copyToClipboard(t) { if (navigator.clipboard && window.isSecureContext)
 function copyFallback(t) { const ta = document.createElement("textarea"); ta.value = t; ta.setAttribute('readonly', ''); ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, 99999); try { document.execCommand('copy'); showToast("Berhasil disalin!"); } catch (err) { showToast("Gagal menyalin.", "error"); } document.body.removeChild(ta); }
 function setAccountViewingStatus(isViewing) { if (!activeAccountName) return; if (isViewing) { const connectedRef = db.ref('.info/connected'); viewingPresenceRef = db.ref(`presence/${activeAccountName}/is_viewing`); connectedRef.on('value', (snap) => { if (snap.val() === true) { viewingPresenceRef.onDisconnect().set(false); viewingPresenceRef.set(true); } }); } else { if (viewingPresenceRef) { viewingPresenceRef.set(false); viewingPresenceRef.onDisconnect().cancel(); } } }
 function updateAccountOrdersStatus() { if (!activeAccountName) return; db.ref(`presence/${activeAccountName}/has_orders`).set(activeOrders.length > 0); }
+
+function relocateBalanceUI() { const headerContainer = document.querySelector('.app-header-container'); const balanceContainer = document.querySelector('.balance-container'); if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) { balanceContainer.style.display = 'none'; const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right'; newBalanceDiv.innerHTML = `<span style="font-size: 10px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 16px; font-weight: 900; color: var(--primary-color);">...</span>`; headerContainer.appendChild(newBalanceDiv); const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id'); newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay'; } }
 
 function initUsedNumbersSync() {
     db.ref('used_numbers/hero_sms').on('value', snapshot => {
@@ -146,33 +162,129 @@ async function fetchBalance() {
     } 
 }
 
-window.toggleRandomOperator = function() {
-    const chk = document.getElementById('chkRandomOp');
-    if (chk.checked) { 
-        document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
-        selectedProductId = 'any'; 
-        localStorage.setItem('hero_selected_operator', 'any'); 
-    } else { 
-        if(selectedProductId === 'any' && availableProducts.length > 1) { 
-            const f = availableProducts.find(p => p.id !== 'any'); 
-            if(f) { 
-                selectedProductId = String(f.id); 
-                document.getElementById(`op-card-${f.id}`).classList.add('selected'); 
-                localStorage.setItem('hero_selected_operator', selectedProductId); 
-            } 
-        } 
+// ========================================================
+// SISTEM PEMILIHAN LAYANAN (MODAL SEARCH + FAVORIT)
+// ========================================================
+async function loadServices() {
+    const btnSvc = document.getElementById('btnServiceSelect');
+    if (!btnSvc) return;
+    try {
+        btnSvc.innerHTML = `<span>Memuat...</span><i class="fas fa-spinner fa-spin"></i>`;
+        
+        const servicesRes = await apiCall(`/catalog/services`);
+        if (servicesRes.success && servicesRes.data) {
+            allServices = servicesRes.data; 
+            allServices.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+            
+            let savedId = localStorage.getItem('hero_selected_service') || "ka"; 
+            let exists = allServices.find(s => String(s.id) === String(savedId));
+            
+            let selectedSvc = exists ? exists : allServices[0];
+            currentServiceId = selectedSvc.id; 
+            
+            localStorage.setItem('hero_selected_service', currentServiceId); 
+            btnSvc.innerHTML = `<span>${selectedSvc.name.toUpperCase()}</span><i class="fas fa-search" style="font-size: 11px;"></i>`;
+            
+            loadProducts(currentServiceId);
+        } else {
+            btnSvc.innerHTML = `<span style="color:var(--danger-color);">Error</span><i class="fas fa-exclamation-triangle"></i>`;
+        }
+    } catch (e) { 
+        btnSvc.innerHTML = `<span style="color:var(--danger-color);">Gagal</span><i class="fas fa-wifi"></i>`; 
     }
-    const btn = document.getElementById('btnOrder');
-    if (btn) btn.disabled = false;
 }
 
-async function loadShopeeIndonesia() {
+window.openServiceModal = function() {
+    document.getElementById('serviceModal').classList.remove('hidden');
+    document.getElementById('searchServiceInput').value = '';
+    filterServices(); 
+    history.pushState(null, null, "#services");
+}
+window.closeServiceModal = function() {
+    document.getElementById('serviceModal').classList.add('hidden');
+}
+
+window.filterServices = function() {
+    const query = document.getElementById('searchServiceInput').value.toLowerCase();
+    const container = document.getElementById('serviceListContainer');
+    container.innerHTML = '';
+    
+    const filtered = allServices.filter(s => (s.name || s.id).toLowerCase().includes(query));
+    
+    if(filtered.length === 0) {
+        container.innerHTML = '<div class="status-text-mini" style="margin-top:10px;">Layanan tidak ditemukan.</div>';
+        return;
+    }
+
+    let favs = [];
+    let others = [];
+    filtered.forEach(svc => {
+        if (favoriteServices.includes(svc.id)) favs.push(svc);
+        else others.push(svc);
+    });
+
+    const renderBtn = (svc, isFav) => {
+        const isActive = (String(svc.id) === String(currentServiceId));
+        const btn = document.createElement('div');
+        btn.style = `width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 13px; font-weight: bold; text-align: left; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15); margin-bottom: 6px;`;
+        
+        btn.innerHTML = `
+            <div style="display:flex; align-items:center; flex:1;" onclick="selectService('${svc.id}', '${(svc.name||svc.id).replace(/'/g, "\\'")}')">
+                <span>${(svc.name||svc.id).toUpperCase()}</span> 
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+                ${isActive ? '<i class="fas fa-check-circle" style="color:var(--primary-color);"></i>' : ''}
+                <i class="fas fa-star" style="font-size:16px; color:${isFav ? 'var(--warning-color)' : 'var(--text-secondary)'}; text-shadow: ${isFav ? '0 0 8px rgba(245, 158, 11, 0.5)' : 'none'}; cursor:pointer; padding:4px;" onclick="toggleFavorite('${svc.id}', event)"></i>
+            </div>
+        `;
+        return btn;
+    };
+
+    if (favs.length > 0) {
+        const favTitle = document.createElement('div');
+        favTitle.style = "font-size: 10px; font-weight: 900; color: var(--warning-color); margin-top: 5px; margin-bottom: 8px; letter-spacing: 1px;";
+        favTitle.innerText = "⭐️ FAVORIT";
+        container.appendChild(favTitle);
+        favs.forEach(svc => container.appendChild(renderBtn(svc, true)));
+    }
+
+    if (others.length > 0) {
+        const othTitle = document.createElement('div');
+        othTitle.style = "font-size: 10px; font-weight: 900; color: var(--text-secondary); margin-top: 10px; margin-bottom: 8px; letter-spacing: 1px;";
+        othTitle.innerText = "SEMUA LAYANAN";
+        container.appendChild(othTitle);
+        others.forEach(svc => container.appendChild(renderBtn(svc, false)));
+    }
+}
+
+window.selectService = function(id, name) {
+    currentServiceId = id;
+    localStorage.setItem('hero_selected_service', currentServiceId);
+    const btnSvc = document.getElementById('btnServiceSelect');
+    if (btnSvc) btnSvc.innerHTML = `<span>${name.toUpperCase()}</span><i class="fas fa-search" style="font-size: 11px;"></i>`;
+    closeServiceModal();
+    loadProducts(currentServiceId);
+}
+
+window.toggleFavorite = function(id, event) {
+    event.stopPropagation();
+    if (favoriteServices.includes(id)) {
+        favoriteServices = favoriteServices.filter(f => f !== id);
+    } else {
+        favoriteServices.push(id);
+    }
+    localStorage.setItem('hero_favorite_services', JSON.stringify(favoriteServices));
+    filterServices(); 
+}
+// ========================================================
+
+async function loadProducts(serviceId) {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
         const btnOrder = document.getElementById('btnOrder');
         if (btnOrder) btnOrder.disabled = true;
 
-        const productsRes = await apiCall(`/catalog/products`);
+        const productsRes = await apiCall(`/catalog/products?service=${serviceId}`);
         
         if (productsRes.error && productsRes.error.message) {
             showToast("Server: " + productsRes.error.message, "error");
@@ -229,10 +341,32 @@ async function loadShopeeIndonesia() {
     } catch (error) { if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error muat data.</div>`; }
 }
 
+window.toggleRandomOperator = function() {
+    const chk = document.getElementById('chkRandomOp');
+    if (chk.checked) { 
+        document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
+        selectedProductId = 'any'; 
+        localStorage.setItem('hero_selected_operator', 'any'); 
+    } else { 
+        if(selectedProductId === 'any' && availableProducts.length > 1) { 
+            const f = availableProducts.find(p => p.id !== 'any'); 
+            if(f) { 
+                selectedProductId = String(f.id); 
+                document.getElementById(`op-card-${f.id}`).classList.add('selected'); 
+                localStorage.setItem('hero_selected_operator', selectedProductId); 
+            } 
+        } 
+    }
+    const btn = document.getElementById('btnOrder');
+    if (btn) btn.disabled = false;
+}
+
 async function processOrderFreshNumber(operatorId, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas.", "error"); return null; }
     
-    const res = await apiCall('/orders/create', 'POST', { operator: operatorId });
+    // MENYERTAKAN CURRENT SERVICE ID SAAT MEMESAN
+    const res = await apiCall('/orders/create', 'POST', { operator: operatorId, service: currentServiceId });
+    
     if (res.success && res.data && res.data.orders && res.data.orders.length > 0) {
         const o = res.data.orders[0]; const rawPhone = String(o.phone_number); const phoneStr = normalizePhone(rawPhone);
         if (usedNumbersDB.has(phoneStr)) {
@@ -302,7 +436,16 @@ function renderOrders() {
         const matchedProduct = availableProducts.find(p => p.id === order.productId);
         const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || availableProducts[0]?.price || 0);
         const wait = order.cancelUnlockTime - now; 
-        let otpHtml = isSuccess ? `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
+        
+        // MENYEMATKAN TOMBOL SALIN PADA KOTAK OTP
+        let otpHtml = isSuccess 
+            ? `<div class="otp-title">KODE OTP</div>
+               <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
+                   <div class="otp-code" style="margin:0 !important; letter-spacing: 2px !important;">${formatOTP(order.otp)}</div>
+                   <button class="btn-copy" onclick="copyToClipboard('${order.otp}')" style="height: 34px !important; padding: 0 12px !important; border-radius: 8px !important; background: var(--success-color); color: #000; font-size: 14px !important; border:none; cursor:pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"><i class="fas fa-copy"></i></button>
+               </div>` 
+            : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
+            
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
         
         if (isSuccess) { 
@@ -316,32 +459,27 @@ function renderOrders() {
         let headerLogoUrl = getOperatorLogo(opTag); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
         const left = order.expiresAt - now; let timerColor = "#ffffff"; 
         if (left <= 12 * 60000) { timerColor = "var(--danger-color)"; } else if (left <= 18 * 60000) { timerColor = "var(--warning-color)"; }
-        card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id}</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
+        
+        card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id} (${opTag})</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
         if (activeOrdersContainer) activeOrdersContainer.appendChild(card);
     });
 }
 
-// ========================================================
-// SISTEM WEBHOOK (PENGGANTI POLLING API)
-// ========================================================
 function manageFirebaseListeners() {
     activeOrders.forEach(o => {
-        // Jika OTP belum masuk dan belum ada listener untuk ID ini
         if (o.status !== "OTP_RECEIVED" && !activeWebhookListeners[o.id]) {
             activeWebhookListeners[o.id] = true;
             const ref = db.ref(`hero_sms_webhooks/${o.id}`);
             
-            // Dengarkan perubahan data (Webhook masuk)
             ref.on('value', snapshot => {
                 if (snapshot.exists()) {
                     const data = snapshot.val();
                     let idx = activeOrders.findIndex(ord => String(ord.id) === String(o.id));
                     
-                    // Eksekusi kode 0 detik delay
                     if (idx !== -1 && activeOrders[idx].status !== "OTP_RECEIVED") {
                         notifSound.play().catch(e=>console.log(e));
                         activeOrders[idx].status = "OTP_RECEIVED";
-                        activeOrders[idx].otp = data.code; // Menyalin kode dari Webhook
+                        activeOrders[idx].otp = data.code; 
                         saveToStorage(); 
                         fetchBalance();
                         
@@ -359,7 +497,7 @@ function manageFirebaseListeners() {
 
 function startPollingAndTimer() {
     if (timerInterval) clearInterval(timerInterval);
-    manageFirebaseListeners(); // Pasang telinga Webhook untuk pesanan yang ada
+    manageFirebaseListeners(); 
 
     timerInterval = setInterval(() => {
         const now = Date.now();
@@ -383,15 +521,11 @@ function startPollingAndTimer() {
                 else { if (btnCancel && !btnCancel.disabled) btnCancel.disabled = true; if (btnReplace && !btnReplace.disabled) btnReplace.disabled = true; if (btnResend && !btnResend.disabled) btnResend.disabled = true; }
             }
         });
-        
-        // Memanggil fungsi untuk berjaga-jaga jika ada pesanan baru yang belum dilisten
         manageFirebaseListeners(); 
     }, 1000);
 }
-// ========================================================
 
 function removeOrderWithAnimation(idStr, callback) {
-    // Matikan pendengar Firebase dan hapus data OTP di database jika pesanan ditutup
     if (activeWebhookListeners[idStr]) {
         db.ref(`hero_sms_webhooks/${idStr}`).off();
         db.ref(`hero_sms_webhooks/${idStr}`).remove();
@@ -436,8 +570,6 @@ window.resendSpecificOrder = async function(orderId) {
         const res = await apiCall('/orders/resend', 'POST', { id: idStr });
         if (res.success) { 
             showToast("Meminta kode baru..."); 
-            
-            // HAPUS DATA WEBHOOK LAMA DI FIREBASE AGAR SIAP MENERIMA SMS BARU
             db.ref(`hero_sms_webhooks/${idStr}`).remove(); 
             
             let idx = activeOrders.findIndex(o => String(o.id) === idStr);
@@ -513,5 +645,5 @@ window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) {
 async function fetchAccounts() { try { const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json(); if (data.accounts && data.accounts.length > 0) { loginAccount(data.accounts[0]); } else { if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; showToast("Tidak ada akun", "error"); } } catch (error) { if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; showToast("Gagal terhubung", "error"); } }
 function loginAccount(accountName) { activeAccountName = accountName; if(currentAccountName) currentAccountName.innerText = accountName; setAccountViewingStatus(true); const rawOrders = JSON.parse(localStorage.getItem(`hero_orders_${accountName}`)) || []; activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); if (rawOrders.length !== activeOrders.length) saveToStorage(); hiddenBadOrders = JSON.parse(localStorage.getItem(`hero_hidden_bad_orders_${accountName}`)) || []; loadHistory(); initMainApp(); }
 
-async function initMainApp() { fetchBalance(); await loadShopeeIndonesia(); renderOrders(); startPollingAndTimer(); }
+async function initMainApp() { fetchBalance(); await loadServices(); renderOrders(); startPollingAndTimer(); }
 window.onload = () => { relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initUsedNumbersSync(); fetchAccounts(); renderMainButtons(); };
