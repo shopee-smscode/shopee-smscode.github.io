@@ -16,7 +16,7 @@ let isDroplistOpen = false;
 
 let favoriteServices = JSON.parse(localStorage.getItem('hero_favorite_services')) || ["ka"];
 
-// PERBAIKAN: maximumFractionDigits dinaikkan ke 4 agar harga $0.0637 tidak terpotong
+// Maximum Fraction 4 untuk akurasi harga Hero SMS
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); 
@@ -275,6 +275,7 @@ window.toggleFavorite = function(id, event) {
     filterServices(); 
 }
 
+// LOGIKA PEMROSESAN XL/AXIS & STOK REALTIME
 async function loadProducts(serviceId) {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
@@ -288,56 +289,98 @@ async function loadProducts(serviceId) {
         }
 
         if (productsRes.success && productsRes.data.length > 0) {
-            let ops = productsRes.data; let anyOp = ops.find(o => o.id === 'any'); 
-            if (!anyOp) anyOp = { id: 'any', price: ops[0]?.price || 0, available: 'Cek Server' };
+            let opsList = productsRes.data; 
+            let anyOp = opsList.find(o => o.id === 'any') || { id: 'any', price: opsList[0]?.price || 0, available: 0 };
             
-            let specificOps = ops.filter(o => o.id !== 'any' && o.id !== '' && o.id.toLowerCase() !== 'xl');
+            // PAKSA SEMUA OPERATOR INI TAMPIL (Termasuk XL dan Axis)
+            const standardOps = ['telkomsel', 'indosat', 'xl', 'axis', 'three', 'smartfren'];
             
-            if (specificOps.length === 0) {
-                const realPrice = anyOp.price; const realStock = anyOp.available; 
-                specificOps = [ { id: 'telkomsel', price: realPrice, available: realStock }, { id: 'indosat', price: realPrice, available: realStock }, { id: 'axis', price: realPrice, available: realStock }, { id: 'three', price: realPrice, available: realStock }, { id: 'smartfren', price: realPrice, available: realStock } ];
-            } else { specificOps.sort((a, b) => parseFloat(a.price) - parseFloat(b.price)); }
+            let specificOps = standardOps.map(opId => {
+                let found = opsList.find(o => o.id === opId);
+                // Jika ketemu di server, ambil harga dan stoknya. Jika tidak ada, stok dianggap 0 (Habis)
+                if (found) return { id: opId, price: found.price, available: parseInt(found.available) || 0 };
+                return { id: opId, price: anyOp.price, available: 0 }; 
+            });
+            
+            // Masukkan jika ada operator aneh lain yang mungkin nyasar dari server
+            opsList.forEach(o => {
+                if (o.id !== 'any' && o.id !== '' && !standardOps.includes(o.id)) {
+                    specificOps.push({ id: o.id, price: o.price, available: parseInt(o.available) || 0 });
+                }
+            });
             
             availableProducts = [anyOp, ...specificOps]; 
             if (productList) productList.innerHTML = ''; 
             
             let savedOp = localStorage.getItem('hero_selected_operator') || 'any';
-            let isOpExist = availableProducts.find(p => String(p.id) === String(savedOp));
-            selectedProductId = isOpExist ? savedOp : 'any'; 
-            localStorage.setItem('hero_selected_operator', selectedProductId);
-
             const chkRandom = document.getElementById('chkRandomOp'); 
+            
+            // LOGIKA PEMINDAHAN FOKUS OTOMATIS: Jika operator yang disimpan ternyata habis
+            if (savedOp !== 'any') {
+                let targetOp = availableProducts.find(p => p.id === savedOp);
+                if (!targetOp || targetOp.available <= 0) {
+                    let nextAvail = specificOps.find(p => p.available > 0);
+                    if (nextAvail) {
+                        savedOp = nextAvail.id; // Lempar fokus ke yang ada stok
+                    } else {
+                        savedOp = 'any'; // Semua habis? Lempar ke acak
+                    }
+                }
+            }
+            
+            selectedProductId = savedOp;
+            localStorage.setItem('hero_selected_operator', selectedProductId);
             if (chkRandom) chkRandom.checked = (selectedProductId === 'any');
 
             if (btnOrder) btnOrder.disabled = false;
             
-            availableProducts.forEach(product => {
-                if (product.id === 'any') return; 
-                
+            specificOps.forEach(product => {
                 let opCode = product.id;
                 let opName = opCode.toUpperCase();
-                const card = document.createElement("div"); card.className = "product-card"; card.id = `op-card-${opCode}`;
-                if (selectedProductId === String(opCode)) card.classList.add('selected');
+                const isOutOfStock = product.available <= 0;
                 
-                let logoImg = getOperatorLogo(opCode); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
+                const card = document.createElement("div"); 
+                card.className = "product-card"; 
+                card.id = `op-card-${opCode}`;
                 
-                card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
+                if (isOutOfStock) {
+                    card.style.opacity = "0.4";
+                    card.style.pointerEvents = "none";
+                    card.style.filter = "grayscale(100%)";
+                } else if (selectedProductId === String(opCode)) {
+                    card.classList.add('selected');
+                }
                 
-                card.onclick = () => { 
-                    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
-                    card.classList.add('selected'); 
-                    const chk = document.getElementById('chkRandomOp'); 
-                    if (chk) chk.checked = false;
-                    selectedProductId = String(opCode); 
-                    localStorage.setItem('hero_selected_operator', selectedProductId); 
-                    if (btnOrder) btnOrder.disabled = false; 
-                };
+                let logoImg = getOperatorLogo(opCode); 
+                let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
+                
+                let priceDisplay = isOutOfStock 
+                    ? `<span style="color:var(--danger-color); font-size:9px;">HABIS</span>`
+                    : `<span>${usdFormatter.format(product.price)}</span><span style="color:var(--text-secondary); font-size:9px; font-weight:700;">| ${product.available}</span>`;
+                
+                card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${priceDisplay}</div>`;
+                
+                if (!isOutOfStock) {
+                    card.onclick = () => { 
+                        document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
+                        card.classList.add('selected'); 
+                        if (chkRandom) chkRandom.checked = false;
+                        selectedProductId = String(opCode); 
+                        localStorage.setItem('hero_selected_operator', selectedProductId); 
+                        if (btnOrder) btnOrder.disabled = false; 
+                    };
+                }
                 if (productList) productList.appendChild(card);
             });
-        } else { if (productList) productList.innerHTML = '<div class="status-text-mini">Stok sedang kosong.</div>'; }
-    } catch (error) { if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error muat data.</div>`; }
+        } else { 
+            if (productList) productList.innerHTML = '<div class="status-text-mini">Stok sedang kosong.</div>'; 
+        }
+    } catch (error) { 
+        if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error muat data.</div>`; 
+    }
 }
 
+// LOGIKA TOMBOL ACAK DENGAN PERLINDUNGAN STOK KOSONG
 window.toggleRandomOperator = function() {
     const chk = document.getElementById('chkRandomOp');
     if (chk.checked) { 
@@ -345,14 +388,18 @@ window.toggleRandomOperator = function() {
         selectedProductId = 'any'; 
         localStorage.setItem('hero_selected_operator', 'any'); 
     } else { 
-        if(selectedProductId === 'any' && availableProducts.length > 1) { 
-            const f = availableProducts.find(p => p.id !== 'any'); 
-            if(f) { 
-                selectedProductId = String(f.id); 
-                document.getElementById(`op-card-${f.id}`).classList.add('selected'); 
-                localStorage.setItem('hero_selected_operator', selectedProductId); 
-            } 
-        } 
+        // Coba cari operator yang ada stoknya
+        let nextAvail = availableProducts.find(p => p.id !== 'any' && p.available > 0);
+        if (nextAvail) { 
+            selectedProductId = String(nextAvail.id); 
+            document.getElementById(`op-card-${nextAvail.id}`).classList.add('selected'); 
+            localStorage.setItem('hero_selected_operator', selectedProductId); 
+        } else {
+            showToast("Semua operator spesifik sedang kosong!", "warning");
+            chk.checked = true; // Paksa kembali ke acak jika semua kosong
+            selectedProductId = 'any';
+            localStorage.setItem('hero_selected_operator', 'any');
+        }
     }
     const btn = document.getElementById('btnOrder');
     if (btn) btn.disabled = false;
