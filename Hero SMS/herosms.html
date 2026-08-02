@@ -7,9 +7,10 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="herosms.css?v=21"> 
     
-    <!-- SKRIP PENGINGAT APLIKASI (AUTO-REDIRECT) -->
+    <!-- Naik versi CSS ke 22 -->
+    <link rel="stylesheet" href="herosms.css?v=22"> 
+    
     <script>
         (function() {
             var lastApp = localStorage.getItem('last_active_app');
@@ -79,7 +80,6 @@
         </div>
 
         <div>
-            <!-- BARIS PILIH OPERATOR & CHECKBOX ACAK SEPERTI VIRTUAL SMS -->
             <div style="display: flex; align-items: stretch; justify-content: space-between; gap: 8px; margin-bottom: 10px;">
                 <div style="flex: 1; text-align: left; font-size: 10px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; padding-left: 4px; display: flex; align-items: flex-end; padding-bottom: 4px;">
                     Pilih Server Operator
@@ -94,13 +94,12 @@
                 <div class="status-text-mini">Memuat data Server...</div>
             </div>
             
-            <!-- PERINTAH KLIK DITANAMKAN LANGSUNG KE HTML (HARD-BIND) -->
             <button id="btnOrder" class="btn-primary" onclick="onOrderButtonClicked()" disabled>Pesan Nomor Baru</button>
             <div id="extraBtnWrapper"></div>
         </div>
     </div>
 
-    <!-- MODAL EXTERNAL NOTES (IFRAME) -->
+    <!-- SEMUA MODAL TETAP SAMA -->
     <div id="iframeNoteModal" class="modal hidden">
         <div class="modal-content" style="max-height: 95vh; display: flex; flex-direction: column; padding: 10px; width: 95%; max-width: 450px;">
             <div class="modal-header" style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: none;">
@@ -113,7 +112,6 @@
         </div>
     </div>
 
-    <!-- MODAL SETTINGS -->
     <div id="settingsModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -135,7 +133,6 @@
         </div>
     </div>
 
-    <!-- MODAL STATISTIK -->
     <div id="statsModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -156,7 +153,6 @@
         </div>
     </div>
 
-    <!-- MODAL BLACKLIST -->
     <div id="blacklistModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -172,7 +168,6 @@
         </div>
     </div>
 
-    <!-- MODAL HISTORY -->
     <div id="historyModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -186,7 +181,6 @@
         </div>
     </div>
 
-    <!-- MODAL KELUAR -->
     <div id="exitModal" class="modal hidden">
         <div class="modal-content">
             <h3 class="modal-title">Keluar Aplikasi?</h3>
@@ -200,6 +194,7 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <script src="herosms.js?v=21"></script>
+    <!-- Naik versi JS ke 22 -->
+    <script src="herosms.js?v=22"></script>
 </body>
 </html>
