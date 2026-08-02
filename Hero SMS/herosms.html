@@ -8,8 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
-    <!-- Naik versi CSS ke 22 -->
-    <link rel="stylesheet" href="herosms.css?v=22"> 
+    <link rel="stylesheet" href="herosms.css?v=23"> 
     
     <script>
         (function() {
@@ -66,28 +65,35 @@
                 <h1>Hero-SMS 🇮🇩</h1>
                 <p class="subtitle">👨‍💻 Akun: <strong id="currentAccountName">Memuat...</strong></p>
             </div>
+            <div class="balance-container">
+                <div class="balance-badge">
+                    <span class="balance-label">Saldo</span>
+                    <span id="balanceDisplay" class="balance-value">...</span>
+                </div>
+            </div>
         </div>
         
         <div id="activeOrdersContainer">
             <div class="status-text-mini">Belum ada pesanan aktif.</div>
         </div>
 
-        <div class="balance-container">
-            <div class="balance-badge">
-                <span class="balance-label">Saldo</span>
-                <span id="balanceDisplay" class="balance-value">...</span>
-            </div>
-        </div>
-
         <div>
-            <div style="display: flex; align-items: stretch; justify-content: space-between; gap: 8px; margin-bottom: 10px;">
-                <div style="flex: 1; text-align: left; font-size: 10px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; padding-left: 4px; display: flex; align-items: flex-end; padding-bottom: 4px;">
-                    Pilih Server Operator
+            <!-- PILIH LAYANAN & ACAK SEJAJAR DALAM 1 BARIS -->
+            <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-bottom: 8px;">
+                <div style="flex: 1; text-align: left;">
+                    <label style="font-size: 10px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; display: block; padding-left: 2px;">Layanan</label>
+                    <button id="btnServiceSelect" onclick="openServiceModal()" class="form-input" style="text-align: left; font-weight: 800; font-size: 13px; padding: 10px 12px; border-radius: 10px; background-color: var(--bg-card); cursor: pointer; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); color: var(--primary-color); height: 36px; margin: 0;">
+                        <span>Memuat...</span>
+                        <i class="fas fa-search" style="font-size: 11px;"></i>
+                    </button>
                 </div>
                 
-                <label style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--primary-color); cursor: pointer; background: var(--bg-card); padding: 0 10px; border-radius: 10px; border: 1px solid var(--border-color); flex-shrink: 0; height: 36px; margin: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
-                    <input type="checkbox" id="chkRandomOp" onchange="toggleRandomOperator()" checked style="accent-color: var(--primary-color);"> Acak 
-                </label>
+                <div>
+                    <label style="font-size: 10px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; display: block; padding-left: 2px;">Operator</label>
+                    <label style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--primary-color); cursor: pointer; background: var(--bg-card); padding: 0 10px; border-radius: 10px; border: 1px solid var(--border-color); flex-shrink: 0; height: 36px; margin: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
+                        <input type="checkbox" id="chkRandomOp" onchange="toggleRandomOperator()" checked style="accent-color: var(--primary-color);"> Acak 
+                    </label>
+                </div>
             </div>
 
             <div id="productList" class="product-list">
@@ -99,7 +105,36 @@
         </div>
     </div>
 
-    <!-- SEMUA MODAL TETAP SAMA -->
+    <!-- MODAL PILIH LAYANAN DENGAN FITUR FAVORIT & SEARCH -->
+    <div id="serviceModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title">Pilih Layanan</h3>
+                <button onclick="closeServiceModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <input type="text" id="searchServiceInput" class="form-input" placeholder="🔍 Cari layanan... (ex: Shopee)" oninput="filterServices()" style="border-radius: 10px; font-weight: bold;">
+            </div>
+            <div id="serviceListContainer" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column;">
+                <div class="status-text-mini">Memuat...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL GANTI AKUN -->
+    <div id="accountModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title">Ganti Akun</h3>
+                <button onclick="closeAccountModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="accountListContainer" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
+                <div class="status-text-mini">Memuat akun...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CATATAN -->
     <div id="iframeNoteModal" class="modal hidden">
         <div class="modal-content" style="max-height: 95vh; display: flex; flex-direction: column; padding: 10px; width: 95%; max-width: 450px;">
             <div class="modal-header" style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: none;">
@@ -112,6 +147,7 @@
         </div>
     </div>
 
+    <!-- MODAL SETTINGS -->
     <div id="settingsModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -133,6 +169,7 @@
         </div>
     </div>
 
+    <!-- MODAL STATISTIK -->
     <div id="statsModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -153,6 +190,7 @@
         </div>
     </div>
 
+    <!-- MODAL BLACKLIST -->
     <div id="blacklistModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -168,6 +206,7 @@
         </div>
     </div>
 
+    <!-- MODAL HISTORY -->
     <div id="historyModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -181,6 +220,7 @@
         </div>
     </div>
 
+    <!-- MODAL KELUAR -->
     <div id="exitModal" class="modal hidden">
         <div class="modal-content">
             <h3 class="modal-title">Keluar Aplikasi?</h3>
@@ -194,7 +234,6 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <!-- Naik versi JS ke 22 -->
-    <script src="herosms.js?v=22"></script>
+    <script src="herosms.js?v=23"></script>
 </body>
 </html>
