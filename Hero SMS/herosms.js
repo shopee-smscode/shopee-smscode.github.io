@@ -16,7 +16,8 @@ let isDroplistOpen = false;
 
 let favoriteServices = JSON.parse(localStorage.getItem('hero_favorite_services')) || ["ka"];
 
-const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 });
+// PERBAIKAN: maximumFractionDigits dinaikkan ke 4 agar harga $0.0637 tidak terpotong
+const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); 
 
@@ -136,7 +137,7 @@ window.closeStatsModal = function() { document.getElementById('statsModal').clas
 function loadStatsData() {
     const selectedDate = document.getElementById('statDate').value; const sSuccess = document.getElementById('statSuccess'); const sFailed = document.getElementById('statFailed');
     if(sSuccess) sSuccess.innerText = "..."; if(sFailed) sFailed.innerText = "...";
-    db.ref(`stats/hero_sms/${selectedDate}`).once('value', snap => { const data = val(); if(sSuccess) sSuccess.innerText = data?.success || 0; if(sFailed) sFailed.innerText = data?.failed || 0; });
+    db.ref(`stats/hero_sms/${selectedDate}`).once('value', snap => { const data = snap.val(); if(sSuccess) sSuccess.innerText = data?.success || 0; if(sFailed) sFailed.innerText = data?.failed || 0; });
 }
 document.getElementById('statDate').addEventListener('change', loadStatsData);
 
@@ -391,7 +392,7 @@ window.onOrderButtonClicked = async function() {
         const o = await processOrderFreshNumber(selectedProductId, 5); 
         if (o) {
             const opInfo = availableProducts.find(p => String(p.id) === String(selectedProductId)); 
-            const opPrice = o.price || (opInfo ? opInfo.price : 0); // HARGA ASLI DARI SERVER
+            const opPrice = o.price || (opInfo ? opInfo.price : 0);
             
             activeOrders.unshift({ 
                 id: o.id, 
@@ -438,7 +439,6 @@ function createOrderCard(order) {
     if (opTag === 'any' || !opTag) { opTag = getProviderName(order.phone); } else { opTag = String(opTag).toUpperCase(); }
     const matchedProduct = availableProducts.find(p => p.id === order.productId);
     
-    // GUNAKAN HARGA ASLI DARI SERVER
     const displayPrice = (order.price && order.price > 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || 0);
     
     const wait = order.cancelUnlockTime - now; 
