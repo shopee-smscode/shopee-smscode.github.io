@@ -62,7 +62,6 @@ function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone)
 function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp); if (otpStr.length >= 6) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } return otpStr; }
 function getProviderName(phone) { let p = String(phone); if (p.startsWith("62")) p = "0" + p.substring(2); const prefix = p.substring(0, 4); if (['0811','0812','0813','0821','0822','0852','0853','0851'].includes(prefix)) return "Telkomsel"; if (['0814','0815','0816','0855','0856','0857','0858'].includes(prefix)) return "Indosat"; if (['0817','0818','0819','0859','0877','0878','0838','0831','0832','0833'].includes(prefix)) return "XL"; if (['0895','0896','0897','0898','0899'].includes(prefix)) return "Three"; if (['0881','0882','0883','0884','0885','0886','0887','0888','0889'].includes(prefix)) return "Smartfren"; return "Acak"; }
 
-// PENGGANTIAN LOGO XL SESUAI PERMINTAAN
 function getOperatorLogo(id) { 
     const i = String(id).toLowerCase(); 
     if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; 
@@ -227,7 +226,7 @@ window.toggleFavorite = function(id, event) {
     localStorage.setItem('hero_favorite_services', JSON.stringify(favoriteServices)); filterServices(); 
 }
 
-// LOGIKA PEMUATAN PRODUK (DIKEMBALIKAN KE MODE BERSIH TANPA STOK)
+// LOGIKA PEMUATAN PRODUK DENGAN PEMETAAN HARGA XL -> AXIS
 async function loadProducts(serviceId) {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
@@ -239,15 +238,14 @@ async function loadProducts(serviceId) {
 
         if (productsRes.success && productsRes.data.length > 0) {
             let opsList = productsRes.data; 
-            
             let anyOp = opsList.find(o => o.id === 'any') || { id: 'any', price: opsList[0]?.price || 0 };
             
-            // PAKSA MENAMPILKAN SEMUA OPERATOR UTAMA TERMASUK XL
             const standardOps = ['telkomsel', 'indosat', 'xl', 'axis', 'three', 'smartfren'];
             
             let specificOps = standardOps.map(opId => {
-                let found = opsList.find(o => o.id === opId);
-                // Kembalikan ke mode normal tanpa mempedulikan data stok (available)
+                // PERBAIKAN: Jika yang diminta XL, cari harga di kolam Axis
+                let apiOpId = (opId === 'xl') ? 'axis' : opId;
+                let found = opsList.find(o => o.id === apiOpId);
                 return { id: opId, price: found ? found.price : anyOp.price }; 
             });
             
@@ -276,13 +274,9 @@ async function loadProducts(serviceId) {
                 card.className = "product-card"; 
                 card.id = `op-card-${opCode}`;
                 
-                if (selectedProductId === String(opCode)) {
-                    card.classList.add('selected');
-                }
+                if (selectedProductId === String(opCode)) { card.classList.add('selected'); }
                 
                 let logoImg = getOperatorLogo(opCode); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
-                
-                // KEMBALI KE TAMPILAN NORMAL (Hanya harga)
                 card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
                 
                 card.onclick = () => { 
@@ -293,14 +287,12 @@ async function loadProducts(serviceId) {
                     localStorage.setItem('hero_selected_operator', selectedProductId); 
                     if (btnOrder) btnOrder.disabled = false; 
                 };
-                
                 if (productList) productList.appendChild(card);
             });
         } else { if (productList) productList.innerHTML = '<div class="status-text-mini">Stok sedang kosong.</div>'; }
     } catch (error) { if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error muat data.</div>`; }
 }
 
-// LOGIKA TOMBOL ACAK DIKEMBALIKAN SEPERTI SEMULA
 window.toggleRandomOperator = function() {
     const chk = document.getElementById('chkRandomOp');
     if (chk.checked) { 
@@ -319,10 +311,14 @@ window.toggleRandomOperator = function() {
     if (btn) btn.disabled = false;
 }
 
+// LOGIKA PENGIRIMAN PESANAN DENGAN PEMETAAN XL -> AXIS
 async function processOrderFreshNumber(operatorId, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas.", "error"); return null; }
     
-    const res = await apiCall('/orders/create', 'POST', { operator: operatorId, service: currentServiceId });
+    // PERBAIKAN: Secara diam-diam mengirimkan 'axis' ke server jika pengguna memilih 'xl'
+    let apiOperatorId = (operatorId === 'xl') ? 'axis' : operatorId;
+    
+    const res = await apiCall('/orders/create', 'POST', { operator: apiOperatorId, service: currentServiceId });
     
     if (res.success && res.data && res.data.orders && res.data.orders.length > 0) {
         const o = res.data.orders[0]; const rawPhone = String(o.phone_number); const phoneStr = normalizePhone(rawPhone);
@@ -353,6 +349,7 @@ window.onOrderButtonClicked = async function() {
             const opInfo = availableProducts.find(p => String(p.id) === String(selectedProductId)); 
             const opPrice = o.price || (opInfo ? opInfo.price : 0);
             
+            // Catat sebagai XL meskipun yang diminta ke server adalah Axis
             activeOrders.unshift({ 
                 id: o.id, 
                 productId: selectedProductId, 
