@@ -162,9 +162,6 @@ async function fetchBalance() {
     } 
 }
 
-// ========================================================
-// SISTEM PEMILIHAN LAYANAN (MODAL SEARCH + FAVORIT)
-// ========================================================
 async function loadServices() {
     const btnSvc = document.getElementById('btnServiceSelect');
     if (!btnSvc) return;
@@ -474,16 +471,14 @@ function renderOrders() {
     if (activeCount) activeCount.innerText = activeOrders.length;
     if (activeOrders.length === 0) { 
         if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text-mini">Belum ada pesanan aktif.</div>'; 
-        isDroplistOpen = false; // Reset state
+        isDroplistOpen = false; 
         return; 
     }
     
     if (activeOrdersContainer) activeOrdersContainer.innerHTML = "";
     
-    // 1. Tampilkan pesanan paling baru (teratas) di luar droplist
     activeOrdersContainer.appendChild(createOrderCard(activeOrders[0]));
 
-    // 2. Jika ada lebih dari 1 pesanan, bungkus sisanya di dalam Droplist
     if (activeOrders.length > 1) {
         const oldOrdersCount = activeOrders.length - 1;
         
@@ -499,15 +494,31 @@ function renderOrders() {
         const content = document.createElement("div");
         content.className = `old-orders-content ${isDroplistOpen ? 'show' : ''}`;
         
-        // Tombol Ekstra: Batalkan Semua
         const btnCancelAll = document.createElement("button");
         btnCancelAll.className = "btn-cancel-all";
         btnCancelAll.id = "btn-cancel-all-old";
-        btnCancelAll.innerHTML = `<i class="fas fa-trash-alt"></i> Batalkan Semua Pesanan Lama`;
-        btnCancelAll.onclick = cancelAllOldOrders;
+        
+        // PENGATURAN AWAL TOMBOL BATALKAN SEMUA (FILTER > 2 MENIT)
+        let hasCancellableOldOrders = false;
+        const now = Date.now();
+        for(let i=1; i < activeOrders.length; i++) {
+            if (now >= activeOrders[i].cancelUnlockTime) {
+                hasCancellableOldOrders = true; break;
+            }
+        }
+        
+        if (hasCancellableOldOrders) {
+            btnCancelAll.innerHTML = `<i class="fas fa-trash-alt"></i> Batalkan Semua Pesanan Lama`;
+            btnCancelAll.onclick = cancelAllOldOrders;
+        } else {
+            btnCancelAll.innerHTML = `<i class="fas fa-clock"></i> Batalkan Semua (Tunggu 2 Menit)`;
+            btnCancelAll.disabled = true;
+            btnCancelAll.style.opacity = "0.5";
+            btnCancelAll.style.cursor = "not-allowed";
+        }
+
         content.appendChild(btnCancelAll);
 
-        // Render sisa pesanan lama ke dalam konten
         for (let i = 1; i < activeOrders.length; i++) {
             content.appendChild(createOrderCard(activeOrders[i]));
         }
@@ -517,14 +528,21 @@ function renderOrders() {
     }
 }
 
-// FUNGSI SAPU BERSIH MANUAL
+// FUNGSI SAPU BERSIH MANUAL (HANYA YANG SUDAH 2 MENIT)
 window.cancelAllOldOrders = async function() {
     if (activeOrders.length <= 1) return;
+    
+    const now = Date.now();
+    const oldOrders = activeOrders.slice(1).filter(o => now >= o.cancelUnlockTime);
+    
+    if (oldOrders.length === 0) {
+        showToast("Belum ada pesanan lama yang melewati 2 menit.", "warning");
+        return;
+    }
     
     const btnAll = document.getElementById("btn-cancel-all-old");
     if(btnAll) { btnAll.disabled = true; btnAll.innerHTML = '<div class="loader" style="border-top-color:var(--danger-color);"></div>'; }
     
-    const oldOrders = activeOrders.slice(1);
     showToast(`Membatalkan ${oldOrders.length} pesanan lama...`, "warning");
     
     let cancelledCount = 0;
@@ -539,7 +557,6 @@ window.cancelAllOldOrders = async function() {
                 recordStat('failed');
                 activeOrders = activeOrders.filter(o => String(o.id) !== String(order.id));
                 
-                // Matikan Webhook untuk nomor ini
                 if (activeWebhookListeners[order.id]) {
                     db.ref(`hero_sms_webhooks/${order.id}`).off();
                     db.ref(`hero_sms_webhooks/${order.id}`).remove();
@@ -600,6 +617,9 @@ function startPollingAndTimer() {
                 apiCall('/orders/cancel', 'POST', { id: bo.id }).then(res => { hiddenBadOrders.splice(j, 1); localStorage.setItem(`hero_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders)); }).catch(e => { bo.isCanceling = false; });
             }
         }
+        
+        let hasCancellableOldOrders = false;
+        
         activeOrders.forEach((o, i) => {
             const left = o.expiresAt - now; const el = document.getElementById(`timer-${o.id}`);
             if (left <= 0) { activeOrders.splice(i, 1); saveToStorage(); fetchBalance(); return; }
@@ -607,12 +627,47 @@ function startPollingAndTimer() {
             
             if (left <= 600000 && o.status !== "OTP_RECEIVED" && !o.isAutoCanceling && !o.disableAutoCancel) { o.isAutoCanceling = true; cancelSpecificOrder(o.id, true); }
             
-            const wait = o.cancelUnlockTime - now; const btnCancel = document.getElementById(`btn-cancel-${o.id}`); const btnReplace = document.getElementById(`btn-replace-${o.id}`); const btnResend = document.getElementById(`btn-resend-${o.id}`); 
+            const wait = o.cancelUnlockTime - now; 
+            const btnCancel = document.getElementById(`btn-cancel-${o.id}`); const btnReplace = document.getElementById(`btn-replace-${o.id}`); const btnResend = document.getElementById(`btn-resend-${o.id}`); 
+            
             if (o.status !== "OTP_RECEIVED" && !o.isAutoCanceling) {
-                if (wait <= 0) { if (btnCancel && btnCancel.disabled) btnCancel.disabled = false; if (btnReplace && btnReplace.disabled && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false; if (btnResend && !btnResend.disabled) btnResend.disabled = true; } 
-                else { if (btnCancel && !btnCancel.disabled) btnCancel.disabled = true; if (btnReplace && !btnReplace.disabled) btnReplace.disabled = true; if (btnResend && !btnResend.disabled) btnResend.disabled = true; }
+                if (wait <= 0) { 
+                    if (btnCancel && btnCancel.disabled) btnCancel.disabled = false; 
+                    if (btnReplace && btnReplace.disabled && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false; 
+                    if (btnResend && !btnResend.disabled) btnResend.disabled = true; 
+                    
+                    // Jika pesanan ini lama (index > 0) dan sudah lewat 2 menit, tandai True
+                    if (i > 0) hasCancellableOldOrders = true;
+                } else { 
+                    if (btnCancel && !btnCancel.disabled) btnCancel.disabled = true; 
+                    if (btnReplace && !btnReplace.disabled) btnReplace.disabled = true; 
+                    if (btnResend && !btnResend.disabled) btnResend.disabled = true; 
+                }
             }
         });
+        
+        // UPDATE OTOMATIS STATUS TOMBOL "BATALKAN SEMUA" TANPA HARUS RENDER ULANG
+        const btnCancelAll = document.getElementById("btn-cancel-all-old");
+        if (btnCancelAll && !btnCancelAll.innerHTML.includes('loader')) {
+            if (hasCancellableOldOrders) {
+                if(btnCancelAll.disabled) {
+                    btnCancelAll.innerHTML = `<i class="fas fa-trash-alt"></i> Batalkan Semua Pesanan Lama`;
+                    btnCancelAll.disabled = false;
+                    btnCancelAll.style.opacity = "1";
+                    btnCancelAll.style.cursor = "pointer";
+                    btnCancelAll.onclick = cancelAllOldOrders;
+                }
+            } else {
+                if(!btnCancelAll.disabled) {
+                    btnCancelAll.innerHTML = `<i class="fas fa-clock"></i> Batalkan Semua (Tunggu 2 Menit)`;
+                    btnCancelAll.disabled = true;
+                    btnCancelAll.style.opacity = "0.5";
+                    btnCancelAll.style.cursor = "not-allowed";
+                    btnCancelAll.onclick = null;
+                }
+            }
+        }
+        
         manageFirebaseListeners(); 
     }, 1000);
 }
@@ -641,20 +696,23 @@ window.cancelSpecificOrder = async function(id, auto = false) {
                 saveToStorage(); fetchBalance(); 
                 if (activeOrders.length <= 1) isDroplistOpen = false;
                 if(auto) showToast("Otomatis dibatalkan", "error"); else showToast("Pesanan dibatalkan", "success");
+                renderOrders(); // Refresh tampilan droplist
             });
         } else { showToast("Gagal dibatalkan.", "error"); if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } } 
     } catch (e) { if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
 };
 
 // ========================================================
-// FUNGSI SELESAI + SAPU BERSIH OTOMATIS
+// FUNGSI SELESAI + SAPU BERSIH OTOMATIS (HANYA > 2 MENIT)
 // ========================================================
 window.finishSpecificOrder = async function(id) {
     const btnFinish = document.getElementById(`btn-finish-${id}`); 
     if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
     
+    const now = Date.now();
     const isNewest = (activeOrders.length > 0 && String(activeOrders[0].id) === String(id));
-    const oldOrdersToCancel = isNewest ? activeOrders.slice(1) : [];
+    // HANYA AMBIL PESANAN LAMA YANG SUDAH > 2 MENIT UNTUK DIHAPUS OTOMATIS
+    const oldOrdersToCancel = isNewest ? activeOrders.slice(1).filter(o => now >= o.cancelUnlockTime) : [];
     
     const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
     if (oldOrder) saveToHistory(oldOrder, "SUKSES");
@@ -687,7 +745,10 @@ window.finishSpecificOrder = async function(id) {
             }
             saveToStorage();
             fetchBalance();
-            isDroplistOpen = false;
+            if (activeOrders.length <= 1) isDroplistOpen = false;
+            renderOrders();
+        } else {
+            if (activeOrders.length <= 1) isDroplistOpen = false;
             renderOrders();
         }
     });
@@ -730,10 +791,10 @@ window.replaceSpecificOrder = async function(orderId) {
                     const expiresAtMs = n.expires_at ? new Date(n.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
                     activeOrders.unshift({ id: n.id, productId: opToUse, phone: n.phone_number || n.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
                     
-                    isDroplistOpen = false; // PASTIKAN DROPLIST TERTUTUP
+                    isDroplistOpen = false; // PASTIKAN DROPLIST TERTUTUP SAAT DIGANTI
                     
                     saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(n.phone_number || n.phone); showToast("Nomor diganti!");
-                } else { saveToStorage(); fetchBalance(); }
+                } else { saveToStorage(); fetchBalance(); renderOrders(); }
             });
         } else { showToast("Gagal batal lama.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
     } catch (e) { showToast("Error Jaringan.", "error"); if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } }
