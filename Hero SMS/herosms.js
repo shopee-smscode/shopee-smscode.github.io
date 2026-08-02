@@ -12,6 +12,7 @@ let currentServiceId = null; let selectedProductId = 'any';
 let timerInterval = null; let orderHistory = [];
 let activeWebhookListeners = {}; 
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
+let isDroplistOpen = false; // Status buka/tutup droplist
 
 let favoriteServices = JSON.parse(localStorage.getItem('hero_favorite_services')) || ["ka"];
 
@@ -408,6 +409,12 @@ window.onOrderButtonClicked = async function() {
             fetchBalance(); 
             copyToClipboard(o.phone_number); 
             window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            // JIKA DROPLIST TERTUTUP, OTOMATIS BUKA SAAT PESAN BARU AGAR BISA DIPANTAU
+            if (activeOrders.length > 1 && !isDroplistOpen) {
+                isDroplistOpen = true;
+                renderOrders();
+            }
         }
     } catch (e) { 
         showToast("Terjadi kesalahan teknis.", "error"); 
@@ -417,45 +424,137 @@ window.onOrderButtonClicked = async function() {
     btn.innerText = originalText;
 };
 
+// ========================================================
+// SISTEM RENDER PESANAN & DROPLIST 
+// ========================================================
+window.toggleDroplist = function() {
+    isDroplistOpen = !isDroplistOpen;
+    renderOrders();
+};
+
+function createOrderCard(order) {
+    const now = Date.now();
+    const card = document.createElement("div"); 
+    card.className = "order-card"; 
+    card.id = `order-card-${order.id}`;
+    
+    const isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
+    let opTag = order.productId;
+    if (opTag === 'any' || !opTag) { opTag = getProviderName(order.phone); } else { opTag = String(opTag).toUpperCase(); }
+    const matchedProduct = availableProducts.find(p => p.id === order.productId);
+    const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || availableProducts[0]?.price || 0);
+    const wait = order.cancelUnlockTime - now; 
+    
+    let otpHtml = isSuccess 
+        ? `<div class="otp-title">KODE OTP</div>
+           <div class="otp-code" style="margin:0 !important; letter-spacing: 4px !important;">${formatOTP(order.otp)}</div>
+           <button class="btn-copy" onclick="copyToClipboard('${order.otp}')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: var(--success-color); color: #000; box-shadow: 0 2px 8px rgba(150,212,0,0.4);"><i class="fas fa-copy"></i></button>` 
+        : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
+        
+    let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
+    
+    if (isSuccess) { 
+        finishBtnAttr = ""; resendBtnAttr = ""; cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled";
+    } else if (wait <= 0 && !order.isAutoCanceling) { 
+        cancelBtnAttr = ""; replaceBtnAttr = ""; resendBtnAttr = "disabled"; 
+    } else if (order.isAutoCanceling) { 
+        cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; 
+    }
+    
+    let headerLogoUrl = getOperatorLogo(opTag); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
+    const left = order.expiresAt - now; let timerColor = "#ffffff"; 
+    if (left <= 12 * 60000) { timerColor = "var(--danger-color)"; } else if (left <= 18 * 60000) { timerColor = "var(--warning-color)"; }
+    
+    card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id} (${opTag})</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
+    return card;
+}
+
 function renderOrders() {
     if (activeCount) activeCount.innerText = activeOrders.length;
-    if (activeOrders.length === 0) { if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text-mini">Belum ada pesanan aktif.</div>'; return; }
+    if (activeOrders.length === 0) { 
+        if (activeOrdersContainer) activeOrdersContainer.innerHTML = '<div class="status-text-mini">Belum ada pesanan aktif.</div>'; 
+        isDroplistOpen = false; // Reset state
+        return; 
+    }
+    
     if (activeOrdersContainer) activeOrdersContainer.innerHTML = "";
-    const now = Date.now();
-    activeOrders.forEach(order => {
-        const card = document.createElement("div"); card.className = "order-card"; card.id = `order-card-${order.id}`;
-        const isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
-        let opTag = order.productId;
-        if (opTag === 'any' || !opTag) { opTag = getProviderName(order.phone); } else { opTag = String(opTag).toUpperCase(); }
-        const matchedProduct = availableProducts.find(p => p.id === order.productId);
-        const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || availableProducts[0]?.price || 0);
-        const wait = order.cancelUnlockTime - now; 
+    
+    // 1. Tampilkan pesanan paling baru (teratas) di luar droplist
+    activeOrdersContainer.appendChild(createOrderCard(activeOrders[0]));
+
+    // 2. Jika ada lebih dari 1 pesanan, bungkus sisanya di dalam Droplist
+    if (activeOrders.length > 1) {
+        const oldOrdersCount = activeOrders.length - 1;
         
-        // PENGATURAN TOMBOL COPY OTP AGAR SEJAJAR MENGGUNAKAN POSITION ABSOLUTE
-        let otpHtml = isSuccess 
-            ? `<div class="otp-title">KODE OTP</div>
-               <div class="otp-code" style="margin:0 !important; letter-spacing: 4px !important;">${formatOTP(order.otp)}</div>
-               <button class="btn-copy" onclick="copyToClipboard('${order.otp}')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: var(--success-color); color: #000; box-shadow: 0 2px 8px rgba(150,212,0,0.4);"><i class="fas fa-copy"></i></button>` 
-            : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
-            
-        let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
+        const wrapper = document.createElement("div");
+        wrapper.className = "old-orders-wrapper";
         
-        if (isSuccess) { 
-            finishBtnAttr = ""; resendBtnAttr = ""; cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled";
-        } else if (wait <= 0 && !order.isAutoCanceling) { 
-            cancelBtnAttr = ""; replaceBtnAttr = ""; resendBtnAttr = "disabled"; 
-        } else if (order.isAutoCanceling) { 
-            cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; 
+        const btnToggle = document.createElement("button");
+        btnToggle.className = `btn-droplist ${isDroplistOpen ? 'open' : ''}`;
+        btnToggle.innerHTML = `<span><i class="fas fa-history"></i> Lihat ${oldOrdersCount} Pesanan Lama</span> <i class="fas fa-chevron-${isDroplistOpen ? 'up' : 'down'}"></i>`;
+        btnToggle.onclick = toggleDroplist;
+        wrapper.appendChild(btnToggle);
+
+        const content = document.createElement("div");
+        content.className = `old-orders-content ${isDroplistOpen ? 'show' : ''}`;
+        
+        // Tombol Ekstra: Batalkan Semua
+        const btnCancelAll = document.createElement("button");
+        btnCancelAll.className = "btn-cancel-all";
+        btnCancelAll.id = "btn-cancel-all-old";
+        btnCancelAll.innerHTML = `<i class="fas fa-trash-alt"></i> Batalkan Semua Pesanan Lama`;
+        btnCancelAll.onclick = cancelAllOldOrders;
+        content.appendChild(btnCancelAll);
+
+        // Render sisa pesanan lama ke dalam konten
+        for (let i = 1; i < activeOrders.length; i++) {
+            content.appendChild(createOrderCard(activeOrders[i]));
         }
-        
-        let headerLogoUrl = getOperatorLogo(opTag); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
-        const left = order.expiresAt - now; let timerColor = "#ffffff"; 
-        if (left <= 12 * 60000) { timerColor = "var(--danger-color)"; } else if (left <= 18 * 60000) { timerColor = "var(--warning-color)"; }
-        
-        card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id} (${opTag})</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
-        if (activeOrdersContainer) activeOrdersContainer.appendChild(card);
-    });
+
+        wrapper.appendChild(content);
+        activeOrdersContainer.appendChild(wrapper);
+    }
 }
+
+// FUNGSI SAPU BERSIH MANUAL
+window.cancelAllOldOrders = async function() {
+    if (activeOrders.length <= 1) return;
+    
+    const btnAll = document.getElementById("btn-cancel-all-old");
+    if(btnAll) { btnAll.disabled = true; btnAll.innerHTML = '<div class="loader" style="border-top-color:var(--danger-color);"></div>'; }
+    
+    const oldOrders = activeOrders.slice(1);
+    showToast(`Membatalkan ${oldOrders.length} pesanan lama...`, "warning");
+    
+    let cancelledCount = 0;
+    for (const order of oldOrders) {
+        const btn = document.getElementById(`btn-cancel-${order.id}`);
+        if(btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
+        
+        try {
+            const res = await apiCall('/orders/cancel', 'POST', { id: parseInt(order.id) });
+            if (res.success || (res.error && res.error.code === 'NOT_FOUND')) {
+                saveToHistory(order, "BATAL");
+                recordStat('failed');
+                activeOrders = activeOrders.filter(o => String(o.id) !== String(order.id));
+                
+                // Matikan Webhook untuk nomor ini
+                if (activeWebhookListeners[order.id]) {
+                    db.ref(`hero_sms_webhooks/${order.id}`).off();
+                    db.ref(`hero_sms_webhooks/${order.id}`).remove();
+                    delete activeWebhookListeners[order.id];
+                }
+                cancelledCount++;
+            }
+        } catch(e) {}
+    }
+    
+    saveToStorage();
+    fetchBalance();
+    if (cancelledCount > 0) showToast(`${cancelledCount} pesanan lama dibatalkan.`, "success");
+    if (activeOrders.length <= 1) isDroplistOpen = false;
+    renderOrders();
+};
 
 function manageFirebaseListeners() {
     activeOrders.forEach(o => {
@@ -531,7 +630,7 @@ window.cancelSpecificOrder = async function(id, auto = false) {
     const btnCancel = document.getElementById(`btn-cancel-${id}`); 
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
     try { 
-        const res = await apiCall('/orders/cancel', 'POST', { id: id }); 
+        const res = await apiCall('/orders/cancel', 'POST', { id: parseInt(id) }); 
         if (res.success || (res.error && res.error.code === 'NOT_FOUND')) { 
             const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
             if (oldOrder) saveToHistory(oldOrder, "BATAL");
@@ -539,27 +638,67 @@ window.cancelSpecificOrder = async function(id, auto = false) {
             removeOrderWithAnimation(id, () => {
                 activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); 
                 saveToStorage(); fetchBalance(); 
+                if (activeOrders.length <= 1) isDroplistOpen = false;
                 if(auto) showToast("Otomatis dibatalkan", "error"); else showToast("Pesanan dibatalkan", "success");
             });
         } else { showToast("Gagal dibatalkan.", "error"); if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } } 
     } catch (e) { if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
 };
 
+// ========================================================
+// FUNGSI SELESAI + SAPU BERSIH OTOMATIS
+// ========================================================
 window.finishSpecificOrder = async function(id) {
     const btnFinish = document.getElementById(`btn-finish-${id}`); 
     if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
+    
+    // Cek apakah pesanan yang diselesaikan adalah pesanan terbaru (paling atas)
+    const isNewest = (activeOrders.length > 0 && String(activeOrders[0].id) === String(id));
+    const oldOrdersToCancel = isNewest ? activeOrders.slice(1) : [];
+    
     const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
     if (oldOrder) saveToHistory(oldOrder, "SUKSES");
-    if (appSettings.autoCopy) { copyToClipboard(appSettings.password); } recordStat('success');
-    try { await apiCall('/orders/finish', 'POST', { id: id }); } catch (e) {} 
-    removeOrderWithAnimation(id, () => { activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); saveToStorage(); fetchBalance(); });
+    if (appSettings.autoCopy) { copyToClipboard(appSettings.password); } 
+    recordStat('success');
+    
+    try { await apiCall('/orders/finish', 'POST', { id: parseInt(id) }); } catch (e) {} 
+    
+    removeOrderWithAnimation(id, async () => { 
+        activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); 
+        saveToStorage(); 
+        fetchBalance(); 
+        
+        // JIKA PESANAN TERBARU SELESAI, SAPU BERSIH SEMUA PESANAN LAMA OTOMATIS
+        if (isNewest && oldOrdersToCancel.length > 0) {
+            showToast(`Menyapu ${oldOrdersToCancel.length} pesanan lama otomatis...`, "warning");
+            for (let o of oldOrdersToCancel) {
+                try { 
+                    const res = await apiCall('/orders/cancel', 'POST', { id: parseInt(o.id) }); 
+                    if (res.success || (res.error && res.error.code === 'NOT_FOUND')) {
+                        saveToHistory(o, "BATAL");
+                        recordStat('failed');
+                        activeOrders = activeOrders.filter(x => String(x.id) !== String(o.id));
+                        if (activeWebhookListeners[o.id]) {
+                            db.ref(`hero_sms_webhooks/${o.id}`).off();
+                            db.ref(`hero_sms_webhooks/${o.id}`).remove();
+                            delete activeWebhookListeners[o.id];
+                        }
+                    }
+                } catch(e){}
+            }
+            saveToStorage();
+            fetchBalance();
+            isDroplistOpen = false;
+            renderOrders();
+        }
+    });
 };
 
 window.resendSpecificOrder = async function(orderId) {
     const idStr = String(orderId); const btn = document.getElementById(`btn-resend-${idStr}`); 
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
-        const res = await apiCall('/orders/resend', 'POST', { id: idStr });
+        const res = await apiCall('/orders/resend', 'POST', { id: parseInt(orderId) });
         if (res.success) { 
             showToast("Meminta kode baru..."); 
             db.ref(`hero_sms_webhooks/${idStr}`).remove(); 
@@ -581,7 +720,7 @@ window.replaceSpecificOrder = async function(orderId) {
     const btn = document.getElementById(`btn-replace-${orderId}`); const oldOrder = activeOrders.find(o => String(o.id) === String(orderId)); const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
     if (!opToUse) return showToast("Pilih operator/server.", "error"); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     try {
-        const c = await apiCall('/orders/cancel', 'POST', { id: orderId });
+        const c = await apiCall('/orders/cancel', 'POST', { id: parseInt(orderId) });
         if (c.success || (c.error && c.error.code === 'NOT_FOUND')) {
             if (oldOrder) saveToHistory(oldOrder, "GANTI"); recordStat('failed');
             removeOrderWithAnimation(orderId, async () => {
