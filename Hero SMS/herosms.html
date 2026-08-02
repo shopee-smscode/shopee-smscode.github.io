@@ -8,7 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
-    <link rel="stylesheet" href="herosms.css?v=32"> 
+    <link rel="stylesheet" href="herosms.css?v=33"> 
     
     <script>
         (function() {
@@ -78,7 +78,8 @@
         </div>
 
         <div style="margin-top: 24px;">
-            <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 12px;">
+            <!-- LAYANAN, OPERATOR, DAN REFRESH SEJAJAR -->
+            <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-bottom: 12px;">
                 <div style="flex: 1; text-align: left;">
                     <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; padding-left: 4px;">Layanan</label>
                     <button id="btnServiceSelect" onclick="openServiceModal()" class="form-input" style="text-align: left; font-weight: 800; font-size: 13px; padding: 10px 12px; border-radius: 10px; background-color: var(--bg-card); cursor: pointer; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); color: var(--primary-color); height: 36px; margin: 0;">
@@ -87,11 +88,17 @@
                     </button>
                 </div>
                 
-                <div>
-                    <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; padding-left: 4px;">Operator</label>
-                    <label style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--primary-color); cursor: pointer; background: var(--bg-card); padding: 0 12px; border-radius: 10px; border: 1px solid var(--border-color); flex-shrink: 0; height: 36px; margin: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
-                        <input type="checkbox" id="chkRandomOp" onchange="toggleRandomOperator()" checked style="accent-color: var(--primary-color);"> Acak 
-                    </label>
+                <div style="display: flex; gap: 8px;">
+                    <div>
+                        <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; text-align: center;">Operator</label>
+                        <label style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--primary-color); cursor: pointer; background: var(--bg-card); padding: 0 10px; border-radius: 10px; border: 1px solid var(--border-color); flex-shrink: 0; height: 36px; margin: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
+                            <input type="checkbox" id="chkRandomOp" onchange="toggleRandomOperator()" checked style="accent-color: var(--primary-color);"> Acak 
+                        </label>
+                    </div>
+                    <div>
+                        <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; text-align: center;">Stok</label>
+                        <button id="btnRefreshStock" onclick="refreshStock()" style="height: 36px; width: 36px; border-radius: 10px; background: var(--bg-card); color: var(--primary-color); border: 1px solid var(--border-color); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: 0.2s;"><i class="fas fa-sync-alt"></i></button>
+                    </div>
                 </div>
             </div>
 
@@ -104,6 +111,7 @@
         </div>
     </div>
 
+    <!-- MODAL PILIH LAYANAN -->
     <div id="serviceModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -119,6 +127,7 @@
         </div>
     </div>
 
+    <!-- MODAL GANTI AKUN -->
     <div id="accountModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -131,6 +140,7 @@
         </div>
     </div>
 
+    <!-- MODAL CATATAN -->
     <div id="iframeNoteModal" class="modal hidden">
         <div class="modal-content" style="max-height: 95vh; display: flex; flex-direction: column; padding: 10px; width: 95%; max-width: 450px;">
             <div class="modal-header" style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: none;">
@@ -143,6 +153,7 @@
         </div>
     </div>
 
+    <!-- MODAL SETTINGS -->
     <div id="settingsModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -164,6 +175,7 @@
         </div>
     </div>
 
+    <!-- MODAL STATISTIK -->
     <div id="statsModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -184,6 +196,7 @@
         </div>
     </div>
 
+    <!-- MODAL BLACKLIST -->
     <div id="blacklistModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -199,6 +212,7 @@
         </div>
     </div>
 
+    <!-- MODAL HISTORY -->
     <div id="historyModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -212,6 +226,7 @@
         </div>
     </div>
 
+    <!-- MODAL KELUAR -->
     <div id="exitModal" class="modal hidden">
         <div class="modal-content">
             <h3 class="modal-title">Keluar Aplikasi?</h3>
@@ -225,6 +240,6 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <script src="herosms.js?v=32"></script>
+    <script src="herosms.js?v=33"></script>
 </body>
 </html>
