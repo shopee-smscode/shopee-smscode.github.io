@@ -63,12 +63,12 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 #activeOrdersContainer { margin-bottom: 2px; min-height: 10px; }
 .status-text-mini { font-size: 12px; padding: 4px; font-weight: 600; color: var(--text-secondary); text-align: center;}
 
-/* DROPLIST STYLING UNTUK PESANAN LAMA */
-.old-orders-wrapper { margin-top: 12px; border-top: 2px dashed var(--border-color); padding-top: 12px; }
-.btn-droplist { width: 100%; background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border-color); padding: 10px 15px; border-radius: 12px; font-size: 13px; font-weight: 800; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+/* DROPLIST STYLING UNTUK PESANAN LAMA (SUDAH DIBERI JARAK LEGA) */
+.old-orders-wrapper { margin-top: 18px; border-top: 2px dashed var(--border-color); padding-top: 18px; margin-bottom: 12px; }
+.btn-droplist { width: 100%; background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border-color); padding: 12px 15px; border-radius: 12px; font-size: 13px; font-weight: 800; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
 .btn-droplist.open { color: var(--primary-color); border-color: var(--primary-color); background: var(--bg-body); }
 .btn-droplist:active { transform: scale(0.98); }
-.old-orders-content { display: none; margin-top: 12px; }
+.old-orders-content { display: none; margin-top: 14px; }
 .old-orders-content.show { display: block; animation: fadeIn 0.3s ease; }
 .btn-cancel-all { width: 100%; background: rgba(231, 76, 60, 0.1); color: var(--danger-color); border: 1px dashed var(--danger-color); padding: 10px; border-radius: 12px; font-size: 12px; font-weight: 800; cursor: pointer; margin-bottom: 12px; transition: 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px;}
 .btn-cancel-all:active { transform: scale(0.98); }
