@@ -136,7 +136,7 @@ window.closeStatsModal = function() { document.getElementById('statsModal').clas
 function loadStatsData() {
     const selectedDate = document.getElementById('statDate').value; const sSuccess = document.getElementById('statSuccess'); const sFailed = document.getElementById('statFailed');
     if(sSuccess) sSuccess.innerText = "..."; if(sFailed) sFailed.innerText = "...";
-    db.ref(`stats/hero_sms/${selectedDate}`).once('value', snap => { const data = snap.val(); if(sSuccess) sSuccess.innerText = data?.success || 0; if(sFailed) sFailed.innerText = data?.failed || 0; });
+    db.ref(`stats/hero_sms/${selectedDate}`).once('value', snap => { const data = val(); if(sSuccess) sSuccess.innerText = data?.success || 0; if(sFailed) sFailed.innerText = data?.failed || 0; });
 }
 document.getElementById('statDate').addEventListener('change', loadStatsData);
 
@@ -391,7 +391,8 @@ window.onOrderButtonClicked = async function() {
         const o = await processOrderFreshNumber(selectedProductId, 5); 
         if (o) {
             const opInfo = availableProducts.find(p => String(p.id) === String(selectedProductId)); 
-            const opPrice = o.price || o.cost || o.amount || (opInfo ? opInfo.price : 0);
+            const opPrice = o.price || (opInfo ? opInfo.price : 0); // HARGA ASLI DARI SERVER
+            
             activeOrders.unshift({ 
                 id: o.id, 
                 productId: selectedProductId, 
@@ -405,7 +406,6 @@ window.onOrderButtonClicked = async function() {
                 disableAutoCancel: false
             });
             
-            // PASTIKAN DROPLIST SELALU TERTUTUP SAAT PESANAN BARU MASUK
             isDroplistOpen = false;
             
             saveToStorage(); 
@@ -422,9 +422,6 @@ window.onOrderButtonClicked = async function() {
     btn.innerText = originalText;
 };
 
-// ========================================================
-// SISTEM RENDER PESANAN & DROPLIST 
-// ========================================================
 window.toggleDroplist = function() {
     isDroplistOpen = !isDroplistOpen;
     renderOrders();
@@ -440,7 +437,10 @@ function createOrderCard(order) {
     let opTag = order.productId;
     if (opTag === 'any' || !opTag) { opTag = getProviderName(order.phone); } else { opTag = String(opTag).toUpperCase(); }
     const matchedProduct = availableProducts.find(p => p.id === order.productId);
-    const displayPrice = (order.price && order.price != 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || availableProducts[0]?.price || 0);
+    
+    // GUNAKAN HARGA ASLI DARI SERVER
+    const displayPrice = (order.price && order.price > 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || 0);
+    
     const wait = order.cancelUnlockTime - now; 
     
     let otpHtml = isSuccess 
@@ -498,7 +498,6 @@ function renderOrders() {
         btnCancelAll.className = "btn-cancel-all";
         btnCancelAll.id = "btn-cancel-all-old";
         
-        // PENGATURAN AWAL TOMBOL BATALKAN SEMUA (FILTER > 2 MENIT)
         let hasCancellableOldOrders = false;
         const now = Date.now();
         for(let i=1; i < activeOrders.length; i++) {
@@ -528,7 +527,6 @@ function renderOrders() {
     }
 }
 
-// FUNGSI SAPU BERSIH MANUAL (HANYA YANG SUDAH 2 MENIT)
 window.cancelAllOldOrders = async function() {
     if (activeOrders.length <= 1) return;
     
@@ -636,7 +634,6 @@ function startPollingAndTimer() {
                     if (btnReplace && btnReplace.disabled && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false; 
                     if (btnResend && !btnResend.disabled) btnResend.disabled = true; 
                     
-                    // Jika pesanan ini lama (index > 0) dan sudah lewat 2 menit, tandai True
                     if (i > 0) hasCancellableOldOrders = true;
                 } else { 
                     if (btnCancel && !btnCancel.disabled) btnCancel.disabled = true; 
@@ -646,7 +643,6 @@ function startPollingAndTimer() {
             }
         });
         
-        // UPDATE OTOMATIS STATUS TOMBOL "BATALKAN SEMUA" TANPA HARUS RENDER ULANG
         const btnCancelAll = document.getElementById("btn-cancel-all-old");
         if (btnCancelAll && !btnCancelAll.innerHTML.includes('loader')) {
             if (hasCancellableOldOrders) {
@@ -696,22 +692,18 @@ window.cancelSpecificOrder = async function(id, auto = false) {
                 saveToStorage(); fetchBalance(); 
                 if (activeOrders.length <= 1) isDroplistOpen = false;
                 if(auto) showToast("Otomatis dibatalkan", "error"); else showToast("Pesanan dibatalkan", "success");
-                renderOrders(); // Refresh tampilan droplist
+                renderOrders(); 
             });
         } else { showToast("Gagal dibatalkan.", "error"); if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } } 
     } catch (e) { if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } }
 };
 
-// ========================================================
-// FUNGSI SELESAI + SAPU BERSIH OTOMATIS (HANYA > 2 MENIT)
-// ========================================================
 window.finishSpecificOrder = async function(id) {
     const btnFinish = document.getElementById(`btn-finish-${id}`); 
     if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
     
     const now = Date.now();
     const isNewest = (activeOrders.length > 0 && String(activeOrders[0].id) === String(id));
-    // HANYA AMBIL PESANAN LAMA YANG SUDAH > 2 MENIT UNTUK DIHAPUS OTOMATIS
     const oldOrdersToCancel = isNewest ? activeOrders.slice(1).filter(o => now >= o.cancelUnlockTime) : [];
     
     const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
@@ -787,11 +779,11 @@ window.replaceSpecificOrder = async function(orderId) {
                 activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId));
                 const n = await processOrderFreshNumber(opToUse, 5);
                 if (n) {
-                    const pInfo = availableProducts.find(p => String(p.id) === String(opToUse)); const finalPrice = n.price || n.cost || n.amount || (pInfo ? pInfo.price : 0);
+                    const pInfo = availableProducts.find(p => String(p.id) === String(opToUse)); const finalPrice = n.price || (pInfo ? pInfo.price : 0);
                     const expiresAtMs = n.expires_at ? new Date(n.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
                     activeOrders.unshift({ id: n.id, productId: opToUse, phone: n.phone_number || n.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
                     
-                    isDroplistOpen = false; // PASTIKAN DROPLIST TERTUTUP SAAT DIGANTI
+                    isDroplistOpen = false; 
                     
                     saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(n.phone_number || n.phone); showToast("Nomor diganti!");
                 } else { saveToStorage(); fetchBalance(); renderOrders(); }
