@@ -8,13 +8,13 @@ const db = firebase.database();
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
 let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; 
 let selectedProductId = 'any'; 
-let timerInterval = null; let pollingInterval = null; let orderHistory = [];
+let timerInterval = null; let orderHistory = [];
+let activeWebhookListeners = {}; // Penyimpanan listener Webhook
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); 
 
-// === DROPDOWN & MENU LOGIC ===
 window.toggleAppDropdown = function() {
     document.getElementById("appDropdown").classList.toggle("show");
     document.getElementById("menuDropdown").classList.remove("show");
@@ -40,7 +40,6 @@ window.closeIframeNoteModal = function() {
     document.getElementById('iframeNoteModal').classList.add('hidden');
 }
 
-// === FUNGSI API ===
 async function apiCall(endpoint, method = "GET", body = null) { 
     const options = { method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; 
     if (body) options.body = JSON.stringify(body); 
@@ -264,7 +263,6 @@ window.onOrderButtonClicked = async function() {
         if (o) {
             const opInfo = availableProducts.find(p => String(p.id) === String(selectedProductId)); 
             const opPrice = o.price || o.cost || o.amount || (opInfo ? opInfo.price : 0);
-            // Tambahkan disableAutoCancel: false untuk pesanan baru
             activeOrders.unshift({ 
                 id: o.id, 
                 productId: selectedProductId, 
@@ -323,8 +321,46 @@ function renderOrders() {
     });
 }
 
+// ========================================================
+// SISTEM WEBHOOK (PENGGANTI POLLING API)
+// ========================================================
+function manageFirebaseListeners() {
+    activeOrders.forEach(o => {
+        // Jika OTP belum masuk dan belum ada listener untuk ID ini
+        if (o.status !== "OTP_RECEIVED" && !activeWebhookListeners[o.id]) {
+            activeWebhookListeners[o.id] = true;
+            const ref = db.ref(`hero_sms_webhooks/${o.id}`);
+            
+            // Dengarkan perubahan data (Webhook masuk)
+            ref.on('value', snapshot => {
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    let idx = activeOrders.findIndex(ord => String(ord.id) === String(o.id));
+                    
+                    // Eksekusi kode 0 detik delay
+                    if (idx !== -1 && activeOrders[idx].status !== "OTP_RECEIVED") {
+                        notifSound.play().catch(e=>console.log(e));
+                        activeOrders[idx].status = "OTP_RECEIVED";
+                        activeOrders[idx].otp = data.code; // Menyalin kode dari Webhook
+                        saveToStorage(); 
+                        fetchBalance();
+                        
+                        const phoneStr = normalizePhone(activeOrders[idx].phone);
+                        if (!usedNumbersDB.has(phoneStr)) { 
+                            db.ref('used_numbers/hero_sms').push({ phone: phoneStr, timestamp: Date.now() }); 
+                            usedNumbersDB.add(phoneStr); 
+                        }
+                    }
+                }
+            });
+        }
+    });
+}
+
 function startPollingAndTimer() {
-    if (timerInterval) clearInterval(timerInterval); if (pollingInterval) clearInterval(pollingInterval);
+    if (timerInterval) clearInterval(timerInterval);
+    manageFirebaseListeners(); // Pasang telinga Webhook untuk pesanan yang ada
+
     timerInterval = setInterval(() => {
         const now = Date.now();
         for (let j = hiddenBadOrders.length - 1; j >= 0; j--) {
@@ -339,7 +375,6 @@ function startPollingAndTimer() {
             if (left <= 0) { activeOrders.splice(i, 1); saveToStorage(); fetchBalance(); return; }
             if (el) { const m = Math.floor(left/60000); const s = Math.floor((left%60000)/1000); el.innerText = `${m}:${s<10?'0':''}${s}`; if (left <= 12 * 60000) { el.style.color = "var(--danger-color)"; } else if (left <= 18 * 60000) { el.style.color = "var(--warning-color)"; } else { el.style.color = "#ffffff"; } }
             
-            // JIKA TOMBOL ULANG DITEKAN (!o.disableAutoCancel), BATAL OTOMATIS 10 MENIT DIABAIKAN
             if (left <= 600000 && o.status !== "OTP_RECEIVED" && !o.isAutoCanceling && !o.disableAutoCancel) { o.isAutoCanceling = true; cancelSpecificOrder(o.id, true); }
             
             const wait = o.cancelUnlockTime - now; const btnCancel = document.getElementById(`btn-cancel-${o.id}`); const btnReplace = document.getElementById(`btn-replace-${o.id}`); const btnResend = document.getElementById(`btn-resend-${o.id}`); 
@@ -348,26 +383,20 @@ function startPollingAndTimer() {
                 else { if (btnCancel && !btnCancel.disabled) btnCancel.disabled = true; if (btnReplace && !btnReplace.disabled) btnReplace.disabled = true; if (btnResend && !btnResend.disabled) btnResend.disabled = true; }
             }
         });
+        
+        // Memanggil fungsi untuk berjaga-jaga jika ada pesanan baru yang belum dilisten
+        manageFirebaseListeners(); 
     }, 1000);
-    
-    pollingInterval = setInterval(async () => {
-        if (activeOrders.length === 0) return;
-        for(let i=0; i<activeOrders.length; i++) {
-            let o = activeOrders[i]; if (o.status === "OTP_RECEIVED") continue;
-            try {
-                const res = await apiCall(`/orders/${o.id}`);
-                if (res.success && res.data.status === "OTP_RECEIVED") { 
-                    notifSound.play().catch(e => console.log("Sound error:", e));
-                    activeOrders[i].status = "OTP_RECEIVED"; activeOrders[i].otp = res.data.otp_code; saveToStorage(); fetchBalance();
-                    const phoneStr = normalizePhone(activeOrders[i].phone);
-                    if (!usedNumbersDB.has(phoneStr)) { db.ref('used_numbers/hero_sms').push({ phone: phoneStr, timestamp: Date.now() }); usedNumbersDB.add(phoneStr); }
-                } else if (res.success && res.data.status === "CANCELLED") { activeOrders = activeOrders.filter(ord => String(ord.id) !== String(o.id)); saveToStorage(); fetchBalance(); }
-            } catch(e) {}
-        }
-    }, 10000);
 }
+// ========================================================
 
 function removeOrderWithAnimation(idStr, callback) {
+    // Matikan pendengar Firebase dan hapus data OTP di database jika pesanan ditutup
+    if (activeWebhookListeners[idStr]) {
+        db.ref(`hero_sms_webhooks/${idStr}`).off();
+        db.ref(`hero_sms_webhooks/${idStr}`).remove();
+        delete activeWebhookListeners[idStr];
+    }
     const card = document.getElementById(`order-card-${idStr}`);
     if (card) { card.classList.add('removing'); setTimeout(() => { callback(); }, 300); } else { callback(); }
 }
@@ -406,12 +435,16 @@ window.resendSpecificOrder = async function(orderId) {
     try {
         const res = await apiCall('/orders/resend', 'POST', { id: idStr });
         if (res.success) { 
-            showToast("Meminta kode baru..."); let idx = activeOrders.findIndex(o => String(o.id) === idStr);
+            showToast("Meminta kode baru..."); 
+            
+            // HAPUS DATA WEBHOOK LAMA DI FIREBASE AGAR SIAP MENERIMA SMS BARU
+            db.ref(`hero_sms_webhooks/${idStr}`).remove(); 
+            
+            let idx = activeOrders.findIndex(o => String(o.id) === idStr);
             if (idx !== -1) { 
                 saveToHistory(activeOrders[idx], "MINTA ULANG"); 
                 activeOrders[idx].status = "ACTIVE"; 
                 activeOrders[idx].otp = null; 
-                // BENDERA AKTIF: Batal Otomatis 10 Menit Dinonaktifkan untuk pesanan ini
                 activeOrders[idx].disableAutoCancel = true;
                 saveToStorage(); 
             }
