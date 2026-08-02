@@ -63,7 +63,6 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 #activeOrdersContainer { margin-bottom: 2px; min-height: 10px; }
 .status-text-mini { font-size: 12px; padding: 4px; font-weight: 600; color: var(--text-secondary); text-align: center;}
 
-/* DROPLIST STYLING UNTUK PESANAN LAMA (SUDAH DIBERI JARAK LEGA) */
 .old-orders-wrapper { margin-top: 18px; border-top: 2px dashed var(--border-color); padding-top: 18px; margin-bottom: 12px; }
 .btn-droplist { width: 100%; background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border-color); padding: 12px 15px; border-radius: 12px; font-size: 13px; font-weight: 800; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
 .btn-droplist.open { color: var(--primary-color); border-color: var(--primary-color); background: var(--bg-body); }
@@ -71,7 +70,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .old-orders-content { display: none; margin-top: 14px; }
 .old-orders-content.show { display: block; animation: fadeIn 0.3s ease; }
 .btn-cancel-all { width: 100%; background: rgba(231, 76, 60, 0.1); color: var(--danger-color); border: 1px dashed var(--danger-color); padding: 10px; border-radius: 12px; font-size: 12px; font-weight: 800; cursor: pointer; margin-bottom: 12px; transition: 0.2s; display: flex; justify-content: center; align-items: center; gap: 8px;}
-.btn-cancel-all:active { transform: scale(0.98); }
+.btn-cancel-all:active:not(:disabled) { transform: scale(0.98); }
 
 .order-card { background: var(--bg-body); border: 2px solid var(--primary-color); border-radius: 14px; padding: 10px; margin-bottom: 8px; box-shadow: inset 0 0 15px rgba(0,0,0,0.2); transition: all 0.3s ease-in-out; animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
 .order-card.removing { opacity: 0 !important; transform: scale(0.85) translateY(-20px) !important; margin-bottom: -50px; }
