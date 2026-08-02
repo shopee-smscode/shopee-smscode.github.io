@@ -12,7 +12,7 @@ let currentServiceId = null; let selectedProductId = 'any';
 let timerInterval = null; let orderHistory = [];
 let activeWebhookListeners = {}; 
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
-let isDroplistOpen = false; // Status buka/tutup droplist
+let isDroplistOpen = false; 
 
 let favoriteServices = JSON.parse(localStorage.getItem('hero_favorite_services')) || ["ka"];
 
@@ -162,6 +162,9 @@ async function fetchBalance() {
     } 
 }
 
+// ========================================================
+// SISTEM PEMILIHAN LAYANAN (MODAL SEARCH + FAVORIT)
+// ========================================================
 async function loadServices() {
     const btnSvc = document.getElementById('btnServiceSelect');
     if (!btnSvc) return;
@@ -404,17 +407,15 @@ window.onOrderButtonClicked = async function() {
                 isAutoCanceling: false,
                 disableAutoCancel: false
             });
+            
+            // PASTIKAN DROPLIST SELALU TERTUTUP SAAT PESANAN BARU MASUK
+            isDroplistOpen = false;
+            
             saveToStorage(); 
             startPollingAndTimer(); 
             fetchBalance(); 
             copyToClipboard(o.phone_number); 
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            
-            // JIKA DROPLIST TERTUTUP, OTOMATIS BUKA SAAT PESAN BARU AGAR BISA DIPANTAU
-            if (activeOrders.length > 1 && !isDroplistOpen) {
-                isDroplistOpen = true;
-                renderOrders();
-            }
         }
     } catch (e) { 
         showToast("Terjadi kesalahan teknis.", "error"); 
@@ -652,7 +653,6 @@ window.finishSpecificOrder = async function(id) {
     const btnFinish = document.getElementById(`btn-finish-${id}`); 
     if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
     
-    // Cek apakah pesanan yang diselesaikan adalah pesanan terbaru (paling atas)
     const isNewest = (activeOrders.length > 0 && String(activeOrders[0].id) === String(id));
     const oldOrdersToCancel = isNewest ? activeOrders.slice(1) : [];
     
@@ -668,7 +668,6 @@ window.finishSpecificOrder = async function(id) {
         saveToStorage(); 
         fetchBalance(); 
         
-        // JIKA PESANAN TERBARU SELESAI, SAPU BERSIH SEMUA PESANAN LAMA OTOMATIS
         if (isNewest && oldOrdersToCancel.length > 0) {
             showToast(`Menyapu ${oldOrdersToCancel.length} pesanan lama otomatis...`, "warning");
             for (let o of oldOrdersToCancel) {
@@ -730,6 +729,9 @@ window.replaceSpecificOrder = async function(orderId) {
                     const pInfo = availableProducts.find(p => String(p.id) === String(opToUse)); const finalPrice = n.price || n.cost || n.amount || (pInfo ? pInfo.price : 0);
                     const expiresAtMs = n.expires_at ? new Date(n.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
                     activeOrders.unshift({ id: n.id, productId: opToUse, phone: n.phone_number || n.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
+                    
+                    isDroplistOpen = false; // PASTIKAN DROPLIST TERTUTUP
+                    
                     saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(n.phone_number || n.phone); showToast("Nomor diganti!");
                 } else { saveToStorage(); fetchBalance(); }
             });
