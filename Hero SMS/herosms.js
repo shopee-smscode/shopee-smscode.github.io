@@ -226,7 +226,6 @@ window.toggleFavorite = function(id, event) {
     localStorage.setItem('hero_favorite_services', JSON.stringify(favoriteServices)); filterServices(); 
 }
 
-// LOGIKA PEMUATAN PRODUK DENGAN PEMETAAN HARGA XL -> AXIS
 async function loadProducts(serviceId) {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
@@ -243,7 +242,6 @@ async function loadProducts(serviceId) {
             const standardOps = ['telkomsel', 'indosat', 'xl', 'axis', 'three', 'smartfren'];
             
             let specificOps = standardOps.map(opId => {
-                // PERBAIKAN: Jika yang diminta XL, cari harga di kolam Axis
                 let apiOpId = (opId === 'xl') ? 'axis' : opId;
                 let found = opsList.find(o => o.id === apiOpId);
                 return { id: opId, price: found ? found.price : anyOp.price }; 
@@ -311,14 +309,14 @@ window.toggleRandomOperator = function() {
     if (btn) btn.disabled = false;
 }
 
-// LOGIKA PENGIRIMAN PESANAN DENGAN PEMETAAN XL -> AXIS
-async function processOrderFreshNumber(operatorId, maxRetries = 5) {
+// PERBAIKAN: Menambahkan parameter Service agar aman saat Ganti Nomor
+async function processOrderFreshNumber(operatorId, serviceIdParam, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas.", "error"); return null; }
     
-    // PERBAIKAN: Secara diam-diam mengirimkan 'axis' ke server jika pengguna memilih 'xl'
     let apiOperatorId = (operatorId === 'xl') ? 'axis' : operatorId;
+    const targetSvc = serviceIdParam || currentServiceId;
     
-    const res = await apiCall('/orders/create', 'POST', { operator: apiOperatorId, service: currentServiceId });
+    const res = await apiCall('/orders/create', 'POST', { operator: apiOperatorId, service: targetSvc });
     
     if (res.success && res.data && res.data.orders && res.data.orders.length > 0) {
         const o = res.data.orders[0]; const rawPhone = String(o.phone_number); const phoneStr = normalizePhone(rawPhone);
@@ -326,7 +324,7 @@ async function processOrderFreshNumber(operatorId, maxRetries = 5) {
             showToast(`⚠️ Nomor ${rawPhone} bekas. Mencari lagi...`, "warning");
             hiddenBadOrders.push({ id: o.id, cancelAt: Date.now() + (3 * 60 * 1000), isCanceling: false });
             localStorage.setItem(`hero_hidden_bad_orders_${activeAccountName}`, JSON.stringify(hiddenBadOrders));
-            return await processOrderFreshNumber(operatorId, maxRetries - 1);
+            return await processOrderFreshNumber(operatorId, targetSvc, maxRetries - 1);
         } else { return o; }
     } else { 
         showToast(res.error ? res.error.message : "Gagal mendapat nomor API", "error"); 
@@ -344,15 +342,20 @@ window.onOrderButtonClicked = async function() {
     btn.disabled = true; const originalText = btn.innerText; btn.innerText = "Memproses...";
     
     try {
-        const o = await processOrderFreshNumber(selectedProductId, 5); 
+        const o = await processOrderFreshNumber(selectedProductId, currentServiceId, 5); 
         if (o) {
             const opInfo = availableProducts.find(p => String(p.id) === String(selectedProductId)); 
             const opPrice = o.price || (opInfo ? opInfo.price : 0);
             
-            // Catat sebagai XL meskipun yang diminta ke server adalah Axis
+            // PERBAIKAN: Tangkap nama layanan yang sedang dipesan
+            const svcObj = allServices.find(s => String(s.id) === String(currentServiceId));
+            const sName = svcObj ? svcObj.name : "SHOPEE";
+            
             activeOrders.unshift({ 
                 id: o.id, 
                 productId: selectedProductId, 
+                serviceId: currentServiceId,
+                serviceName: sName,
                 phone: o.phone_number, 
                 price: opPrice, 
                 otp: null, 
@@ -375,8 +378,13 @@ window.toggleDroplist = function() { isDroplistOpen = !isDroplistOpen; renderOrd
 function createOrderCard(order) {
     const now = Date.now(); const card = document.createElement("div"); card.className = "order-card"; card.id = `order-card-${order.id}`;
     const isSuccess = (order.status === "OTP_RECEIVED" && order.otp);
+    
     let opTag = order.productId;
     if (opTag === 'any' || !opTag) { opTag = getProviderName(order.phone); } else { opTag = String(opTag).toUpperCase(); }
+    
+    // PERBAIKAN: Menarik nama layanan
+    let srvName = order.serviceName ? String(order.serviceName).toUpperCase() : "SHOPEE";
+    
     const matchedProduct = availableProducts.find(p => p.id === order.productId);
     const displayPrice = (order.price && order.price > 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || 0);
     const wait = order.cancelUnlockTime - now; 
@@ -390,7 +398,9 @@ function createOrderCard(order) {
     
     let headerLogoUrl = getOperatorLogo(opTag); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
     const left = order.expiresAt - now; let timerColor = "#ffffff"; if (left <= 12 * 60000) { timerColor = "var(--danger-color)"; } else if (left <= 18 * 60000) { timerColor = "var(--warning-color)"; }
-    card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#${order.id} (${opTag})</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
+    
+    // PERBAIKAN: Menampilkan Layanan dan Operator di Kotak OTP
+    card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;">#${order.id} (${srvName} • ${opTag})</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
     return card;
 }
 
@@ -564,19 +574,44 @@ window.resendSpecificOrder = async function(orderId) {
 
 window.replaceSpecificOrder = async function(orderId) {
     if (!isUsedNumbersLoaded) { showToast("Sabar, sinkronisasi database...", "warning"); return; }
-    const btn = document.getElementById(`btn-replace-${orderId}`); const oldOrder = activeOrders.find(o => String(o.id) === String(orderId)); const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
-    if (!opToUse) return showToast("Pilih operator/server.", "error"); if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
+    const btn = document.getElementById(`btn-replace-${orderId}`); 
+    const oldOrder = activeOrders.find(o => String(o.id) === String(orderId)); 
+    const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
+    
+    // PERBAIKAN: Gunakan serviceId lama saat ganti nomor
+    const srvIdToUse = oldOrder ? (oldOrder.serviceId || currentServiceId) : currentServiceId;
+    const srvNameToUse = oldOrder ? (oldOrder.serviceName || "SHOPEE") : "SHOPEE";
+    
+    if (!opToUse) return showToast("Pilih operator/server.", "error"); 
+    if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
+    
     try {
         const c = await apiCall('/orders/cancel', 'POST', { id: parseInt(orderId) });
         if (c.success || (c.error && c.error.code === 'NOT_FOUND')) {
             if (oldOrder) saveToHistory(oldOrder, "GANTI"); recordStat('failed');
             removeOrderWithAnimation(orderId, async () => {
                 activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId));
-                const n = await processOrderFreshNumber(opToUse, 5);
+                const n = await processOrderFreshNumber(opToUse, srvIdToUse, 5);
                 if (n) {
-                    const pInfo = availableProducts.find(p => String(p.id) === String(opToUse)); const finalPrice = n.price || (pInfo ? pInfo.price : 0);
+                    const pInfo = availableProducts.find(p => String(p.id) === String(opToUse)); 
+                    const finalPrice = n.price || (pInfo ? pInfo.price : 0);
                     const expiresAtMs = n.expires_at ? new Date(n.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
-                    activeOrders.unshift({ id: n.id, productId: opToUse, phone: n.phone_number || n.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
+                    
+                    activeOrders.unshift({ 
+                        id: n.id, 
+                        productId: opToUse, 
+                        serviceId: srvIdToUse,
+                        serviceName: srvNameToUse,
+                        phone: n.phone_number || n.phone, 
+                        price: finalPrice, 
+                        otp: null, 
+                        status: "ACTIVE", 
+                        expiresAt: expiresAtMs, 
+                        cancelUnlockTime: Date.now() + (120*1000), 
+                        isAutoCanceling: false, 
+                        disableAutoCancel: false 
+                    });
+                    
                     isDroplistOpen = false; 
                     saveToStorage(); startPollingAndTimer(); fetchBalance(); window.scrollTo({ top: 0, behavior: 'smooth' }); copyToClipboard(n.phone_number || n.phone); showToast("Nomor diganti!");
                 } else { saveToStorage(); fetchBalance(); renderOrders(); }
@@ -586,7 +621,26 @@ window.replaceSpecificOrder = async function(orderId) {
 };
 
 function loadHistory() { orderHistory = JSON.parse(localStorage.getItem(`hero_history_${activeAccountName}`)) || []; renderHistory(); }
-function saveToHistory(order, status) { if (!order) return; const historyItem = { id: order.id, phone: order.phone, op: order.productId, price: order.price, otp: order.otp || "-", status: status, date: Date.now() }; orderHistory.unshift(historyItem); if (orderHistory.length > 50) orderHistory.pop(); localStorage.setItem(`hero_history_${activeAccountName}`, JSON.stringify(orderHistory)); renderHistory(); }
+
+// PERBAIKAN: Menambahkan serviceName ke riwayat
+function saveToHistory(order, status) { 
+    if (!order) return; 
+    const historyItem = { 
+        id: order.id, 
+        phone: order.phone, 
+        op: order.productId, 
+        serviceName: order.serviceName || "SHOPEE",
+        price: order.price, 
+        otp: order.otp || "-", 
+        status: status, 
+        date: Date.now() 
+    }; 
+    orderHistory.unshift(historyItem); 
+    if (orderHistory.length > 50) orderHistory.pop(); 
+    localStorage.setItem(`hero_history_${activeAccountName}`, JSON.stringify(orderHistory)); 
+    renderHistory(); 
+}
+
 function renderHistory() {
     const list = document.getElementById('history-list'); if (!list) return;
     if (orderHistory.length === 0) { list.innerHTML = '<div class="status-text-mini" style="text-align:center;">Belum ada riwayat.</div>'; return; } list.innerHTML = "";
@@ -594,8 +648,12 @@ function renderHistory() {
         const card = document.createElement('div'); card.style.background = "var(--bg-card)"; card.style.padding = "10px"; card.style.borderRadius = "10px"; card.style.border = "1px solid var(--border-color)"; card.style.fontSize = "11px";
         let statusColor = "var(--text-secondary)"; let icon = "fa-clock";
         if (item.status === "SUKSES") { statusColor = "var(--success-color)"; icon = "fa-check-circle"; } if (item.status === "BATAL") { statusColor = "var(--danger-color)"; icon = "fa-times-circle"; } if (item.status === "GANTI") { statusColor = "var(--warning-color)"; icon = "fa-sync-alt"; } if (item.status === "MINTA ULANG") { statusColor = "var(--info-color)"; icon = "fa-envelope"; }
-        const opTag = getProviderName(item.phone); const dt = new Date(item.date); const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
-        card.innerHTML = `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><strong style="color: var(--text-primary); font-size: 13px; letter-spacing: 1px;">${formatPhoneNumber(item.phone)} <span style="font-size:9px; font-weight:normal; color:var(--text-secondary);">(${opTag})</span></strong><span style="color: ${statusColor}; font-weight: 800;"><i class="fas ${icon}"></i> ${item.status}</span></div><div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 10px; margin-bottom: ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? '6px' : '0'};"><span>ID: #${item.id}</span><span>${timeStr}</span></div>${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 4px; text-align: center; border-radius: 6px; font-weight: 900; letter-spacing: 2px; font-size: 14px; text-shadow: 0 0 10px rgba(150,212,0,0.3);">${item.otp}</div>` : ''}`;
+        
+        const opTag = getProviderName(item.phone); 
+        const srvName = item.serviceName ? String(item.serviceName).toUpperCase() : "SHOPEE";
+        const dt = new Date(item.date); const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+        
+        card.innerHTML = `<div style="display: flex; justify-content: space-between; margin-bottom: 4px;"><strong style="color: var(--text-primary); font-size: 13px; letter-spacing: 1px;">${formatPhoneNumber(item.phone)} <span style="font-size:9px; font-weight:normal; color:var(--text-secondary);">(${srvName} • ${opTag})</span></strong><span style="color: ${statusColor}; font-weight: 800;"><i class="fas ${icon}"></i> ${item.status}</span></div><div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 10px; margin-bottom: ${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? '6px' : '0'};"><span>ID: #${item.id}</span><span>${timeStr}</span></div>${item.status === 'SUKSES' || item.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 4px; text-align: center; border-radius: 6px; font-weight: 900; letter-spacing: 2px; font-size: 14px; text-shadow: 0 0 10px rgba(150,212,0,0.3);">${item.otp}</div>` : ''}`;
         list.appendChild(card);
     });
 }
