@@ -147,8 +147,8 @@
         .modal.hidden { display: none; }
         .modal-content { background: var(--bg-color); padding: 15px; border-radius: 12px; position: relative; display: flex; flex-direction: column; width: 95%; max-width: 500px; max-height: 90vh; }
         .editor-store-card { background: #fff; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 15px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
-        .editor-btn { background: #f0f0f0; border: 1px solid #ccc; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
-        .editor-btn:active { background: #e0e0e0; }
+        .editor-btn { background: #f0f0f0; border: 1px solid #ccc; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .editor-btn:active:not(:disabled) { background: #e0e0e0; }
 
         /* Toast Notification */
         #toast { visibility: hidden; min-width: 200px; background-color: rgba(0, 0, 0, 0.85); color: #fff; text-align: center; border-radius: 30px; padding: 12px 20px; position: fixed; z-index: 1500; bottom: 30px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 500; opacity: 0; transition: opacity 0.3s; }
@@ -203,7 +203,7 @@
             </div>
             
             <div id="editorBody" style="overflow-y: auto; flex: 1; padding-right: 5px;">
-                </div>
+            </div>
 
             <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
                 <button class="btn-main-large" style="background: var(--success-green); padding: 12px; margin: 0; font-size: 13px;" onclick="addStore()">+ Tambah Toko Baru</button>
@@ -320,16 +320,16 @@
         // ================= LOGIKA PRODUK AFFILIATE =================
         const productsRef = db.ref('shopee_affiliate/products_db');
         const flagRef = db.ref('shopee_affiliate/flagged_links');
-        const usedLinksRef = db.ref('shopee_affiliate/used_links'); // NODE BARU PENGGANTI TRANSAKSI LAMA
+        const usedLinksRef = db.ref('shopee_affiliate/used_links');
         
         const productList = document.getElementById('productList');
         const statusDiv = document.getElementById('status');
         const btnRandomProduct = document.getElementById('btnRandomProduct');
         
-        let allAffiliateLinks = []; // Sekarang isinya array Object [{id, link, nama}]
+        let allAffiliateLinks = []; 
         let groupedProducts = []; 
         let flaggedSet = new Set(); 
-        let usedLinksObj = {}; // Object untuk mengingat ID mana yang sudah disalin global
+        let usedLinksObj = {}; 
 
         function encodeFirebaseKey(str) { return btoa(str).replace(/[=\+\/]/g, 'A').substring(0, 50); }
 
@@ -342,7 +342,6 @@
             document.body.removeChild(tempTextArea); window.getSelection().removeAllRanges();
         }
 
-        // FUNGSI UTAMA: Mengambil data produk real-time dari Firebase
         function initProductsSync() {
             productsRef.on('value', snap => {
                 statusDiv.style.display = 'none';
@@ -353,7 +352,7 @@
                     if(!group.products) group.products = []; 
                     group.products.forEach(prod => {
                         prod.id = encodeFirebaseKey(prod.link);
-                        allAffiliateLinks.push(prod); // Masukkan Object
+                        allAffiliateLinks.push(prod); 
                     });
                 });
 
@@ -366,26 +365,51 @@
                 }
 
                 renderColumns();
-                updateProgressBar(); // Progress Bar akan selalu disinkronkan saat Database Berubah
+                updateProgressBar(); 
             });
         }
 
-        // Listener Status Blokir (X)
         function listenToFlags() {
             flagRef.on('value', snap => {
                 flaggedSet.clear();
                 if(snap.exists()){ snap.forEach(child => { flaggedSet.add(child.key); }); }
                 renderColumns(); 
                 if(document.getElementById('editorModal').classList.contains('hidden') === false) {
-                    renderEditorUI(); // Refresh tampilan editor juga jika sedang dibuka
+                    renderEditorUI(); 
                 }
-                updateProgressBar(); // Progress Bar update jika ada produk yg di flag
+                updateProgressBar(); 
             });
         }
 
+        // ================= PERUBAHAN: Un-flag otomatis pindah ke bawah =================
         window.toggleFlag = function(linkId, isCurrentlyFlagged) {
-            if(isCurrentlyFlagged) flagRef.child(linkId).remove(); 
-            else flagRef.child(linkId).set(true); 
+            if(isCurrentlyFlagged) {
+                // 1. Cabut Flag (Aktifkan)
+                flagRef.child(linkId).remove(); 
+                
+                // 2. Pindahkan posisi data ke urutan terbawah di Firebase
+                let newData = JSON.parse(JSON.stringify(groupedProducts));
+                let foundSIdx = -1; let foundPIdx = -1; let prodToMove = null;
+
+                for (let s = 0; s < newData.length; s++) {
+                    if(!newData[s].products) continue;
+                    for (let p = 0; p < newData[s].products.length; p++) {
+                        if (encodeFirebaseKey(newData[s].products[p].link) === linkId) {
+                            foundSIdx = s; foundPIdx = p; prodToMove = newData[s].products[p]; break;
+                        }
+                    }
+                    if (foundSIdx !== -1) break;
+                }
+
+                if (foundSIdx !== -1 && prodToMove) {
+                    newData[foundSIdx].products.splice(foundPIdx, 1);
+                    newData[foundSIdx].products.push(prodToMove); // Taruh di paling bawah
+                    productsRef.set(newData); // Simpan permanen
+                }
+            } else {
+                // Beri Flag (Matikan)
+                flagRef.child(linkId).set(true); 
+            }
         }
 
         function renderColumns() {
@@ -437,13 +461,10 @@
             }
         };
 
-        // ================= PROGRESS BAR & TRANSAKSI DINAMIS (ID TRACKING) =================
         function updateProgressBar() {
-            // 1. Hitung total link AKTIF (Ada di DB dan Tidak di Flag)
             let activeLinksTotal = allAffiliateLinks.filter(prod => !flaggedSet.has(prod.id)).length;
-            if (activeLinksTotal === 0) activeLinksTotal = 1; // Cegah error dibagi 0
+            if (activeLinksTotal === 0) activeLinksTotal = 1; 
 
-            // 2. Hitung berapa link aktif yang sudah TERPAKAI di cycle ini
             let usedCount = 0;
             allAffiliateLinks.forEach(prod => {
                 if (!flaggedSet.has(prod.id) && usedLinksObj[prod.id]) {
@@ -451,7 +472,6 @@
                 }
             });
 
-            // 3. Jumlah Sisa Persis
             let sisa = activeLinksTotal - usedCount;
             if(sisa < 0) sisa = 0;
             
@@ -474,7 +494,6 @@
             const originalText = btnRandomProduct.innerHTML;
             btnRandomProduct.innerText = "⏳ Sinkronisasi...";
 
-            // Filter produk yang benar-benar Valid saat ini
             let validProds = allAffiliateLinks.filter(p => !flaggedSet.has(p.id));
 
             if(validProds.length === 0) {
@@ -484,24 +503,17 @@
 
             usedLinksRef.transaction((currentUsed) => {
                 let used = currentUsed || {};
-                
-                // Cari produk Valid yang BELUM ada di daftar used
                 let availableProds = validProds.filter(p => !used[p.id]);
 
-                // Jika sudah habis semua, RESET Gudang
                 if (availableProds.length === 0) {
-                    used = {}; // Kosongkan database yang dipakai
-                    availableProds = validProds; // Isi kembali
+                    used = {}; 
+                    availableProds = validProds; 
                 }
 
-                // Pilih 1 acak dari yang available
                 let randomIndex = Math.floor(Math.random() * availableProds.length);
                 let pickedProd = availableProds[randomIndex];
 
-                // Tandai ID ini sudah dipakai
                 used[pickedProd.id] = true;
-                
-                // Simpan history terakhir untuk disalin di client
                 used['_lastPickedLink'] = pickedProd.link;
 
                 return used;
@@ -516,7 +528,7 @@
             });
         });
 
-        // ================= EDITOR VISUAL (KELOLA PRODUK & TOKO) =================
+        // ================= EDITOR VISUAL =================
         let editorData = [];
 
         window.openEditorModal = function() {
@@ -547,20 +559,22 @@
                         let pId = encodeFirebaseKey(p.link);
                         let isFlagged = flaggedSet.has(pId);
                         
-                        // Gaya Tampilan khusus untuk Produk Flagged di Editor
                         let titleStyle = isFlagged ? "text-decoration: line-through; color: #aaa;" : "color: #333;";
                         let linkStyle = isFlagged ? "color: #aaa;" : "color: var(--action-blue);";
                         let bgStyle = isFlagged ? "#f0f0f0" : "#f9f9f9";
                         let flagBadge = isFlagged ? `<span style="background: var(--danger-red); color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 5px;">DIBLOKIR</span>` : '';
 
+                        // PERUBAHAN: Ditambahkan tombol Panah Atas dan Panah Bawah
                         productsHtml += `
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: ${bgStyle}; padding: 8px; border-radius: 6px; border: 1px solid #eee;">
-                            <div style="font-size: 12px; line-height: 1.4; width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            <div style="font-size: 12px; line-height: 1.4; width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                 <strong style="${titleStyle}">${p.nama}</strong> ${flagBadge}<br>
                                 <span style="${linkStyle} font-size: 10px;">${p.link}</span>
                             </div>
-                            <div style="min-width: 60px; text-align: right;">
-                                <button class="editor-btn" onclick="editProduct(${sIdx}, ${pIdx})" style="margin-right: 4px;">✏️</button>
+                            <div style="min-width: 110px; text-align: right; display: flex; gap: 4px; justify-content: flex-end;">
+                                <button class="editor-btn" onclick="moveProductUp(${sIdx}, ${pIdx})" ${pIdx === 0 ? 'disabled style="opacity:0.3"' : ''}>⬆️</button>
+                                <button class="editor-btn" onclick="moveProductDown(${sIdx}, ${pIdx})" ${pIdx === store.products.length - 1 ? 'disabled style="opacity:0.3"' : ''}>⬇️</button>
+                                <button class="editor-btn" onclick="editProduct(${sIdx}, ${pIdx})">✏️</button>
                                 <button class="editor-btn" onclick="deleteProduct(${sIdx}, ${pIdx})">🗑️</button>
                             </div>
                         </div>`;
@@ -586,6 +600,25 @@
             });
         }
 
+        // FUNGSI BARU: Menggeser Posisi Produk Naik / Turun
+        window.moveProductUp = function(sIdx, pIdx) {
+            if (pIdx > 0) {
+                let temp = editorData[sIdx].products[pIdx];
+                editorData[sIdx].products[pIdx] = editorData[sIdx].products[pIdx - 1];
+                editorData[sIdx].products[pIdx - 1] = temp;
+                renderEditorUI();
+            }
+        }
+
+        window.moveProductDown = function(sIdx, pIdx) {
+            if (pIdx < editorData[sIdx].products.length - 1) {
+                let temp = editorData[sIdx].products[pIdx];
+                editorData[sIdx].products[pIdx] = editorData[sIdx].products[pIdx + 1];
+                editorData[sIdx].products[pIdx + 1] = temp;
+                renderEditorUI();
+            }
+        }
+
         window.addStore = function() {
             let name = prompt("Masukkan nama toko baru:");
             if (name) { editorData.push({ name: name, products: [] }); renderEditorUI(); }
@@ -608,6 +641,7 @@
             editorData[sIdx].products.push({ nama: nama, link: link });
             renderEditorUI();
         }
+
         window.editProduct = function(sIdx, pIdx) {
             let prod = editorData[sIdx].products[pIdx];
             let nama = prompt("Edit Nama Produk:", prod.nama);
@@ -615,9 +649,13 @@
             let link = prompt("Edit Link URL Produk:", prod.link);
             if (!link) return;
 
-            editorData[sIdx].products[pIdx] = { nama: nama, link: link };
+            // PERUBAHAN: Jika diedit, pindahkan produk ke posisi paling bawah
+            editorData[sIdx].products.splice(pIdx, 1);
+            editorData[sIdx].products.push({ nama: nama, link: link });
+
             renderEditorUI();
         }
+        
         window.deleteProduct = function(sIdx, pIdx) {
             if (confirm("Hapus produk ini?")) { editorData[sIdx].products.splice(pIdx, 1); renderEditorUI(); }
         }
