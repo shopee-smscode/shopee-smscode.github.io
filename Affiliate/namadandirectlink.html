@@ -331,7 +331,10 @@
         let flaggedSet = new Set(); 
         let usedLinksObj = {}; 
 
-        function encodeFirebaseKey(str) { return btoa(str).replace(/[=\+\/]/g, 'A').substring(0, 50); }
+        function encodeFirebaseKey(str) { 
+            if (!str) return "";
+            return btoa(str).replace(/[=\+\/]/g, 'A').substring(0, 50); 
+        }
 
         function salinTautanAffiliate(url) {
             const tempTextArea = document.createElement("textarea"); tempTextArea.value = url;
@@ -381,7 +384,7 @@
             });
         }
 
-        // ================= PERUBAHAN BESAR: Memindahkan Urutan Saat Toggling =================
+        // PERUBAHAN: Saat Un-flag, produk otomatis pindah ke paling bawah dari produk yang Aktif di DB.
         window.toggleFlag = function(linkId, isCurrentlyFlagged) {
             let newData = JSON.parse(JSON.stringify(groupedProducts));
             let foundSIdx = -1; let foundPIdx = -1; let prodToMove = null;
@@ -398,16 +401,17 @@
 
             if (foundSIdx !== -1 && prodToMove) {
                 if(isCurrentlyFlagged) {
-                    // MENGHAPUS BLOKIR (Mengaktifkan Produk)
+                    // MENGHAPUS BLOKIR (AKTIFKAN)
                     flagRef.child(linkId).remove(); 
                     
+                    // Cabut dari posisi lama
                     newData[foundSIdx].products.splice(foundPIdx, 1);
                     
-                    // Mencari index item aktif terakhir untuk ditaruh tepat di bawahnya
+                    // Cari posisi paling bawah dari produk yang Aktif (Tidak Diblokir)
                     let insertIndex = 0;
                     for (let i = 0; i < newData[foundSIdx].products.length; i++) {
                         let pid = encodeFirebaseKey(newData[foundSIdx].products[i].link);
-                        if (!flaggedSet.has(pid)) {
+                        if (pid !== linkId && !flaggedSet.has(pid)) {
                             insertIndex = i + 1;
                         }
                     }
@@ -417,7 +421,7 @@
                     // MEMBERI BLOKIR
                     flagRef.child(linkId).set(true); 
                     
-                    // Jika diblokir, produk otomatis pindah ke dasar urutan database
+                    // Supaya rapi, produk yang diblokir dilempar ke paling bawah tabel
                     newData[foundSIdx].products.splice(foundPIdx, 1);
                     newData[foundSIdx].products.push(prodToMove);
                     productsRef.set(newData);
@@ -425,7 +429,7 @@
             }
         }
 
-        // ================= Cermin Akurat (Menghapus Sistem Sortir Otomatis) =================
+        // PERBAIKAN: Mengembalikan sistem Sort Visual pada Layar Utama (Sesuai Permintaan)
         function renderColumns() {
             productList.innerHTML = '';
             const bgColors = ['#dbeafe', '#fce7f3', '#dcfce7', '#ffedd5', '#f3e8ff'];
@@ -435,9 +439,15 @@
                 const colorBg = bgColors[index % bgColors.length];
                 columnLi.innerHTML = `<div class="column-header"><div class="column-number">${group.name}</div><button class="btn-open-column" onclick="salinAcakDariGrup(${index})">📋 SALIN ACAK</button></div>`;
 
-                // Tidak ada lagi logika Sort() di sini, urutan dijamin SAMA PERSIS dengan database Editor!
                 if (group.products) {
-                    group.products.forEach(prod => {
+                    // Menyortir layar depan secara visual (Aktif di atas, Flagged di bawah)
+                    let sortedProducts = [...group.products].sort((a, b) => {
+                        let aFlag = flaggedSet.has(encodeFirebaseKey(a.link)) ? 1 : 0; 
+                        let bFlag = flaggedSet.has(encodeFirebaseKey(b.link)) ? 1 : 0;
+                        return aFlag - bFlag;
+                    });
+
+                    sortedProducts.forEach(prod => {
                         const isFlagged = flaggedSet.has(encodeFirebaseKey(prod.link));
                         const prodDiv = document.createElement('div'); prodDiv.className = 'product-item';
 
@@ -540,11 +550,23 @@
             });
         });
 
-        // ================= EDITOR VISUAL (Dengan Auto Focus saat Geser) =================
+        // ================= EDITOR VISUAL (Perbaikan Sinkronisasi Tampilan & Scroll) =================
         let editorData = [];
 
         window.openEditorModal = function() {
             editorData = JSON.parse(JSON.stringify(groupedProducts)); 
+            
+            // PERBAIKAN: Menyortir Database Editor di awal agar TEPAT SAMA dengan Layar Utama!
+            editorData.forEach(store => {
+                if(store.products) {
+                    store.products.sort((a, b) => {
+                        let aFlag = flaggedSet.has(encodeFirebaseKey(a.link)) ? 1 : 0; 
+                        let bFlag = flaggedSet.has(encodeFirebaseKey(b.link)) ? 1 : 0;
+                        return aFlag - bFlag;
+                    });
+                }
+            });
+
             document.getElementById('editorModal').classList.remove('hidden');
             renderEditorUI();
         }
@@ -554,14 +576,9 @@
         }
 
         function renderEditorUI(focusSIdx = -1, focusPIdx = -1) {
-            // Merekam Posisi Scroll Sebelum UI Dimuat Ulang
-            let scrollPositions = {};
-            if (document.getElementById('editorBody')) {
-                editorData.forEach((_, sIdx) => {
-                    let el = document.getElementById(`editor-store-list-${sIdx}`);
-                    if (el) scrollPositions[sIdx] = el.scrollTop;
-                });
-            }
+            // Merekam Posisi Scroll Utama Modal (Tanpa lompat/jump)
+            let editorBody = document.getElementById('editorBody');
+            let currentScroll = editorBody ? editorBody.scrollTop : 0;
 
             const body = document.getElementById('editorBody');
             body.innerHTML = '';
@@ -582,12 +599,13 @@
                         
                         let titleStyle = isFlagged ? "text-decoration: line-through; color: #aaa;" : "color: #333;";
                         let linkStyle = isFlagged ? "color: #aaa;" : "color: var(--action-blue);";
-                        let bgStyle = isFlagged ? "#f0f0f0" : "#f9f9f9";
+                        
+                        // Menentukan warna background asli untuk animasi transisi fokus
+                        let originalBgColor = isFlagged ? "#f0f0f0" : "#f9f9f9";
                         let flagBadge = isFlagged ? `<span style="background: var(--danger-red); color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 5px;">DIBLOKIR</span>` : '';
 
-                        // Menambahkan ID Unik untuk Fokus (Scroll Into View)
                         productsHtml += `
-                        <div id="editor-prod-${sIdx}-${pIdx}" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: ${bgStyle}; padding: 8px; border-radius: 6px; border: 1px solid #eee; transition: background-color 0.4s;">
+                        <div id="editor-prod-${sIdx}-${pIdx}" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: ${originalBgColor}; padding: 8px; border-radius: 6px; border: 1px solid #eee; transition: background-color 0.4s ease-out;">
                             <div style="font-size: 12px; line-height: 1.4; width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                 <strong style="${titleStyle}">${p.nama}</strong> ${flagBadge}<br>
                                 <span style="${linkStyle} font-size: 10px;">${p.link}</span>
@@ -604,6 +622,7 @@
                     productsHtml = '<div style="font-size: 11px; color: #999; text-align: center; padding: 10px;">Belum ada produk di toko ini.</div>';
                 }
 
+                // PERBAIKAN: Menghapus nested scrollbar (max-height), biarkan modal utamanya saja yang scroll
                 storeDiv.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px;">
                         <strong style="color: var(--shopee-orange); font-size: 15px;">${store.name}</strong>
@@ -612,7 +631,7 @@
                             <button class="editor-btn" style="color: var(--danger-red);" onclick="deleteStore(${sIdx})">🗑️ Hapus</button>
                         </div>
                     </div>
-                    <div id="editor-store-list-${sIdx}" style="max-height: 200px; overflow-y: auto; padding-right: 5px; margin-bottom: 10px; scroll-behavior: smooth;">
+                    <div id="editor-store-list-${sIdx}" style="padding-right: 5px; margin-bottom: 10px;">
                         ${productsHtml}
                     </div>
                     <button onclick="addProduct(${sIdx})" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; background: #fff; cursor: pointer; font-weight: bold; color: var(--action-blue);">+ Tambah Produk ke Toko Ini</button>
@@ -620,21 +639,19 @@
                 body.appendChild(storeDiv);
             });
 
-            // Mengembalikan Posisi Scroll Seperti Semula
-            Object.keys(scrollPositions).forEach(sIdx => {
-                let el = document.getElementById(`editor-store-list-${sIdx}`);
-                if (el) el.scrollTop = scrollPositions[sIdx];
-            });
+            // Mengembalikan Posisi Scroll agar Tidak Lompat!
+            if (editorBody) editorBody.scrollTop = currentScroll;
 
-            // Memastikan Fokus pada Elemen yang Dipindah / Diedit (Efek Nyala Kuning)
+            // Memberikan Efek Nyala Kuning (Fokus) pada elemen yang baru dipindah tanpa merusak scroll
             if (focusSIdx !== -1 && focusPIdx !== -1) {
                 let el = document.getElementById(`editor-prod-${focusSIdx}-${focusPIdx}`);
                 if (el) {
-                    el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
-                    
-                    let originalBg = el.style.backgroundColor;
                     el.style.backgroundColor = '#fff3cd'; // Highlight Kuning 
-                    setTimeout(() => { el.style.backgroundColor = originalBg; }, 600);
+                    setTimeout(() => { 
+                        // Kembalikan ke warna asli berdasarkan status blokir
+                        let isFlagged = flaggedSet.has(encodeFirebaseKey(editorData[focusSIdx].products[focusPIdx].link));
+                        el.style.backgroundColor = isFlagged ? "#f0f0f0" : "#f9f9f9"; 
+                    }, 600);
                 }
             }
         }
@@ -658,7 +675,7 @@
             }
         }
 
-        // BANTUAN MENCARI INDEX ITEM AKTIF TERAKHIR
+        // FUNGSI PENCARI: Menemukan titik sisip terbawah dari produk yang aktif
         function getInsertIndexForActive(storeProducts) {
             let insertIndex = 0;
             for (let i = 0; i < storeProducts.length; i++) {
@@ -707,11 +724,16 @@
             // Hapus dari posisi lama
             editorData[sIdx].products.splice(pIdx, 1);
             
-            // Susun Ulang
+            // Lempar produk yang baru diedit ke posisi paling bawah produk aktif
             let editedProd = { nama: nama, link: link };
             let insertIndex = getInsertIndexForActive(editorData[sIdx].products);
-            editorData[sIdx].products.splice(insertIndex, 0, editedProd);
+            
+            // Jika dia aslinya memang di bawah dan kita potong, indeks sisipnya turun 1
+            if (insertIndex > editorData[sIdx].products.length) {
+                insertIndex = editorData[sIdx].products.length;
+            }
 
+            editorData[sIdx].products.splice(insertIndex, 0, editedProd);
             renderEditorUI(sIdx, insertIndex);
         }
         
@@ -721,6 +743,8 @@
 
         window.saveEditorData = function() {
             editorData.forEach(store => { if (!store.products) store.products = []; });
+            
+            // Karena editor data kini adalah salinan cermin dari layar utama, kita bisa langsung menyimpan tumpukannya
             productsRef.set(editorData).then(() => {
                 tampilkanToast("✅ Database berhasil disimpan & tersinkronisasi!");
                 closeEditorModal();
