@@ -10,6 +10,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="A S E A">
 
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
     <style>
         /* ========================================= */
         /* VARIABEL TEMA GELAP (DEFAULT)             */
@@ -285,7 +288,7 @@
                     <button class="btn-danger" id="pt_clearDoneBtn">Hapus</button>
                 </div>
             </div>
-            <button class="btn-danger" style="margin-top: 5px; flex-shrink: 0;" onclick="confirmGlobalReset('potong')">Reset Data Potong</button>
+            <button class="btn-danger" style="margin-top: 5px; flex-shrink: 0;" onclick="confirmGlobalReset('potong')">Reset Data Potong (15 HP)</button>
         </div>
 
         <div id="tab-copylist" class="tab-content">
@@ -422,6 +425,21 @@
 
     <script>
         // ==========================================
+        // INISIALISASI FIREBASE
+        // ==========================================
+        const firebaseConfig = { 
+            apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", 
+            authDomain: "catatanku-app-ce60b.firebaseapp.com", 
+            databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", 
+            projectId: "catatanku-app-ce60b", 
+            storageBucket: "catatanku-app-ce60b.firebasestorage.app", 
+            messagingSenderId: "291744292263", 
+            appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" 
+        };
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+        const db = firebase.database();
+
+        // ==========================================
         // SISTEM TEMA & SAKELAR (TOGGLE)
         // ==========================================
         const themeToggleBtn = document.getElementById('themeToggleBtn');
@@ -433,7 +451,6 @@
             themeToggleBtn.innerHTML = isLight ? '🌙' : '☀️';
         }
 
-        // Terapkan tema yang tersimpan di memori saat aplikasi dimuat
         if (localStorage.getItem('asea_theme') === 'light') {
             document.body.classList.add('light-theme');
             themeToggleBtn.innerHTML = '🌙';
@@ -540,67 +557,160 @@
             const file = e.target.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = (ev) => {
-                const content = ev.target.result; const targetEl = document.getElementById(targetImportElementId);
-                const existing = targetEl.value.trim(); targetEl.value = existing ? existing + '\n' + content : content;
-                showToast("File diimpor!"); fileInput.value = ''; targetEl.dispatchEvent(new Event('input'));
+                const content = ev.target.result; 
+                const targetEl = document.getElementById(targetImportElementId);
+                const existing = targetEl.value.trim(); 
+                const newText = existing ? existing + '\n' + content : content;
+                
+                targetEl.value = newText;
+                
+                // Jika import dilakukan di Tab Potong, langsung push ke Firebase!
+                if (targetImportElementId === 'pt_mainList') {
+                    db.ref('asea_email_studio/potong/mainList').set(newText);
+                    showToast("File diimpor ke Cloud!");
+                } else {
+                    targetEl.dispatchEvent(new Event('input'));
+                    showToast("File diimpor lokal!");
+                }
+                fileInput.value = ''; 
             }; reader.readAsText(file);
         });
 
         // ==========================================
-        // 1. TOOL: POTONG LIST
+        // 1. TOOL: POTONG LIST (FIREBASE REAL-TIME SYNC)
         // ==========================================
         function initPotong() {
-            const mainList = document.getElementById('pt_mainList'); const doneList = document.getElementById('pt_doneList');
-            const amtInp = document.getElementById('pt_cutAmt'); const sisaSpan = document.getElementById('pt_sisa');
-            const totalOutInp = document.getElementById('pt_totalCut'); const bawahSpan = document.getElementById('pt_bawahSisa');
+            const mainList = document.getElementById('pt_mainList'); 
+            const doneList = document.getElementById('pt_doneList');
+            const amtInp = document.getElementById('pt_cutAmt'); 
+            const sisaSpan = document.getElementById('pt_sisa');
+            const totalOutInp = document.getElementById('pt_totalCut'); 
+            const bawahSpan = document.getElementById('pt_bawahSisa');
             let pt_undoSnap = null;
 
-            const updateStats = () => {
-                const ml = getCleanArray(mainList.value); const dl = getCleanArray(doneList.value);
-                sisaSpan.textContent = ml.length; bawahSpan.textContent = dl.length;
-                localStorage.setItem('asea_pt_main', mainList.value); localStorage.setItem('asea_pt_done', doneList.value);
-                localStorage.setItem('asea_pt_amt', amtInp.value); localStorage.setItem('asea_pt_total', totalOutInp.value);
+            const dbPotongRef = db.ref('asea_email_studio/potong');
+
+            const updateLocalStats = (mainStr, doneStr) => {
+                const ml = getCleanArray(mainStr || "");
+                const dl = getCleanArray(doneStr || "");
+                sisaSpan.textContent = ml.length;
+                bawahSpan.textContent = dl.length;
             };
 
-            mainList.value = localStorage.getItem('asea_pt_main') || ''; doneList.value = localStorage.getItem('asea_pt_done') || '';
-            amtInp.value = localStorage.getItem('asea_pt_amt') || '1'; totalOutInp.value = localStorage.getItem('asea_pt_total') || '0';
-            updateStats();
-
-            mainList.addEventListener('input', updateStats); doneList.addEventListener('input', updateStats); amtInp.addEventListener('input', updateStats);
-
-            document.getElementById('pt_editBtn').addEventListener('click', function() {
-                if(mainList.readOnly) { mainList.readOnly = false; this.textContent = 'Simpan'; this.className = 'btn-success'; mainList.focus(); } 
-                else { mainList.readOnly = true; this.textContent = 'Edit'; this.className = 'btn-outline'; mainList.value = getCleanArray(mainList.value).join('\n'); updateStats(); showToast('Tersimpan!'); }
-            });
-
-            document.getElementById('pt_editDoneBtn').addEventListener('click', function() {
-                if(doneList.readOnly) { doneList.readOnly = false; this.textContent = 'Simpan'; this.className = 'btn-success'; doneList.focus(); } 
-                else { doneList.readOnly = true; this.textContent = 'Edit'; this.className = 'btn-outline'; doneList.value = getCleanArray(doneList.value).join('\n'); updateStats(); showToast('Tersimpan!'); }
-            });
-
-            document.getElementById('pt_cutBtn').addEventListener('click', async () => {
-                let arr = getCleanArray(mainList.value); let amt = parseInt(amtInp.value) || 0;
-                if(amt <= 0 || amt > arr.length) return showToast("Jumlah tidak cukup!");
+            // Listener Firebase
+            dbPotongRef.on('value', snap => {
+                const data = snap.val() || { mainList: "", doneList: "", totalCut: 0 };
                 
-                pt_undoSnap = { main: mainList.value, done: doneList.value, total: totalOutInp.value };
-                let cutItems = arr.slice(0, amt); let remItems = arr.slice(amt); let cutStr = cutItems.join('\n');
-                await copyToClipboard(cutStr, `${amt} email dipotong!`);
-                mainList.value = remItems.join('\n'); let exDone = doneList.value.trim(); doneList.value = exDone ? exDone + '\n' + cutStr : cutStr;
-                totalOutInp.value = parseInt(totalOutInp.value) + amt; updateStats();
+                // Jangan timpa text jika user sedang asyik mengetik (mode edit)
+                if (mainList.readOnly) mainList.value = data.mainList || "";
+                if (doneList.readOnly) doneList.value = data.doneList || "";
+                
+                totalOutInp.value = data.totalCut || 0;
+                updateLocalStats(data.mainList, data.doneList);
             });
 
+            // Tombol Edit / Simpan Main List
+            document.getElementById('pt_editBtn').addEventListener('click', function() {
+                if(mainList.readOnly) { 
+                    mainList.readOnly = false; this.textContent = 'Simpan Cloud'; this.className = 'btn-success'; mainList.focus(); 
+                } else { 
+                    mainList.readOnly = true; this.textContent = 'Edit'; this.className = 'btn-outline'; 
+                    const cleaned = getCleanArray(mainList.value).join('\n');
+                    mainList.value = cleaned;
+                    dbPotongRef.child('mainList').set(cleaned); // Push ke cloud
+                    showToast('Tersimpan ke seluruh HP!'); 
+                }
+            });
+
+            // Tombol Edit / Simpan Done List
+            document.getElementById('pt_editDoneBtn').addEventListener('click', function() {
+                if(doneList.readOnly) { 
+                    doneList.readOnly = false; this.textContent = 'Simpan Cloud'; this.className = 'btn-success'; doneList.focus(); 
+                } else { 
+                    doneList.readOnly = true; this.textContent = 'Edit'; this.className = 'btn-outline'; 
+                    const cleaned = getCleanArray(doneList.value).join('\n');
+                    doneList.value = cleaned;
+                    dbPotongRef.child('doneList').set(cleaned); // Push ke cloud
+                    showToast('Tersimpan ke seluruh HP!'); 
+                }
+            });
+
+            // FUNGSI POTONG BERBASIS TRANSAKSI FIREBASE (ANTI BENTROK)
+            document.getElementById('pt_cutBtn').addEventListener('click', () => {
+                let amt = parseInt(amtInp.value) || 0;
+                if(amt <= 0) return showToast("Jumlah potong tidak valid!");
+                
+                const btn = document.getElementById('pt_cutBtn');
+                btn.disabled = true; btn.textContent = "Memotong...";
+
+                // Simpan jejak lokal untuk keperluan Undo
+                pt_undoSnap = { 
+                    mainList: mainList.value, 
+                    doneList: doneList.value, 
+                    totalCut: parseInt(totalOutInp.value) || 0 
+                };
+
+                dbPotongRef.transaction((currentData) => {
+                    let data = currentData || { mainList: "", doneList: "", totalCut: 0 };
+                    let arr = getCleanArray(data.mainList || "");
+                    
+                    if (arr.length === 0) return data; // Gagal, karena antrean habis
+
+                    let actualAmt = Math.min(amt, arr.length);
+                    let cutItems = arr.slice(0, actualAmt);
+                    let remItems = arr.slice(actualAmt);
+                    let cutStr = cutItems.join('\n');
+
+                    let exDone = (data.doneList || "").trim();
+                    data.doneList = exDone ? exDone + '\n' + cutStr : cutStr;
+                    data.mainList = remItems.join('\n');
+                    data.totalCut = (data.totalCut || 0) + actualAmt;
+                    
+                    // Titipan variabel rahasia agar bisa diakses di (committed)
+                    data._lastCutStr = cutStr; 
+
+                    return data;
+                }, (error, committed, snapshot) => {
+                    btn.disabled = false; btn.textContent = "Potong";
+                    if (error) {
+                        showToast("❌ Gagal memotong (Error Jaringan)");
+                    } else if (committed) {
+                        let data = snapshot.val();
+                        if (data && data._lastCutStr) {
+                            copyToClipboard(data._lastCutStr, `${amt} email berhasil dipotong!`);
+                            // Bersihkan variabel titipan di background
+                            dbPotongRef.child('_lastCutStr').remove();
+                        } else {
+                            showToast("Antrean Utama sudah kosong!");
+                        }
+                    }
+                });
+            });
+
+            // Undo Global
             document.getElementById('pt_undoBtn').addEventListener('click', () => {
-                if(!pt_undoSnap) return showToast('Belum ada aksi.');
-                mainList.value = pt_undoSnap.main; doneList.value = pt_undoSnap.done; totalOutInp.value = pt_undoSnap.total;
-                pt_undoSnap = null; updateStats(); showToast('Di-undo.');
+                if(!pt_undoSnap) return showToast('Belum ada aksi potong terbaru di HP ini.');
+                openConfirm('Undo Global', 'Kembalikan data seperti sebelum dipotong? Ini akan merubah tampilan di semua HP.', () => {
+                    dbPotongRef.set(pt_undoSnap).then(() => {
+                        pt_undoSnap = null; showToast('Berhasil Di-undo secara Global!');
+                    });
+                });
             });
 
             document.getElementById('pt_copyDoneBtn').addEventListener('click', () => copyToClipboard(doneList.value, 'Riwayat disalin!'));
-            document.getElementById('pt_clearDoneBtn').addEventListener('click', () => openConfirm('Hapus Riwayat', 'Hapus semua riwayat?', () => { doneList.value = ''; updateStats(); showToast('Dibersihkan.'); }));
+            
+            document.getElementById('pt_clearDoneBtn').addEventListener('click', () => openConfirm('Hapus Riwayat', 'Hapus semua riwayat yang telah diselesaikan di semua HP?', () => { 
+                dbPotongRef.child('doneList').set("");
+                showToast('Riwayat dibersihkan.'); 
+            }));
+
+            // Mengingat pengaturan "Jumlah Potong" favorit user di HP masing-masing
+            amtInp.addEventListener('input', () => localStorage.setItem('asea_pt_amt', amtInp.value));
+            amtInp.value = localStorage.getItem('asea_pt_amt') || '1';
         }
 
         // ==========================================
-        // 2. TOOL: SALIN TOP
+        // 2. TOOL: SALIN TOP (LOKAL)
         // ==========================================
         function initCopyList() {
             const list = document.getElementById('cl_mainList'); const count = document.getElementById('cl_count');
@@ -636,7 +746,7 @@
         }
 
         // ==========================================
-        // 3. TOOL: GENERATOR (ACAK & URUT KUSTOM)
+        // 3. TOOL: GENERATOR (LOKAL)
         // ==========================================
         function initGenerator() {
             const resGa = document.getElementById('ga_result'); const gaDomain = document.getElementById('ga_domain');
@@ -714,7 +824,7 @@
         }
 
         // ==========================================
-        // 4. TOOL: DOT TRICK
+        // 4. TOOL: DOT TRICK (LOKAL)
         // ==========================================
         function initDotTrick() {
             const input = document.getElementById('dt_input'); const total = document.getElementById('dt_total');
@@ -746,7 +856,7 @@
         }
 
         // ==========================================
-        // 5. TOOL: SORTIR & HAPUS GANDA
+        // 5. TOOL: SORTIR & HAPUS GANDA (LOKAL)
         // ==========================================
         function initSortir() {
             const l1 = document.getElementById('sr_list1'); const l2 = document.getElementById('sr_list2');
@@ -773,8 +883,8 @@
         function confirmGlobalReset(type) {
             openConfirm('Reset Data', 'Hapus semua data di tab ini?', () => {
                 if(type === 'potong') {
-                    document.getElementById('pt_mainList').value=''; document.getElementById('pt_doneList').value=''; document.getElementById('pt_totalCut').value='0';
-                    localStorage.removeItem('asea_pt_main'); localStorage.removeItem('asea_pt_done'); localStorage.removeItem('asea_pt_total'); document.getElementById('pt_mainList').dispatchEvent(new Event('input'));
+                    // PERBAIKAN: Reset data Firebase langsung
+                    db.ref('asea_email_studio/potong').set({ mainList: "", doneList: "", totalCut: 0 });
                 } else if(type === 'copylist') {
                     document.getElementById('cl_mainList').value=''; localStorage.removeItem('asea_cl_main'); localStorage.removeItem('asea_cl_undo'); localStorage.removeItem('asea_cl_orig'); document.getElementById('cl_mainList').dispatchEvent(new Event('input'));
                 }
