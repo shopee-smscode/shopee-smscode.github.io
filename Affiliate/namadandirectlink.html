@@ -7,6 +7,7 @@
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <!-- Perbaikan: Menambahkan pustaka FontAwesome agar ikon jam muncul -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
     <style>
@@ -329,8 +330,6 @@
         
         let allAffiliateLinks = []; 
         let groupedProducts = []; 
-        
-        // PERUBAHAN: Set diganti menjadi Map agar bisa menampung timestamp
         let flaggedMap = new Map(); 
         let usedLinksObj = {}; 
 
@@ -380,7 +379,6 @@
                 flaggedMap.clear();
                 if(snap.exists()){ 
                     snap.forEach(child => { 
-                        // Menyimpan key dan valuenya (bisa berupa 'true' lama, atau string timestamp baru)
                         flaggedMap.set(child.key, child.val()); 
                     }); 
                 }
@@ -392,7 +390,6 @@
             });
         }
 
-        // PERUBAHAN: Menyimpan Waktu saat memblokir
         window.toggleFlag = function(linkId, isCurrentlyFlagged) {
             let newData = JSON.parse(JSON.stringify(groupedProducts));
             let foundSIdx = -1; let foundPIdx = -1; let prodToMove = null;
@@ -409,13 +406,10 @@
 
             if (foundSIdx !== -1 && prodToMove) {
                 if(isCurrentlyFlagged) {
-                    // MENGHAPUS BLOKIR (AKTIFKAN)
                     flagRef.child(linkId).remove(); 
                     
-                    // Cabut dari posisi lama
                     newData[foundSIdx].products.splice(foundPIdx, 1);
                     
-                    // Cari posisi paling bawah dari produk yang Aktif (Tidak Diblokir)
                     let insertIndex = 0;
                     for (let i = 0; i < newData[foundSIdx].products.length; i++) {
                         let pid = encodeFirebaseKey(newData[foundSIdx].products[i].link);
@@ -426,13 +420,11 @@
                     newData[foundSIdx].products.splice(insertIndex, 0, prodToMove);
                     productsRef.set(newData);
                 } else {
-                    // MEMBERI BLOKIR DAN MENYIMPAN WAKTU SAAT INI
                     const dt = new Date();
                     const timeStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth()+1).padStart(2, '0')} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
                     
                     flagRef.child(linkId).set(timeStr); 
                     
-                    // Supaya rapi, produk yang diblokir dilempar ke paling bawah tabel
                     newData[foundSIdx].products.splice(foundPIdx, 1);
                     newData[foundSIdx].products.push(prodToMove);
                     productsRef.set(newData);
@@ -440,7 +432,6 @@
             }
         }
 
-        // PERBAIKAN: Menampilkan Tanggal pada Produk Flagged
         function renderColumns() {
             productList.innerHTML = '';
             const bgColors = ['#dbeafe', '#fce7f3', '#dcfce7', '#ffedd5', '#f3e8ff'];
@@ -472,7 +463,6 @@
                         let clickEvent = isFlagged ? "tampilkanToast('❌ Produk ini diblokir/habis!')" : `salinTautanAffiliate('${prod.link}')`;
                         let flagBtnClass = isFlagged ? "btn-flag active" : "btn-flag";
 
-                        // Element HTML untuk Timestamp (Hanya tampil jika datanya adalah string tanggal)
                         let timeHtml = (isFlagged && typeof flagTime === 'string') ? `<div style="font-size: 9px; color: var(--danger-red); margin-top: 6px; border-top: 1px dashed #ccc; padding-top: 5px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 4px;"><i class="fas fa-clock"></i> Nonaktif: ${flagTime}</div>` : '';
 
                         prodDiv.innerHTML = `
@@ -617,7 +607,6 @@
                         let linkStyle = isFlagged ? "color: #aaa;" : "color: var(--action-blue);";
                         let originalBgColor = isFlagged ? "#f0f0f0" : "#f9f9f9";
                         
-                        // Menambahkan waktu pada Editor
                         let timeHtmlEditor = (isFlagged && typeof flagTime === 'string') ? ` <span style="font-size: 9px; color: #999;">(${flagTime})</span>` : '';
                         let flagBadge = isFlagged ? `<span style="background: var(--danger-red); color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 5px;">DIBLOKIR</span>${timeHtmlEditor}` : '';
 
