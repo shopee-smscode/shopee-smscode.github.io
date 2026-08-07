@@ -7,7 +7,6 @@
     
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <!-- Perbaikan: Menambahkan pustaka FontAwesome agar ikon jam muncul -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
     <style>
@@ -125,8 +124,17 @@
         /* ITEM PRODUK & FLAGGING */
         .product-item { display: flex; align-items: stretch; width: 100%; margin-bottom: 10px; position: relative; gap: 4px; }
         .btn-product-link { flex: 1; box-sizing: border-box; min-height: 65px; border: 1px solid rgba(0,0,0,0.08); color: var(--text-main); padding: 10px; border-radius: 10px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.03); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; transition: 0.1s; }
-        .btn-product-link:active:not(.flagged) { transform: translateY(2px); filter: brightness(0.95); border-color: var(--shopee-orange); }
+        .btn-product-link:active:not(.flagged):not(.flagged-green) { transform: translateY(2px); filter: brightness(0.95); border-color: var(--shopee-orange); }
+        
         .btn-product-link.flagged { background-color: #f1f1f1 !important; filter: grayscale(100%); opacity: 0.5; cursor: not-allowed; border: 1px dashed #ccc; }
+        
+        /* KELAS BARU: Hijau Transparan setelah 24 Jam */
+        .btn-product-link.flagged-green { 
+            background-color: rgba(46, 204, 113, 0.15) !important; 
+            cursor: not-allowed; 
+            border: 2px dashed var(--success-green) !important; 
+            opacity: 0.9;
+        }
 
         .product-title { font-size: 13px; font-weight: 700; text-align: center; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 0; width: 100%; color: #2c3e50; }
         .product-price { font-size: 12px; font-weight: 800; color: var(--shopee-orange); margin: 0; background: rgba(238, 77, 45, 0.1); padding: 3px 8px; border-radius: 4px; }
@@ -406,6 +414,7 @@
 
             if (foundSIdx !== -1 && prodToMove) {
                 if(isCurrentlyFlagged) {
+                    // MENGHAPUS BLOKIR
                     flagRef.child(linkId).remove(); 
                     
                     newData[foundSIdx].products.splice(foundPIdx, 1);
@@ -420,10 +429,8 @@
                     newData[foundSIdx].products.splice(insertIndex, 0, prodToMove);
                     productsRef.set(newData);
                 } else {
-                    const dt = new Date();
-                    const timeStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth()+1).padStart(2, '0')} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
-                    
-                    flagRef.child(linkId).set(timeStr); 
+                    // MEMBERI BLOKIR: Sekarang menyimpan Timestamp (Angka Mili-detik) agar bisa dihitung 24 Jam
+                    flagRef.child(linkId).set(Date.now()); 
                     
                     newData[foundSIdx].products.splice(foundPIdx, 1);
                     newData[foundSIdx].products.push(prodToMove);
@@ -451,7 +458,24 @@
                     sortedProducts.forEach(prod => {
                         const linkKey = encodeFirebaseKey(prod.link);
                         const isFlagged = flaggedMap.has(linkKey);
-                        const flagTime = isFlagged ? flaggedMap.get(linkKey) : null;
+                        
+                        let displayTime = '';
+                        let isOver24h = false;
+                        
+                        if (isFlagged) {
+                            let fVal = flaggedMap.get(linkKey);
+                            if (typeof fVal === 'number') {
+                                // Hitung selisih 24 jam (24 * 60 * 60 * 1000 = 86400000 ms)
+                                if (Date.now() - fVal >= 86400000) { isOver24h = true; }
+                                
+                                let dt = new Date(fVal);
+                                let days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                                displayTime = `${days[dt.getDay()]}, ${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth()+1).padStart(2, '0')} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+                            } else if (typeof fVal === 'string') {
+                                // Melindungi data lama yang formatnya masih Teks (contoh: 07/08 14:30)
+                                displayTime = fVal;
+                            }
+                        }
                         
                         const prodDiv = document.createElement('div'); prodDiv.className = 'product-item';
 
@@ -459,11 +483,17 @@
                         let priceMatch = prod.nama.match(/(?:-?\s*)?(Rp\s*[\d\.]+.*)$/i);
                         if (priceMatch) { displayPrice = priceMatch[1]; displayName = prod.nama.replace(priceMatch[0], '').trim(); }
 
-                        let btnClass = isFlagged ? "btn-product-link flagged" : "btn-product-link";
+                        // Tentukan Kelas CSS: Jika > 24 jam, ganti jadi transparan hijau (flagged-green)
+                        let btnClass = isFlagged ? (isOver24h ? "btn-product-link flagged-green" : "btn-product-link flagged") : "btn-product-link";
+                        
                         let clickEvent = isFlagged ? "tampilkanToast('❌ Produk ini diblokir/habis!')" : `salinTautanAffiliate('${prod.link}')`;
                         let flagBtnClass = isFlagged ? "btn-flag active" : "btn-flag";
 
-                        let timeHtml = (isFlagged && typeof flagTime === 'string') ? `<div style="font-size: 9px; color: var(--danger-red); margin-top: 6px; border-top: 1px dashed #ccc; padding-top: 5px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 4px;"><i class="fas fa-clock"></i> Nonaktif: ${flagTime}</div>` : '';
+                        // Warna Teks Hari & Tanggal (Warna lebih gelap/hijau pekat jika over 24 jam)
+                        let timeColor = isOver24h ? "#1e8449" : "var(--danger-red)";
+                        
+                        // Menampilkan Hari, Tanggal, Jam dengan FONT TEBAL (font-weight: 900)
+                        let timeHtml = (isFlagged && displayTime !== '') ? `<div style="font-size: 11px; color: ${timeColor}; margin-top: 6px; border-top: 1px dashed #ccc; padding-top: 5px; width: 100%; text-align: center; font-weight: 900;">${displayTime}</div>` : '';
 
                         prodDiv.innerHTML = `
                             <button class="${btnClass}" style="background-color: ${isFlagged ? '' : colorBg};" onclick="${clickEvent}">
@@ -601,17 +631,36 @@
                     store.products.forEach((p, pIdx) => {
                         let pId = encodeFirebaseKey(p.link);
                         let isFlagged = flaggedMap.has(pId);
-                        let flagTime = isFlagged ? flaggedMap.get(pId) : null;
+                        
+                        let displayTime = '';
+                        let isOver24h = false;
+                        
+                        if (isFlagged) {
+                            let fVal = flaggedMap.get(pId);
+                            if (typeof fVal === 'number') {
+                                if (Date.now() - fVal >= 86400000) { isOver24h = true; }
+                                let dt = new Date(fVal);
+                                let days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                                displayTime = `${days[dt.getDay()]}, ${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth()+1).padStart(2, '0')} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+                            } else if (typeof fVal === 'string') {
+                                displayTime = fVal;
+                            }
+                        }
                         
                         let titleStyle = isFlagged ? "text-decoration: line-through; color: #aaa;" : "color: #333;";
                         let linkStyle = isFlagged ? "color: #aaa;" : "color: var(--action-blue);";
-                        let originalBgColor = isFlagged ? "#f0f0f0" : "#f9f9f9";
                         
-                        let timeHtmlEditor = (isFlagged && typeof flagTime === 'string') ? ` <span style="font-size: 9px; color: #999;">(${flagTime})</span>` : '';
+                        // Background Editor: Sedikit lebih hijau jika melewati 24 Jam
+                        let originalBgColor = isFlagged ? (isOver24h ? "rgba(46, 204, 113, 0.15)" : "#f0f0f0") : "#f9f9f9";
+                        let borderColor = (isFlagged && isOver24h) ? "var(--success-green)" : "#eee";
+                        
+                        let timeColorEditor = isOver24h ? "var(--success-green)" : "var(--danger-red)";
+                        let timeHtmlEditor = (isFlagged && displayTime !== '') ? ` <span style="font-size: 11px; color: ${timeColorEditor}; font-weight: 900;">(${displayTime})</span>` : '';
+
                         let flagBadge = isFlagged ? `<span style="background: var(--danger-red); color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 5px;">DIBLOKIR</span>${timeHtmlEditor}` : '';
 
                         productsHtml += `
-                        <div id="editor-prod-${sIdx}-${pIdx}" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: ${originalBgColor}; padding: 8px; border-radius: 6px; border: 1px solid #eee; transition: background-color 0.4s ease-out;">
+                        <div id="editor-prod-${sIdx}-${pIdx}" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: ${originalBgColor}; padding: 8px; border-radius: 6px; border: 1px solid ${borderColor}; transition: background-color 0.4s ease-out;">
                             <div style="font-size: 12px; line-height: 1.4; width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                 <strong style="${titleStyle}">${p.nama}</strong> ${flagBadge}<br>
                                 <span style="${linkStyle} font-size: 10px;">${p.link}</span>
@@ -651,8 +700,14 @@
                 if (el) {
                     el.style.backgroundColor = '#fff3cd'; 
                     setTimeout(() => { 
-                        let isFlagged = flaggedMap.has(encodeFirebaseKey(editorData[focusSIdx].products[focusPIdx].link));
-                        el.style.backgroundColor = isFlagged ? "#f0f0f0" : "#f9f9f9"; 
+                        let pIdTemp = encodeFirebaseKey(editorData[focusSIdx].products[focusPIdx].link);
+                        let isFlag = flaggedMap.has(pIdTemp);
+                        let isOvr24 = false;
+                        if(isFlag) {
+                            let fV = flaggedMap.get(pIdTemp);
+                            if(typeof fV === 'number' && Date.now() - fV >= 86400000) isOvr24 = true;
+                        }
+                        el.style.backgroundColor = isFlag ? (isOvr24 ? "rgba(46, 204, 113, 0.15)" : "#f0f0f0") : "#f9f9f9"; 
                     }, 600);
                 }
             }
