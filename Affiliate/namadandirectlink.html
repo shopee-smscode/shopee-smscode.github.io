@@ -20,6 +20,7 @@
             --success-green: #2ecc71;
             --action-blue: #3498db;
             --danger-red: #e74c3c;
+            --warning-orange: #f39c12; /* Warna Oranye untuk Konfirmasi */
         }
         
         body {
@@ -143,6 +144,9 @@
         .btn-flag { width: 30px; border-radius: 8px; border: 1px solid #ffcdd2; background: #fff5f5; color: var(--danger-red); font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
         .btn-flag:active { transform: scale(0.9); }
         .btn-flag.active { background: var(--danger-red); color: white; border-color: var(--danger-red); }
+        
+        /* KELAS BARU: Tombol Pending/Konfirmasi (Warna Oranye) */
+        .btn-flag.pending { background: var(--warning-orange); color: white; border-color: var(--warning-orange); }
 
         /* PROGRESS BAR */
         .progress-container { width: 100%; height: 18px; background-color: #e0e0e0; border-radius: 10px; overflow: hidden; margin-bottom: 5px; position: relative; }
@@ -340,6 +344,10 @@
         let groupedProducts = []; 
         let flaggedMap = new Map(); 
         let usedLinksObj = {}; 
+        
+        // VARIABEL KONFIRMASI (DOUBLE TAP)
+        let pendingFlagId = null;
+        let pendingFlagTimer = null;
 
         function encodeFirebaseKey(str) { 
             if (!str) return "";
@@ -399,6 +407,33 @@
         }
 
         window.toggleFlag = function(linkId, isCurrentlyFlagged) {
+            // LOKIKA KONFIRMASI (Jika ingin memblokir/menonaktifkan produk)
+            if(!isCurrentlyFlagged) {
+                if (pendingFlagId !== linkId) {
+                    // Ketukan Pertama (Peringatan)
+                    pendingFlagId = linkId;
+                    tampilkanToast("⚠️ Ketuk tombol silang sekali lagi untuk memblokir!");
+                    renderColumns();
+                    
+                    // Batalkan peringatan setelah 3 detik
+                    if (pendingFlagTimer) clearTimeout(pendingFlagTimer);
+                    pendingFlagTimer = setTimeout(() => {
+                        pendingFlagId = null;
+                        renderColumns();
+                    }, 3000);
+                    
+                    return; // Stop eksekusi di sini, tunggu ketukan kedua
+                } else {
+                    // Ketukan Kedua (Terkonfirmasi!)
+                    pendingFlagId = null;
+                    if (pendingFlagTimer) clearTimeout(pendingFlagTimer);
+                }
+            } else {
+                // Jika ingin membuka blokir (un-flag), lakukan secara instan tanpa konfirmasi ganda
+                pendingFlagId = null; 
+            }
+
+            // PROSES UTAMA BLOKIR / BUKA BLOKIR
             let newData = JSON.parse(JSON.stringify(groupedProducts));
             let foundSIdx = -1; let foundPIdx = -1; let prodToMove = null;
 
@@ -416,7 +451,6 @@
                 if(isCurrentlyFlagged) {
                     // MENGHAPUS BLOKIR
                     flagRef.child(linkId).remove(); 
-                    
                     newData[foundSIdx].products.splice(foundPIdx, 1);
                     
                     let insertIndex = 0;
@@ -429,9 +463,8 @@
                     newData[foundSIdx].products.splice(insertIndex, 0, prodToMove);
                     productsRef.set(newData);
                 } else {
-                    // MEMBERI BLOKIR: Sekarang menyimpan Timestamp (Angka Mili-detik) agar bisa dihitung 24 Jam
+                    // MEMBERI BLOKIR
                     flagRef.child(linkId).set(Date.now()); 
-                    
                     newData[foundSIdx].products.splice(foundPIdx, 1);
                     newData[foundSIdx].products.push(prodToMove);
                     productsRef.set(newData);
@@ -440,6 +473,10 @@
         }
 
         function renderColumns() {
+            // Merekam posisi scroll agar layar tidak melompat saat render untuk tombol konfirmasi
+            const wrapper = document.querySelector('.scroll-wrapper');
+            let currentScrollLeft = wrapper ? wrapper.scrollLeft : 0;
+
             productList.innerHTML = '';
             const bgColors = ['#dbeafe', '#fce7f3', '#dcfce7', '#ffedd5', '#f3e8ff'];
 
@@ -458,6 +495,7 @@
                     sortedProducts.forEach(prod => {
                         const linkKey = encodeFirebaseKey(prod.link);
                         const isFlagged = flaggedMap.has(linkKey);
+                        const isPending = (!isFlagged && linkKey === pendingFlagId); // Cek status konfirmasi
                         
                         let displayTime = '';
                         let isOver24h = false;
@@ -465,14 +503,11 @@
                         if (isFlagged) {
                             let fVal = flaggedMap.get(linkKey);
                             if (typeof fVal === 'number') {
-                                // Hitung selisih 24 jam (24 * 60 * 60 * 1000 = 86400000 ms)
                                 if (Date.now() - fVal >= 86400000) { isOver24h = true; }
-                                
                                 let dt = new Date(fVal);
                                 let days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
                                 displayTime = `${days[dt.getDay()]}, ${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth()+1).padStart(2, '0')} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
                             } else if (typeof fVal === 'string') {
-                                // Melindungi data lama yang formatnya masih Teks (contoh: 07/08 14:30)
                                 displayTime = fVal;
                             }
                         }
@@ -483,16 +518,13 @@
                         let priceMatch = prod.nama.match(/(?:-?\s*)?(Rp\s*[\d\.]+.*)$/i);
                         if (priceMatch) { displayPrice = priceMatch[1]; displayName = prod.nama.replace(priceMatch[0], '').trim(); }
 
-                        // Tentukan Kelas CSS: Jika > 24 jam, ganti jadi transparan hijau (flagged-green)
                         let btnClass = isFlagged ? (isOver24h ? "btn-product-link flagged-green" : "btn-product-link flagged") : "btn-product-link";
-                        
                         let clickEvent = isFlagged ? "tampilkanToast('❌ Produk ini diblokir/habis!')" : `salinTautanAffiliate('${prod.link}')`;
-                        let flagBtnClass = isFlagged ? "btn-flag active" : "btn-flag";
-
-                        // Warna Teks Hari & Tanggal (Warna lebih gelap/hijau pekat jika over 24 jam)
-                        let timeColor = isOver24h ? "#1e8449" : "var(--danger-red)";
                         
-                        // Menampilkan Hari, Tanggal, Jam dengan FONT TEBAL (font-weight: 900)
+                        // PERUBAHAN: Menentukan warna tombol berdasarkan status Pending Konfirmasi
+                        let flagBtnClass = isFlagged ? "btn-flag active" : (isPending ? "btn-flag pending" : "btn-flag");
+
+                        let timeColor = isOver24h ? "#1e8449" : "var(--danger-red)";
                         let timeHtml = (isFlagged && displayTime !== '') ? `<div style="font-size: 11px; color: ${timeColor}; margin-top: 6px; border-top: 1px dashed #ccc; padding-top: 5px; width: 100%; text-align: center; font-weight: 900;">${displayTime}</div>` : '';
 
                         prodDiv.innerHTML = `
@@ -501,13 +533,16 @@
                                 ${displayPrice ? `<div class="product-price">${displayPrice}</div>` : ''}
                                 ${timeHtml}
                             </button>
-                            <button class="${flagBtnClass}" onclick="toggleFlag('${linkKey}', ${isFlagged})">${isFlagged ? '❌' : '✖'}</button>
+                            <button class="${flagBtnClass}" onclick="toggleFlag('${linkKey}', ${isFlagged})">${isFlagged ? '❌' : (isPending ? '✖' : '✖')}</button>
                         `;
                         columnLi.appendChild(prodDiv);
                     });
                 }
                 productList.appendChild(columnLi);
             });
+            
+            // Mengembalikan posisi scroll
+            if (wrapper) wrapper.scrollLeft = currentScrollLeft;
         }
 
         window.salinAcakDariGrup = function(groupIndex) {
@@ -649,8 +684,6 @@
                         
                         let titleStyle = isFlagged ? "text-decoration: line-through; color: #aaa;" : "color: #333;";
                         let linkStyle = isFlagged ? "color: #aaa;" : "color: var(--action-blue);";
-                        
-                        // Background Editor: Sedikit lebih hijau jika melewati 24 Jam
                         let originalBgColor = isFlagged ? (isOver24h ? "rgba(46, 204, 113, 0.15)" : "#f0f0f0") : "#f9f9f9";
                         let borderColor = (isFlagged && isOver24h) ? "var(--success-green)" : "#eee";
                         
