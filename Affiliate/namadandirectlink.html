@@ -267,7 +267,7 @@
         // ================= LOGIKA DIRECT LINK =================
         let isDirectLink = localStorage.getItem('asea_aff_direct_link');
         if (isDirectLink === null) {
-            isDirectLink = true; // Default Aktif (Sesuai Permintaan)
+            isDirectLink = true; // Default Aktif
             localStorage.setItem('asea_aff_direct_link', 'true');
         } else {
             isDirectLink = (isDirectLink === 'true');
@@ -392,30 +392,39 @@
             return btoa(str).replace(/[=\+\/]/g, 'A').substring(0, 50); 
         }
 
-        // FUNGSI COPY + DIRECT LINK REDIRECT (Diperbaiki untuk mencegah ERR_UNKNOWN_URL_SCHEME)
+        // FUNGSI COPY + DIRECT LINK REDIRECT (Trik Intent Menembus Webview Android)
         function salinTautanAffiliate(url) {
             const tempTextArea = document.createElement("textarea"); tempTextArea.value = url;
             tempTextArea.style.position = "absolute"; tempTextArea.style.left = "-9999px";
             document.body.appendChild(tempTextArea); tempTextArea.select(); tempTextArea.setSelectionRange(0, 99999);
+            
             try { 
                 document.execCommand('copy'); 
                 
                 if(isDirectLink) {
                     tampilkanToast("🚀 Disalin & Membuka Shopee..."); 
-                    
-                    // TRIK ANTI-ERROR: Menggunakan tombol gaib untuk memaksa OS membuka aplikasi Shopee
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.target = '_blank'; // Memaksa OS Android menangani link di luar webview
-                    a.rel = 'noopener noreferrer';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
+                    setTimeout(() => {
+                        const isAndroid = /android/i.test(navigator.userAgent || navigator.vendor || window.opera);
+                        
+                        if (isAndroid) {
+                            // TRIK INTENT ANDROID
+                            // Memaksa Sistem Operasi mengambil alih link dari tangan WebView pembungkus APK Anda
+                            const cleanUrl = url.replace(/^https?:\/\//, '');
+                            const intentUrl = `intent://${cleanUrl}#Intent;scheme=https;end`;
+                            
+                            // Gunakan top location untuk memastikan eksekusi keluar frame/webview
+                            window.top.location.href = intentUrl;
+                        } else {
+                            // Eksekusi normal untuk peramban desktop / iOS
+                            window.open(url, '_blank') || (window.location.href = url);
+                        }
+                    }, 400);
                 } else {
                     tampilkanToast("✅ Link berhasil disalin!"); 
                 }
             } 
             catch (err) { tampilkanToast("❌ Gagal menyalin link"); }
+            
             document.body.removeChild(tempTextArea); window.getSelection().removeAllRanges();
         }
 
