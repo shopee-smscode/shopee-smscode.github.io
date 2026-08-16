@@ -392,7 +392,7 @@
             return btoa(str).replace(/[=\+\/]/g, 'A').substring(0, 50); 
         }
 
-        // FUNGSI COPY + DIRECT LINK REDIRECT
+        // FUNGSI COPY + DIRECT LINK REDIRECT (Diperbaiki untuk mencegah ERR_UNKNOWN_URL_SCHEME)
         function salinTautanAffiliate(url) {
             const tempTextArea = document.createElement("textarea"); tempTextArea.value = url;
             tempTextArea.style.position = "absolute"; tempTextArea.style.left = "-9999px";
@@ -402,9 +402,15 @@
                 
                 if(isDirectLink) {
                     tampilkanToast("🚀 Disalin & Membuka Shopee..."); 
-                    setTimeout(() => {
-                        window.location.href = url; // Melempar langsung ke aplikasi Shopee
-                    }, 400);
+                    
+                    // TRIK ANTI-ERROR: Menggunakan tombol gaib untuk memaksa OS membuka aplikasi Shopee
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.target = '_blank'; // Memaksa OS Android menangani link di luar webview
+                    a.rel = 'noopener noreferrer';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
                 } else {
                     tampilkanToast("✅ Link berhasil disalin!"); 
                 }
