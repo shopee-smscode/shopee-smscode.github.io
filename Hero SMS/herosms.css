@@ -83,13 +83,45 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 
 .phone-row { display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 8px 10px !important; border-radius: 10px; margin-bottom: 8px !important; border: 1px solid var(--border-color); }
 .phone-number { font-size: clamp(18px, 5vw, 22px) !important; font-weight: 900; color: var(--text-primary); letter-spacing: 1px; }
-.btn-copy { height: 34px !important; padding: 0 12px !important; font-size: 12px !important; font-weight: 800; background: var(--primary-color); color: var(--bg-body); border: none; border-radius: 8px !important; text-transform: uppercase; cursor: pointer; transition: 0.2s; }
+
+/* KUNCI UKURAN TOMBOL SALIN (Anti Geser) */
+.btn-copy { 
+    height: 34px !important; 
+    width: 44px !important; 
+    padding: 0 !important; 
+    display: inline-flex; 
+    align-items: center; 
+    justify-content: center;
+    font-size: 14px !important; 
+    font-weight: 800; 
+    background: var(--primary-color); 
+    color: var(--bg-body); 
+    border: none; 
+    border-radius: 8px !important; 
+    cursor: pointer; 
+    transition: 0.2s; 
+}
 .btn-copy:active { transform: scale(0.95); }
 
 .otp-display { background: var(--otp-bg); padding: 12px 10px !important; border-radius: 10px !important; border: 2px solid var(--otp-border); margin: 8px 0 !important; text-align: center; position: relative; overflow: hidden; }
 .otp-title { font-size: 11px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 4px; }
 .otp-code { font-size: clamp(28px, 8vw, 40px) !important; letter-spacing: 4px !important; font-weight: 900; color: var(--otp-text); text-shadow: 0 0 10px var(--shadow-color); }
-.success-glow { border-color: var(--success-color) !important; box-shadow: 0 0 15px rgba(150, 212, 0, 0.3); }
+
+/* WARNA KUNING SOLID SAAT OTP MASUK */
+.success-glow { 
+    background-color: #ffcc00 !important; 
+    border-color: #ffcc00 !important; 
+    box-shadow: 0 0 15px rgba(255, 204, 0, 0.5) !important; 
+}
+.success-glow .otp-title { 
+    color: #000000 !important; 
+    font-weight: 900; 
+    opacity: 0.6; 
+}
+.success-glow .otp-code { 
+    color: #000000 !important; 
+    text-shadow: none !important; 
+}
 
 .action-buttons-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .btn-replace, .btn-resend, .btn-danger, .btn-success { height: 42px !important; font-size: 13px !important; font-weight: 800; border-radius: 10px !important; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 6px; border: none; cursor: pointer; transition: transform 0.1s, filter 0.2s, opacity 0.2s; }
@@ -111,7 +143,6 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .product-info { flex: 1; display: flex; flex-direction: column; align-items: center; overflow: hidden; width: 100%; justify-content: center; }
 .product-info h4 { font-size: 11px; font-weight: 800; margin: 0; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%; }
 
-/* DIKEMBALIKAN SEPERTI SEMULA: Harga kembali ke tengah tanpa flexbox stok */
 .product-price { font-size: 10px; font-weight: 900; color: var(--primary-color); padding: 3px 6px; background: var(--bg-body); border-radius: 6px; flex-shrink: 0; box-shadow: inset 0 0 4px rgba(0,0,0,0.3); width: 85%; margin-top: 2px; }
 
 .switch { position: relative; display: inline-block; width: 40px; height: 22px; }

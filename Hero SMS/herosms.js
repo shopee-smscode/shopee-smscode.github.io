@@ -309,7 +309,6 @@ window.toggleRandomOperator = function() {
     if (btn) btn.disabled = false;
 }
 
-// PERBAIKAN: Menambahkan parameter Service agar aman saat Ganti Nomor
 async function processOrderFreshNumber(operatorId, serviceIdParam, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas.", "error"); return null; }
     
@@ -347,7 +346,6 @@ window.onOrderButtonClicked = async function() {
             const opInfo = availableProducts.find(p => String(p.id) === String(selectedProductId)); 
             const opPrice = o.price || (opInfo ? opInfo.price : 0);
             
-            // PERBAIKAN: Tangkap nama layanan yang sedang dipesan
             const svcObj = allServices.find(s => String(s.id) === String(currentServiceId));
             const sName = svcObj ? svcObj.name : "SHOPEE";
             
@@ -382,15 +380,15 @@ function createOrderCard(order) {
     let opTag = order.productId;
     if (opTag === 'any' || !opTag) { opTag = getProviderName(order.phone); } else { opTag = String(opTag).toUpperCase(); }
     
-    // PERBAIKAN: Menarik nama layanan
     let srvName = order.serviceName ? String(order.serviceName).toUpperCase() : "SHOPEE";
     
     const matchedProduct = availableProducts.find(p => p.id === order.productId);
     const displayPrice = (order.price && order.price > 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || 0);
     const wait = order.cancelUnlockTime - now; 
     
+    // PERBAIKAN: Tombol Salin OTP dikunci dengan lebar absolut tanpa menggeser elemen
     let otpHtml = isSuccess 
-        ? `<div class="otp-title">KODE OTP</div><div class="otp-code" style="margin:0 !important; letter-spacing: 4px !important;">${formatOTP(order.otp)}</div><button class="btn-copy" onclick="copyToClipboard('${order.otp}')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: var(--success-color); color: #000; box-shadow: 0 2px 8px rgba(150,212,0,0.4);"><i class="fas fa-copy"></i></button>` 
+        ? `<div class="otp-title">KODE OTP</div><div class="otp-code" style="margin:0 !important; letter-spacing: 4px !important;">${formatOTP(order.otp)}</div><button class="btn-copy" onclick="copyToClipboard('${order.otp}')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: #000000; color: #ffcc00; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><i class="fas fa-copy"></i></button>` 
         : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
         
     let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
@@ -399,7 +397,6 @@ function createOrderCard(order) {
     let headerLogoUrl = getOperatorLogo(opTag); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
     const left = order.expiresAt - now; let timerColor = "#ffffff"; if (left <= 12 * 60000) { timerColor = "var(--danger-color)"; } else if (left <= 18 * 60000) { timerColor = "var(--warning-color)"; }
     
-    // PERBAIKAN: Menampilkan Layanan dan Operator di Kotak OTP
     card.innerHTML = `<div class="order-header"><div class="order-info-left" style="display: flex; align-items: center; gap: 10px;"><div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center;"><img src="${headerLogoUrl}" onerror="this.onerror=null; this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;"></div><div><div class="order-id-label" style="display:inline-block; margin-bottom:2px; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;">#${order.id} (${srvName} • ${opTag})</div><div class="order-price" style="display:block;">${displayPrice}</div></div></div><span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">--:--</span></div><div class="phone-row"><span class="phone-number">${formatPhoneNumber(order.phone)}</span><button class="btn-copy" onclick="copyToClipboard('${order.phone}')"><i class="fas fa-copy"></i></button></div><div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div><div class="action-buttons-grid"><button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}')" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button><button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button><button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button><button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button></div>`;
     return card;
 }
@@ -578,7 +575,6 @@ window.replaceSpecificOrder = async function(orderId) {
     const oldOrder = activeOrders.find(o => String(o.id) === String(orderId)); 
     const opToUse = oldOrder ? oldOrder.productId : selectedProductId;
     
-    // PERBAIKAN: Gunakan serviceId lama saat ganti nomor
     const srvIdToUse = oldOrder ? (oldOrder.serviceId || currentServiceId) : currentServiceId;
     const srvNameToUse = oldOrder ? (oldOrder.serviceName || "SHOPEE") : "SHOPEE";
     
@@ -622,7 +618,6 @@ window.replaceSpecificOrder = async function(orderId) {
 
 function loadHistory() { orderHistory = JSON.parse(localStorage.getItem(`hero_history_${activeAccountName}`)) || []; renderHistory(); }
 
-// PERBAIKAN: Menambahkan serviceName ke riwayat
 function saveToHistory(order, status) { 
     if (!order) return; 
     const historyItem = { 
