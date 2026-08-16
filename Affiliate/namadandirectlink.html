@@ -20,7 +20,7 @@
             --success-green: #2ecc71;
             --action-blue: #3498db;
             --danger-red: #e74c3c;
-            --warning-orange: #f39c12; /* Warna Oranye untuk Konfirmasi */
+            --warning-orange: #f39c12; 
         }
         
         body {
@@ -156,6 +156,14 @@
         .loading, .error { text-align: center; color: var(--text-muted); padding: 20px; font-size: 14px; }
         .error { color: var(--shopee-orange); }
 
+        /* TOGGLE SWITCH DIRECT LINK */
+        .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border-color); transition: .4s; border-radius: 24px; }
+        .slider-knob { position: absolute; content: ''; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        .switch input:checked + .slider { background-color: var(--success-green); }
+        .switch input:checked + .slider .slider-knob { transform: translateX(18px); }
+
         /* MODAL EDITOR CSS */
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .modal.hidden { display: none; }
@@ -216,6 +224,15 @@
                 <button onclick="closeEditorModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--danger-red);">✖</button>
             </div>
             
+            <!-- TOGGLE DIRECT LINK -->
+            <div style="display: flex; align-items: center; justify-content: space-between; background: #fff; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                <span style="font-size: 13px; font-weight: 800; color: #333;"><i class="fas fa-external-link-alt" style="margin-right: 5px; color: var(--action-blue);"></i> Mode Direct Link</span>
+                <label class="switch">
+                    <input type="checkbox" id="directLinkToggle" onchange="toggleDirectLink()">
+                    <span class="slider"><span class="slider-knob"></span></span>
+                </label>
+            </div>
+
             <div id="editorBody" style="overflow-y: auto; flex: 1; padding-right: 5px;">
             </div>
 
@@ -246,6 +263,27 @@
         };
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.database();
+
+        // ================= LOGIKA DIRECT LINK =================
+        let isDirectLink = localStorage.getItem('asea_aff_direct_link');
+        if (isDirectLink === null) {
+            isDirectLink = true; // Default Aktif (Sesuai Permintaan)
+            localStorage.setItem('asea_aff_direct_link', 'true');
+        } else {
+            isDirectLink = (isDirectLink === 'true');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggleEl = document.getElementById('directLinkToggle');
+            if(toggleEl) toggleEl.checked = isDirectLink;
+        });
+
+        window.toggleDirectLink = function() {
+            const toggleEl = document.getElementById('directLinkToggle');
+            isDirectLink = toggleEl.checked;
+            localStorage.setItem('asea_aff_direct_link', isDirectLink);
+            tampilkanToast(isDirectLink ? "🚀 Direct Link AKTIF" : "🔗 Direct Link MATI");
+        }
 
         // ================= LOGIKA GENERATOR ALAMAT =================
         const btnGenerate = document.getElementById("btnGenerate");
@@ -354,11 +392,23 @@
             return btoa(str).replace(/[=\+\/]/g, 'A').substring(0, 50); 
         }
 
+        // FUNGSI COPY + DIRECT LINK REDIRECT
         function salinTautanAffiliate(url) {
             const tempTextArea = document.createElement("textarea"); tempTextArea.value = url;
             tempTextArea.style.position = "absolute"; tempTextArea.style.left = "-9999px";
             document.body.appendChild(tempTextArea); tempTextArea.select(); tempTextArea.setSelectionRange(0, 99999);
-            try { document.execCommand('copy'); tampilkanToast("✅ Link berhasil disalin!"); } 
+            try { 
+                document.execCommand('copy'); 
+                
+                if(isDirectLink) {
+                    tampilkanToast("🚀 Disalin & Membuka Shopee..."); 
+                    setTimeout(() => {
+                        window.location.href = url; // Melempar langsung ke aplikasi Shopee
+                    }, 400);
+                } else {
+                    tampilkanToast("✅ Link berhasil disalin!"); 
+                }
+            } 
             catch (err) { tampilkanToast("❌ Gagal menyalin link"); }
             document.body.removeChild(tempTextArea); window.getSelection().removeAllRanges();
         }
@@ -407,33 +457,27 @@
         }
 
         window.toggleFlag = function(linkId, isCurrentlyFlagged) {
-            // LOKIKA KONFIRMASI (Jika ingin memblokir/menonaktifkan produk)
             if(!isCurrentlyFlagged) {
                 if (pendingFlagId !== linkId) {
-                    // Ketukan Pertama (Peringatan)
                     pendingFlagId = linkId;
                     tampilkanToast("⚠️ Ketuk tombol silang sekali lagi untuk memblokir!");
                     renderColumns();
                     
-                    // Batalkan peringatan setelah 3 detik
                     if (pendingFlagTimer) clearTimeout(pendingFlagTimer);
                     pendingFlagTimer = setTimeout(() => {
                         pendingFlagId = null;
                         renderColumns();
                     }, 3000);
                     
-                    return; // Stop eksekusi di sini, tunggu ketukan kedua
+                    return; 
                 } else {
-                    // Ketukan Kedua (Terkonfirmasi!)
                     pendingFlagId = null;
                     if (pendingFlagTimer) clearTimeout(pendingFlagTimer);
                 }
             } else {
-                // Jika ingin membuka blokir (un-flag), lakukan secara instan tanpa konfirmasi ganda
                 pendingFlagId = null; 
             }
 
-            // PROSES UTAMA BLOKIR / BUKA BLOKIR
             let newData = JSON.parse(JSON.stringify(groupedProducts));
             let foundSIdx = -1; let foundPIdx = -1; let prodToMove = null;
 
@@ -449,7 +493,6 @@
 
             if (foundSIdx !== -1 && prodToMove) {
                 if(isCurrentlyFlagged) {
-                    // MENGHAPUS BLOKIR
                     flagRef.child(linkId).remove(); 
                     newData[foundSIdx].products.splice(foundPIdx, 1);
                     
@@ -463,7 +506,6 @@
                     newData[foundSIdx].products.splice(insertIndex, 0, prodToMove);
                     productsRef.set(newData);
                 } else {
-                    // MEMBERI BLOKIR
                     flagRef.child(linkId).set(Date.now()); 
                     newData[foundSIdx].products.splice(foundPIdx, 1);
                     newData[foundSIdx].products.push(prodToMove);
@@ -473,7 +515,6 @@
         }
 
         function renderColumns() {
-            // Merekam posisi scroll agar layar tidak melompat saat render untuk tombol konfirmasi
             const wrapper = document.querySelector('.scroll-wrapper');
             let currentScrollLeft = wrapper ? wrapper.scrollLeft : 0;
 
@@ -495,7 +536,7 @@
                     sortedProducts.forEach(prod => {
                         const linkKey = encodeFirebaseKey(prod.link);
                         const isFlagged = flaggedMap.has(linkKey);
-                        const isPending = (!isFlagged && linkKey === pendingFlagId); // Cek status konfirmasi
+                        const isPending = (!isFlagged && linkKey === pendingFlagId); 
                         
                         let displayTime = '';
                         let isOver24h = false;
@@ -521,7 +562,6 @@
                         let btnClass = isFlagged ? (isOver24h ? "btn-product-link flagged-green" : "btn-product-link flagged") : "btn-product-link";
                         let clickEvent = isFlagged ? "tampilkanToast('❌ Produk ini diblokir/habis!')" : `salinTautanAffiliate('${prod.link}')`;
                         
-                        // PERUBAHAN: Menentukan warna tombol berdasarkan status Pending Konfirmasi
                         let flagBtnClass = isFlagged ? "btn-flag active" : (isPending ? "btn-flag pending" : "btn-flag");
 
                         let timeColor = isOver24h ? "#1e8449" : "var(--danger-red)";
@@ -541,7 +581,6 @@
                 productList.appendChild(columnLi);
             });
             
-            // Mengembalikan posisi scroll
             if (wrapper) wrapper.scrollLeft = currentScrollLeft;
         }
 
