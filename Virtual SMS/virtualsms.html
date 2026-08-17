@@ -7,9 +7,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="virtualsms.css?v=19"> 
+    <link rel="stylesheet" href="virtualsms.css?v=20"> 
     
-    <!-- SKRIP PENGINGAT APLIKASI (AUTO-REDIRECT) -->
     <script>
         (function() {
             var lastApp = localStorage.getItem('last_active_app');
@@ -32,10 +31,8 @@
 <body class="theme-virtual">
     <div id="appView" class="container">
         
-        <!-- TOP ACTIONS BAR (DROPDOWN KIRI & KANAN) -->
         <div class="top-bar-modern">
             <div style="display: flex; gap: 8px; align-items: center;">
-                <!-- Dropdown Pilih SMS -->
                 <div class="dropdown">
                     <button class="dropbtn" onclick="toggleAppDropdown()">
                         <i class="fas fa-globe"></i> SMS Virtual <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 2px;"></i>
@@ -46,11 +43,9 @@
                         <a href="https://shopee-smscode.github.io/SMS%20Code/smscode.html" onclick="localStorage.setItem('last_active_app', 'smscode.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-sms"></i> SMS Code</a>
                     </div>
                 </div>
-                <!-- Tombol Note External -->
                 <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-sticky-note"></i></button>
             </div>
             
-            <!-- Dropdown Menu Aksi Kanan (Garis 3) -->
             <div class="dropdown">
                 <button class="dropbtn-icon" onclick="toggleMenuDropdown()">
                     <i class="fas fa-bars"></i>
@@ -64,7 +59,6 @@
             </div>
         </div>
 
-        <!-- HEADER TITLE -->
         <div class="app-header-container">
             <div class="header-titles">
                 <h1>SMS Virtual 🌐</h1>
@@ -72,12 +66,10 @@
             </div>
         </div>
         
-        <!-- AREA PESANAN AKTIF -->
         <div id="activeOrdersContainer">
             <div class="status-text-mini">Belum ada pesanan aktif.</div>
         </div>
 
-        <!-- SALDO WIDGET -->
         <div class="balance-container">
             <div class="balance-badge">
                 <span class="balance-label">Saldo</span>
@@ -85,26 +77,31 @@
             </div>
         </div>
 
-        <!-- AREA PILIHAN -->
-        <div>
-            <!-- BARIS: LAYANAN & ACAK SEJAJAR -->
-            <div style="display: flex; align-items: stretch; justify-content: space-between; gap: 8px; margin-bottom: 10px;">
-                <select id="serviceSelect" class="form-input" style="flex: 1; font-weight: bold; font-size: 13px; cursor: pointer; padding: 0 12px; margin: 0; height: 40px;" onchange="changeService()">
-                    <option value="">Memuat layanan...</option>
-                </select>
+        <div style="margin-top: 16px;">
+            <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-bottom: 12px;">
+                <div style="flex: 1; text-align: left;">
+                    <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; padding-left: 4px;">Layanan</label>
+                    <button id="btnServiceSelect" onclick="openServiceModal()" class="form-input" style="text-align: left; font-weight: 800; font-size: 13px; padding: 10px 12px; border-radius: 10px; background-color: var(--bg-card); cursor: pointer; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); color: var(--primary-color); height: 38px; margin: 0;">
+                        <span>Memuat...</span>
+                        <i class="fas fa-search" style="font-size: 11px;"></i>
+                    </button>
+                </div>
                 
-                <label style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--primary-color); cursor: pointer; background: var(--bg-card); padding: 0 10px; border-radius: 10px; border: 1px solid var(--border-color); flex-shrink: 0; height: 40px; margin: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
-                    <input type="checkbox" id="chkRandomOp" onchange="toggleRandomOperator()" checked style="accent-color: var(--primary-color);"> Acak 
-                    <span id="randomPriceBadge" style="background: var(--bg-body); padding: 4px 6px; border-radius: 6px; font-size: 10px; box-shadow: inset 0 0 4px rgba(0,0,0,0.3); color: var(--text-primary);">...</span>
-                </label>
+                <div style="display: flex; gap: 8px;">
+                    <div>
+                        <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; text-align: center;">Operator</label>
+                        <label style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--primary-color); cursor: pointer; background: var(--bg-card); padding: 0 10px; border-radius: 10px; border: 1px solid var(--border-color); flex-shrink: 0; height: 38px; margin: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
+                            <input type="checkbox" id="chkRandomOp" onchange="toggleRandomOperator()" checked style="accent-color: var(--primary-color);"> Acak 
+                            <span id="randomPriceBadge" style="background: var(--bg-body); padding: 4px 6px; border-radius: 6px; font-size: 10px; box-shadow: inset 0 0 4px rgba(0,0,0,0.3); color: var(--text-primary);">...</span>
+                        </label>
+                    </div>
+                    <div>
+                        <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; text-align: center;">Stok</label>
+                        <button id="btnRefreshStock" onclick="refreshStock()" style="height: 38px; width: 38px; border-radius: 10px; background: var(--bg-card); color: var(--primary-color); border: 1px solid var(--border-color); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: 0.2s;"><i class="fas fa-sync-alt"></i></button>
+                    </div>
+                </div>
             </div>
 
-            <!-- TEKS PILIH OPERATOR RATA KIRI -->
-            <div style="text-align: left; font-size: 10px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; padding-left: 4px;">
-                Pilih Operator
-            </div>
-
-            <!-- GRID OPERATOR -->
             <div id="productList" class="product-list">
                 <div class="status-text-mini">Memuat data Server...</div>
             </div>
@@ -114,7 +111,21 @@
         </div>
     </div>
 
-    <!-- MODAL EXTERNAL NOTES (IFRAME) -->
+    <div id="serviceModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title">Pilih Layanan</h3>
+                <button onclick="closeServiceModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <input type="text" id="searchServiceInput" class="form-input" placeholder="🔍 Cari layanan... (ex: Shopee)" oninput="filterServices()" style="border-radius: 10px; font-weight: bold;">
+            </div>
+            <div id="serviceListContainer" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column;">
+                <div class="status-text-mini">Memuat...</div>
+            </div>
+        </div>
+    </div>
+
     <div id="iframeNoteModal" class="modal hidden">
         <div class="modal-content" style="max-height: 95vh; display: flex; flex-direction: column; padding: 10px; width: 95%; max-width: 450px;">
             <div class="modal-header" style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: none;">
@@ -127,7 +138,6 @@
         </div>
     </div>
 
-    <!-- MODAL SETTINGS -->
     <div id="settingsModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -149,7 +159,6 @@
         </div>
     </div>
 
-    <!-- MODAL STATISTIK -->
     <div id="statsModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -170,7 +179,6 @@
         </div>
     </div>
 
-    <!-- MODAL BLACKLIST -->
     <div id="blacklistModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -181,12 +189,10 @@
                 <div style="font-size: 48px; font-weight: 900; color: var(--primary-color); margin-bottom: 10px; text-shadow: 0 0 15px rgba(56, 189, 248, 0.3);" id="blacklistDetailCount">0</div>
                 <p style="color: var(--text-primary); font-weight: 700; margin-bottom: 5px; font-size: 14px;">Nomor Terblokir</p>
                 <p style="color: var(--text-secondary); font-size: 12px; line-height: 1.4; margin: 0 5px;">Nomor yang sudah sukses tidak akan diberikan lagi.</p>
-                <div id="operatorBreakdown" style="margin-top: 15px; text-align: center;"></div>
             </div>
         </div>
     </div>
 
-    <!-- MODAL HISTORY -->
     <div id="historyModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -200,7 +206,6 @@
         </div>
     </div>
 
-    <!-- MODAL KELUAR -->
     <div id="exitModal" class="modal hidden">
         <div class="modal-content">
             <h3 class="modal-title">Keluar Aplikasi?</h3>
@@ -214,6 +219,6 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <script src="virtualsms.js?v=19"></script>
+    <script src="virtualsms.js?v=20"></script>
 </body>
 </html>

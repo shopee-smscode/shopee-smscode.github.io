@@ -7,8 +7,13 @@ const db = firebase.database();
 
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
 let activeAccountName = "VirtualUser"; 
+
+// === VARIABEL GLOBAL LAYANAN ===
+let allServices = []; 
+let favoriteServices = JSON.parse(localStorage.getItem('virtual_favorite_services')) || [];
 let currentServiceId = null; 
 let currentCountryId = 6; 
+
 let activeOrders = []; let availableProducts = []; let selectedProductId = 'any'; let timerInterval = null; let pollingInterval = null; let orderHistory = [];
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
 const usdFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
@@ -73,49 +78,129 @@ async function fetchBalance() {
     } catch (error) {} 
 }
 
+// === FITUR BARU: MODAL PENCARIAN LAYANAN ===
 async function loadServices() {
-    const serviceSelect = document.getElementById('serviceSelect'); if (!serviceSelect) return;
+    const btnSvc = document.getElementById('btnServiceSelect'); if (!btnSvc) return;
     try {
+        btnSvc.innerHTML = `<span>Memuat...</span><i class="fas fa-spinner fa-spin"></i>`;
         const res = await apiCall('/v1/services/');
+        
         if (res && (res.status === true || res.status === "true") && Array.isArray(res.data)) {
-            let services = res.data; services.sort((a, b) => (a.serviceName || "").localeCompare(b.serviceName || ""));
-            serviceSelect.innerHTML = ''; let shopeeId = null;
-            services.forEach(svc => {
-                const opt = document.createElement('option'); opt.value = svc.id; opt.textContent = svc.serviceName; serviceSelect.appendChild(opt);
-                if (svc.serviceName && svc.serviceName.toLowerCase().includes('shopee')) shopeeId = svc.id;
-            });
-            let savedId = localStorage.getItem('virtual_selected_service'); let exists = services.find(s => String(s.id) === String(savedId));
-            currentServiceId = exists ? savedId : (shopeeId ? shopeeId : services[0].id);
-            serviceSelect.value = currentServiceId; localStorage.setItem('virtual_selected_service', currentServiceId); loadVirtualSMSProducts(currentServiceId);
-        } else { serviceSelect.innerHTML = `<option value="">${res.message || 'Error'}</option>`; }
-    } catch (e) { serviceSelect.innerHTML = '<option value="">Gagal Jaringan</option>'; }
+            allServices = res.data; 
+            allServices.sort((a, b) => (a.serviceName || "").localeCompare(b.serviceName || ""));
+            
+            let savedId = localStorage.getItem('virtual_selected_service'); 
+            let exists = allServices.find(s => String(s.id) === String(savedId));
+            let shopee = allServices.find(s => s.serviceName && s.serviceName.toLowerCase().includes('shopee'));
+            
+            let selectedSvc = exists ? exists : (shopee ? shopee : allServices[0]);
+            currentServiceId = selectedSvc.id; 
+            localStorage.setItem('virtual_selected_service', currentServiceId); 
+            
+            btnSvc.innerHTML = `<span>${(selectedSvc.serviceName || "Layanan").toUpperCase()}</span><i class="fas fa-search" style="font-size: 11px;"></i>`;
+            loadVirtualSMSProducts(currentServiceId);
+        } else {
+            btnSvc.innerHTML = `<span style="color:var(--danger-color);">Error</span><i class="fas fa-exclamation-triangle"></i>`;
+        }
+    } catch (e) { btnSvc.innerHTML = `<span style="color:var(--danger-color);">Gagal</span><i class="fas fa-wifi"></i>`; }
 }
 
-window.changeService = function() { 
-    currentServiceId = document.getElementById('serviceSelect').value; 
-    localStorage.setItem('virtual_selected_service', currentServiceId); 
-    loadVirtualSMSProducts(currentServiceId); 
+window.openServiceModal = function() { 
+    document.getElementById('serviceModal').classList.remove('hidden'); 
+    document.getElementById('searchServiceInput').value = ''; 
+    filterServices(); 
+    history.pushState(null, null, "#services"); 
+}
+window.closeServiceModal = function() { document.getElementById('serviceModal').classList.add('hidden'); }
+
+window.filterServices = function() {
+    const query = document.getElementById('searchServiceInput').value.toLowerCase();
+    const container = document.getElementById('serviceListContainer');
+    container.innerHTML = '';
+    
+    const filtered = allServices.filter(s => (s.serviceName || String(s.id)).toLowerCase().includes(query));
+    if(filtered.length === 0) { container.innerHTML = '<div class="status-text-mini" style="margin-top:10px;">Layanan tidak ditemukan.</div>'; return; }
+
+    let favs = []; let others = [];
+    filtered.forEach(svc => { if (favoriteServices.includes(String(svc.id))) favs.push(svc); else others.push(svc); });
+
+    const renderBtn = (svc, isFav) => {
+        const isActive = (String(svc.id) === String(currentServiceId));
+        const btn = document.createElement('div');
+        btn.style = `width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 13px; font-weight: bold; text-align: left; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15); margin-bottom: 6px;`;
+        btn.innerHTML = `<div style="display:flex; align-items:center; flex:1;" onclick="selectService('${svc.id}', '${(svc.serviceName||svc.id).replace(/'/g, "\\'")}')"><span>${(svc.serviceName||svc.id).toUpperCase()}</span></div><div style="display:flex; align-items:center; gap:12px;">${isActive ? '<i class="fas fa-check-circle" style="color:var(--primary-color);"></i>' : ''}<i class="fas fa-star" style="font-size:16px; color:${isFav ? 'var(--warning-color)' : 'var(--text-secondary)'}; text-shadow: ${isFav ? '0 0 8px rgba(245, 158, 11, 0.5)' : 'none'}; cursor:pointer; padding:4px;" onclick="toggleFavorite('${svc.id}', event)"></i></div>`;
+        return btn;
+    };
+
+    if (favs.length > 0) {
+        const favTitle = document.createElement('div'); favTitle.style = "font-size: 10px; font-weight: 900; color: var(--warning-color); margin-top: 5px; margin-bottom: 8px; letter-spacing: 1px;"; favTitle.innerText = "⭐️ FAVORIT"; container.appendChild(favTitle);
+        favs.forEach(svc => container.appendChild(renderBtn(svc, true)));
+    }
+
+    if (others.length > 0) {
+        const othTitle = document.createElement('div'); othTitle.style = "font-size: 10px; font-weight: 900; color: var(--text-secondary); margin-top: 10px; margin-bottom: 8px; letter-spacing: 1px;"; othTitle.innerText = "SEMUA LAYANAN"; container.appendChild(othTitle);
+        others.forEach(svc => container.appendChild(renderBtn(svc, false)));
+    }
 }
 
+window.selectService = function(id, name) {
+    currentServiceId = id; localStorage.setItem('virtual_selected_service', currentServiceId);
+    const btnSvc = document.getElementById('btnServiceSelect');
+    if (btnSvc) btnSvc.innerHTML = `<span>${name.toUpperCase()}</span><i class="fas fa-search" style="font-size: 11px;"></i>`;
+    closeServiceModal(); loadVirtualSMSProducts(currentServiceId);
+}
+
+window.toggleFavorite = function(id, event) {
+    event.stopPropagation(); id = String(id);
+    if (favoriteServices.includes(id)) { favoriteServices = favoriteServices.filter(f => f !== id); } else { favoriteServices.push(id); }
+    localStorage.setItem('virtual_favorite_services', JSON.stringify(favoriteServices)); filterServices(); 
+}
+
+window.refreshStock = function() {
+    const btn = document.getElementById('btnRefreshStock');
+    if(btn) {
+        const icon = btn.querySelector('i');
+        icon.classList.add('fa-spin');
+        setTimeout(() => icon.classList.remove('fa-spin'), 1000);
+    }
+    if (currentServiceId) {
+        loadVirtualSMSProducts(currentServiceId);
+        fetchBalance(); 
+    }
+};
+
+// === PERBAIKAN: STRICT COUNTRY LOCK (INDONESIA) ===
 async function loadVirtualSMSProducts(serviceId) {
     try {
         productList.innerHTML = '<div class="status-text-mini">Mencari Operator...</div>';
         if (btnOrder) btnOrder.disabled = true;
         const res = await apiCall(`/v1/price/${serviceId}`);
+        
         if (res && (res.status === true || res.status === "true") && Array.isArray(res.data)) {
             
-            let countryData = res.data.find(c => 
-                (c.countryName && c.countryName.toLowerCase().includes("indonesia")) || 
-                String(c.country) === "62" || String(c.country) === "6" || String(c.country) === "1"
-            );
+            // PRIORITAS KUNCI KE INDONESIA
+            let countryData = res.data.find(c => c.countryName && c.countryName.toLowerCase() === "indonesia");
+            
+            // Jika penamaan agak berbeda
+            if (!countryData) {
+                countryData = res.data.find(c => c.countryName && c.countryName.toLowerCase().includes("indonesia"));
+            }
+            
+            // Mencari berdasarkan ID jika nama disembunyikan
+            if (!countryData) {
+                countryData = res.data.find(c => String(c.country) === "6" || String(c.country) === "62");
+            }
 
+            // Jika Indonesia benar-benar kosong di layanan ini
             if (!countryData) { 
                 productList.innerHTML = `<div class="status-text-mini" style="color:var(--warning-color);">Stok layanan ini kosong untuk Indonesia.</div>`; 
                 document.getElementById('randomPriceBadge').innerText = "---"; 
                 if (btnOrder) btnOrder.disabled = true; return; 
             }
             
+            // Memastikan ID negara terkunci aman
             currentCountryId = countryData.country || countryData.countryId || 6;
+            
             let ops = countryData.operators || []; let priceUsd = countryData.priceUsd || countryData.price || 0;
             document.getElementById('randomPriceBadge').innerText = usdFormatter.format(priceUsd);
             
@@ -178,7 +263,6 @@ if (btnOrder) {
             const o = await processOrderFreshNumber(selectedProductId, 5); 
             if (o) {
                 const opInfo = availableProducts.find(p => String(p.code) === String(selectedProductId)); const opPrice = o.price || (opInfo ? opInfo.price : 0);
-                // Tambahkan disableAutoCancel: false untuk pesanan baru
                 activeOrders.unshift({ id: o.id, productId: selectedProductId, phone: o.phone_number, price: opPrice, otp: null, status: "ACTIVE", expiresAt: Date.now() + (20 * 60 * 1000), cancelUnlockTime: Date.now() + 120000, isAutoCanceling: false, disableAutoCancel: false });
                 saveToStorage(); startPollingAndTimer(); fetchBalance(); copyToClipboard(o.phone_number); window.scrollTo({ top: 0, behavior: 'smooth' });
             }
@@ -200,7 +284,6 @@ function startPollingAndTimer() {
             if (left <= 0) { activeOrders.splice(i, 1); saveToStorage(); fetchBalance(); return; }
             if (el) { const m = Math.floor(left/60000); const s = Math.floor((left%60000)/1000); el.innerText = `${m}:${s<10?'0':''}${s}`; if (left <= 12 * 60000) { el.style.color = "var(--danger-color)"; } else if (left <= 18 * 60000) { el.style.color = "var(--warning-color)"; } else { el.style.color = "#ffffff"; } }
             
-            // JIKA TOMBOL ULANG DITEKAN (!o.disableAutoCancel), BATAL OTOMATIS 10 MENIT DIABAIKAN
             if (left <= 600000 && o.status !== "OTP_RECEIVED" && !o.isAutoCanceling && !o.disableAutoCancel) { o.isAutoCanceling = true; cancelSpecificOrder(o.id, true); }
             
             const wait = o.cancelUnlockTime - now; const bC = document.getElementById(`btn-cancel-${o.id}`); const bR = document.getElementById(`btn-replace-${o.id}`); const bE = document.getElementById(`btn-resend-${o.id}`); 
@@ -257,7 +340,6 @@ window.resendSpecificOrder = async function(orderId) {
                 saveToHistory(activeOrders[idx], "MINTA ULANG"); 
                 activeOrders[idx].status = "ACTIVE"; 
                 activeOrders[idx].otp = null; 
-                // BENDERA AKTIF: Batal Otomatis 10 Menit Dinonaktifkan untuk pesanan ini
                 activeOrders[idx].disableAutoCancel = true; 
                 saveToStorage(); 
             }
@@ -335,7 +417,7 @@ window.clearHistory = function() { if(confirm("Hapus semua riwayat?")) { orderHi
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
-    let mods = ['blacklistModal', 'historyModal', 'statsModal', 'settingsModal', 'iframeNoteModal']; let closedAny = false;
+    let mods = ['blacklistModal', 'historyModal', 'statsModal', 'settingsModal', 'iframeNoteModal', 'serviceModal']; let closedAny = false;
     mods.forEach(m => { let el = document.getElementById(m); if (el && !el.classList.contains('hidden')) { el.classList.add('hidden'); closedAny = true; } });
     if (closedAny) { history.pushState(null, null, window.location.href); return; }
     if (isExitModalOpen) { document.getElementById('exitModal').classList.add('hidden'); isExitModalOpen = false; history.pushState(null, null, window.location.href); }
