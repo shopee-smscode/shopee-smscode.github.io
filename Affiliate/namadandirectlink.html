@@ -64,7 +64,8 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
 
-        .section-title { font-size: 15px; color: var(--text-main); margin: 0; font-weight: 600; }
+        /* DIKEMBALIKAN KE ASAL: margin 0 0 12px 0 untuk menjaga presisi */
+        .section-title { font-size: 15px; color: var(--text-main); margin: 0 0 12px 0; font-weight: 600; }
 
         /* Generator Alamat Textarea */
         #resultArea {
@@ -164,7 +165,7 @@
         .editor-btn { background: #f0f0f0; border: 1px solid #ccc; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
         .editor-btn:active:not(:disabled) { background: #e0e0e0; }
 
-        /* TOGGLE SWITCH CSS (Digunakan untuk pengaturan wilayah) */
+        /* TOGGLE SWITCH CSS */
         .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border-color); transition: .4s; border-radius: 24px; }
@@ -187,18 +188,18 @@
         </div>
 
         <div class="section-card">
-            <!-- TATA LETAK: Ikon Pengaturan di Sebelah Judul -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h2 class="section-title">Generator Identitas & Alamat</h2>
-                <button onclick="openAddressSettingsModal()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: var(--shopee-orange); padding: 0;"><i class="fas fa-cog"></i></button>
-            </div>
+            <!-- TATA LETAK DIPERBAIKI: Menggunakan inline flex pada H2 langsung agar margin tidak rusak -->
+            <h2 class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Generator Identitas & Alamat</span>
+                <button onclick="openAddressSettingsModal()" style="background: none; border: none; font-size: 16px; cursor: pointer; color: var(--shopee-orange); padding: 0;"><i class="fas fa-cog"></i></button>
+            </h2>
             
             <textarea id="resultArea" readonly placeholder="Tunggu, mengunduh database nama dari Firebase..."></textarea>
             <button class="btn-main-large btn-generate" id="btnGenerate" disabled>⏳ Memuat Database...</button>
         </div>
 
         <div class="section-card">
-            <h2 class="section-title" style="margin-bottom: 12px;">Daftar Produk Affiliate</h2>
+            <h2 class="section-title">Daftar Produk Affiliate</h2>
             
             <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                 <button class="btn-main-large btn-global-random" id="btnRandomProduct" style="flex: 2; margin-bottom: 0;" disabled>
