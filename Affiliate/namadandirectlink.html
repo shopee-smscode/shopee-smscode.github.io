@@ -64,7 +64,7 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
 
-        .section-title { font-size: 15px; color: var(--text-main); margin: 0 0 12px 0; font-weight: 600; }
+        .section-title { font-size: 15px; color: var(--text-main); margin: 0; font-weight: 600; }
 
         /* Generator Alamat Textarea */
         #resultArea {
@@ -156,13 +156,21 @@
         .loading, .error { text-align: center; color: var(--text-muted); padding: 20px; font-size: 14px; }
         .error { color: var(--shopee-orange); }
 
-        /* MODAL EDITOR CSS */
+        /* MODAL CSS UMUM */
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .modal.hidden { display: none; }
         .modal-content { background: var(--bg-color); padding: 15px; border-radius: 12px; position: relative; display: flex; flex-direction: column; width: 95%; max-width: 500px; max-height: 90vh; }
         .editor-store-card { background: #fff; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 15px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
         .editor-btn { background: #f0f0f0; border: 1px solid #ccc; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
         .editor-btn:active:not(:disabled) { background: #e0e0e0; }
+
+        /* TOGGLE SWITCH CSS (Digunakan untuk pengaturan wilayah) */
+        .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border-color); transition: .4s; border-radius: 24px; }
+        .slider-knob { position: absolute; content: ''; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        .switch input:checked + .slider { background-color: var(--success-green); }
+        .switch input:checked + .slider .slider-knob { transform: translateX(18px); }
 
         /* Toast Notification */
         #toast { visibility: hidden; min-width: 200px; background-color: rgba(0, 0, 0, 0.85); color: #fff; text-align: center; border-radius: 30px; padding: 12px 20px; position: fixed; z-index: 1500; bottom: 30px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 500; opacity: 0; transition: opacity 0.3s; }
@@ -179,13 +187,18 @@
         </div>
 
         <div class="section-card">
-            <h2 class="section-title">Generator Identitas & Alamat</h2>
+            <!-- TATA LETAK: Ikon Pengaturan di Sebelah Judul -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h2 class="section-title">Generator Identitas & Alamat</h2>
+                <button onclick="openAddressSettingsModal()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: var(--shopee-orange); padding: 0;"><i class="fas fa-cog"></i></button>
+            </div>
+            
             <textarea id="resultArea" readonly placeholder="Tunggu, mengunduh database nama dari Firebase..."></textarea>
             <button class="btn-main-large btn-generate" id="btnGenerate" disabled>⏳ Memuat Database...</button>
         </div>
 
         <div class="section-card">
-            <h2 class="section-title">Daftar Produk Affiliate</h2>
+            <h2 class="section-title" style="margin-bottom: 12px;">Daftar Produk Affiliate</h2>
             
             <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                 <button class="btn-main-large btn-global-random" id="btnRandomProduct" style="flex: 2; margin-bottom: 0;" disabled>
@@ -209,6 +222,27 @@
         </div>
     </div>
 
+    <!-- MODAL PENGATURAN WILAYAH (ALAMAT) -->
+    <div id="addressSettingsModal" class="modal hidden">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--shopee-orange); padding-bottom: 10px; margin-bottom: 10px;">
+                <h3 style="margin:0; font-size: 16px; color: var(--shopee-orange);">⚙️ Pengaturan Wilayah</h3>
+                <button onclick="closeAddressSettingsModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--danger-red);">✖</button>
+            </div>
+            
+            <div style="text-align: left; font-size: 12px; color: var(--text-muted); margin-bottom: 10px; font-weight: 500;">Aktifkan provinsi yang ingin digunakan saat mengacak alamat (Tersinkronisasi 15 HP):</div>
+            
+            <div id="provinceTogglesContainer" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; padding-right: 4px;">
+                <!-- Daftar toggle akan dimuat lewat JavaScript -->
+            </div>
+
+            <div style="margin-top: 5px; display: flex; flex-direction: column; gap: 10px;">
+                <button id="btnSaveAddressSettings" class="btn-main-large" style="background: var(--shopee-orange); padding: 12px; margin: 0; font-size: 13px;" onclick="saveAddressSettings()">💾 SIMPAN PENGATURAN</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL KELOLA DATABASE PRODUK -->
     <div id="editorModal" class="modal hidden">
         <div class="modal-content">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--shopee-orange); padding-bottom: 10px; margin-bottom: 10px;">
@@ -246,6 +280,94 @@
         };
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.database();
+
+        // ================= LOGIKA PENGATURAN WILAYAH ALAMAT (REALTIME FIREBASE) =================
+        const ALL_PROVINCES_LIST = [
+            "ACEH", "SUMATERA UTARA", "SUMATERA BARAT", "RIAU", "JAMBI", "SUMATERA SELATAN", "BENGKULU", "LAMPUNG", "KEPULAUAN BANGKA BELITUNG", "KEPULAUAN RIAU",
+            "JAKARTA", "JAWA BARAT", "JAWA TENGAH", "YOGYAKARTA", "JAWA TIMUR", "BANTEN",
+            "BALI", "NUSA TENGGARA BARAT", "NUSA TENGGARA TIMUR",
+            "KALIMANTAN BARAT", "KALIMANTAN TENGAH", "KALIMANTAN SELATAN", "KALIMANTAN TIMUR", "KALIMANTAN UTARA",
+            "SULAWESI UTARA", "SULAWESI TENGAH", "SULAWESI SELATAN", "SULAWESI TENGGARA", "GORONTALO", "SULAWESI BARAT",
+            "MALUKU", "MALUKU UTARA", "PAPUA", "PAPUA BARAT", "PAPUA SELATAN", "PAPUA TENGAH", "PAPUA PEGUNUNGAN", "PAPUA BARAT DAYA"
+        ];
+        
+        // DEFAULT HANYA PULAU JAWA SAJA
+        const DEFAULT_PROVINCES = ["BANTEN", "JAKARTA", "JAWA BARAT", "JAWA TENGAH", "YOGYAKARTA", "JAWA TIMUR"];
+        
+        let activeProvinces = DEFAULT_PROVINCES;
+        const activeProvincesRef = db.ref('shopee_affiliate/active_provinces');
+
+        // Mendengarkan perubahan pengaturan dari server
+        activeProvincesRef.on('value', snap => {
+            if(snap.exists()) {
+                activeProvinces = snap.val();
+            } else {
+                activeProvinces = DEFAULT_PROVINCES;
+            }
+            
+            // Perbarui centang di UI jika modal kebetulan sedang dibuka
+            if(!document.getElementById('addressSettingsModal').classList.contains('hidden')){
+                ALL_PROVINCES_LIST.forEach(prov => {
+                    const cb = document.getElementById(`toggle_prov_${prov.replace(/\s/g, '_')}`);
+                    if (cb) cb.checked = activeProvinces.includes(prov);
+                });
+            }
+        });
+
+        window.openAddressSettingsModal = function() {
+            document.getElementById('addressSettingsModal').classList.remove('hidden');
+            const container = document.getElementById('provinceTogglesContainer');
+            container.innerHTML = '';
+            
+            ALL_PROVINCES_LIST.forEach(prov => {
+                const isChecked = activeProvinces.includes(prov);
+                const div = document.createElement('div');
+                div.style = 'display: flex; align-items: center; justify-content: space-between; background: #fff; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color);';
+                div.innerHTML = `
+                    <span style="font-size: 13px; font-weight: 700; color: var(--text-main);">${prov}</span>
+                    <label class="switch">
+                        <input type="checkbox" id="toggle_prov_${prov.replace(/\s/g, '_')}" ${isChecked ? 'checked' : ''}>
+                        <span class="slider"><span class="slider-knob"></span></span>
+                    </label>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        window.closeAddressSettingsModal = function() {
+            document.getElementById('addressSettingsModal').classList.add('hidden');
+        }
+
+        window.saveAddressSettings = function() {
+            let newActive = [];
+            ALL_PROVINCES_LIST.forEach(prov => {
+                const cb = document.getElementById(`toggle_prov_${prov.replace(/\s/g, '_')}`);
+                if (cb && cb.checked) {
+                    newActive.push(prov);
+                }
+            });
+            
+            if(newActive.length === 0) {
+                tampilkanToast("⚠️ Minimal sisakan 1 provinsi aktif!");
+                return;
+            }
+            
+            const btnSave = document.getElementById("btnSaveAddressSettings");
+            const originalText = btnSave.innerText;
+            btnSave.innerText = "⏳ Menyimpan...";
+            btnSave.disabled = true;
+            
+            // Simpan langsung ke Firebase Realtime DB
+            activeProvincesRef.set(newActive).then(() => {
+                closeAddressSettingsModal();
+                tampilkanToast("✅ Tersinkronisasi ke 15 HP!");
+            }).catch(e => {
+                tampilkanToast("❌ Gagal menyimpan ke server.");
+            }).finally(() => {
+                btnSave.innerText = originalText;
+                btnSave.disabled = false;
+            });
+        }
 
         // ================= LOGIKA GENERATOR ALAMAT =================
         const btnGenerate = document.getElementById("btnGenerate");
@@ -295,9 +417,13 @@
                 const resProv = await fetch(`${BASE_API_URL}/provinsi.json`);
                 const allProvinces = await resProv.json();
 
-                const targetProvinces = ["BANTEN", "JAKARTA", "JAWA BARAT", "JAWA TENGAH", "YOGYAKARTA", "JAWA TIMUR", "BALI"];
-                const javaBaliProvinces = allProvinces.filter(p => targetProvinces.some(target => p.nama.toUpperCase().includes(target)));
-                const randomProv = getRandomItem(javaBaliProvinces);
+                // Menggunakan pilihan provinsi tersinkronisasi dari Firebase
+                const targetProvinces = activeProvinces; 
+                const validProvincesPool = allProvinces.filter(p => targetProvinces.some(target => p.nama.toUpperCase().includes(target)));
+                
+                // Jaga-jaga jika filter kosong karena error, gunakan semua provinsi
+                let finalPool = validProvincesPool.length > 0 ? validProvincesPool : allProvinces; 
+                const randomProv = getRandomItem(finalPool);
 
                 const resKota = await fetch(`${BASE_API_URL}/kabupaten/${randomProv.id}.json`);
                 const randomKota = getRandomItem(await resKota.json());
@@ -345,7 +471,6 @@
         let flaggedMap = new Map(); 
         let usedLinksObj = {}; 
         
-        // VARIABEL KONFIRMASI (DOUBLE TAP)
         let pendingFlagId = null;
         let pendingFlagTimer = null;
 
@@ -408,7 +533,6 @@
         }
 
         window.toggleFlag = function(linkId, isCurrentlyFlagged) {
-            // LOGIKA KONFIRMASI GANDA
             if(!isCurrentlyFlagged) {
                 if (pendingFlagId !== linkId) {
                     pendingFlagId = linkId;
