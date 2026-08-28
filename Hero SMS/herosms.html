@@ -126,19 +126,6 @@
         </div>
     </div>
 
-    <!-- MODAL GANTI AKUN -->
-    <div id="accountModal" class="modal hidden">
-        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
-            <div class="modal-header">
-                <h3 class="modal-title">Ganti Akun</h3>
-                <button onclick="closeAccountModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
-            </div>
-            <div id="accountListContainer" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
-                <div class="status-text-mini">Memuat akun...</div>
-            </div>
-        </div>
-    </div>
-
     <!-- MODAL CATATAN -->
     <div id="iframeNoteModal" class="modal hidden">
         <div class="modal-content" style="max-height: 95vh; display: flex; flex-direction: column; padding: 10px; width: 95%; max-width: 450px;">
@@ -159,14 +146,36 @@
                 <h3 class="modal-title">⚙️ Pengaturan</h3>
                 <button onclick="closeSettingsModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
+            
+            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(150, 212, 0, 0.1); padding: 15px; border-radius: 12px; border: 1px solid var(--primary-color); margin-bottom: 15px;">
+                <span style="font-size: 13px; font-weight: bold; color: var(--primary-color);">Gunakan API Bawaan (PAK WOH)</span>
+                <label class="switch">
+                    <input type="checkbox" id="settingsUseDefaultApi" onchange="toggleApiInputs()">
+                    <span class="slider"><span class="slider-knob"></span></span>
+                </label>
+            </div>
+
+            <div id="customApiFields" style="transition: opacity 0.3s;">
+                <div style="text-align: left; margin-bottom: 15px;">
+                    <label style="font-size: 13px; font-weight: bold; color: var(--text-secondary); margin-bottom: 8px; display: block;">Nama API (Tampil di Dashboard)</label>
+                    <input type="text" id="settingsApiName" class="form-input" placeholder="Misal: AKUN KEDUA">
+                </div>
+                <div style="text-align: left; margin-bottom: 20px;">
+                    <label style="font-size: 13px; font-weight: bold; color: var(--text-secondary); margin-bottom: 8px; display: block;">Custom API Key (32 Karakter)</label>
+                    <div style="position: relative; display: flex; align-items: center;">
+                        <input type="text" id="settingsApiKey" class="form-input" placeholder="Masukkan API Key Baru..." style="padding-right: 40px;">
+                        <button onclick="document.getElementById('settingsApiKey').value = ''" style="position: absolute; right: 8px; background: none; border: none; color: var(--danger-color); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;">
+                            <i class="fas fa-times-circle" style="font-size: 18px;"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div style="text-align: left; margin-bottom: 15px;">
                 <label style="font-size: 13px; font-weight: bold; color: var(--text-secondary); margin-bottom: 8px; display: block;">Sandi Default (Salin Otomatis)</label>
                 <input type="text" id="settingsPassword" class="form-input" placeholder="Masukkan sandi...">
             </div>
-            <div style="text-align: left; margin-bottom: 15px;">
-                <label style="font-size: 13px; font-weight: bold; color: var(--text-secondary); margin-bottom: 8px; display: block;">Custom API Key (Ganti Akun)</label>
-                <input type="text" id="settingsApiKey" class="form-input" placeholder="Masukkan 32 karakter API Key...">
-            </div>
+            
             <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 20px;">
                 <span style="font-size: 13px; font-weight: bold; color: var(--text-primary);">Auto-Salin Sandi Selesai</span>
                 <label class="switch">
@@ -243,6 +252,6 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <script src="herosms.js?v=38"></script>
+    <script src="herosms.js?v=39"></script>
 </body>
 </html>
