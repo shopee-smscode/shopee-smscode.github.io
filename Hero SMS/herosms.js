@@ -5,7 +5,7 @@ const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", auth
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
 
-let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true, customApiKey: "" };
+let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true, customApiKey: "", customApiName: "", useDefaultApi: true };
 let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; 
 let allServices = []; let availableProducts = []; 
 let currentServiceId = null; let selectedProductId = 'any'; 
@@ -39,8 +39,65 @@ window.onclick = function(event) {
 window.openIframeNoteModal = function() { document.getElementById('iframeNoteModal').classList.remove('hidden'); history.pushState(null, null, "#notes"); }
 window.closeIframeNoteModal = function() { document.getElementById('iframeNoteModal').classList.add('hidden'); }
 
+// ======================== API SWITCH LOGIC ========================
+function updateDashboardName() {
+    if (appSettings.useDefaultApi !== false) {
+        currentAccountName.innerText = "PAK WOH";
+    } else {
+        currentAccountName.innerText = appSettings.customApiName ? appSettings.customApiName.toUpperCase() : "API CUSTOM";
+    }
+}
+
+window.toggleApiInputs = function() {
+    const isDefault = document.getElementById('settingsUseDefaultApi').checked;
+    const customFields = document.getElementById('customApiFields');
+    if (isDefault) {
+        customFields.style.opacity = '0.4';
+        customFields.style.pointerEvents = 'none';
+        document.getElementById('settingsApiName').disabled = true;
+        document.getElementById('settingsApiKey').disabled = true;
+    } else {
+        customFields.style.opacity = '1';
+        customFields.style.pointerEvents = 'auto';
+        document.getElementById('settingsApiName').disabled = false;
+        document.getElementById('settingsApiKey').disabled = false;
+    }
+}
+
+function openSettingsModal() { 
+    document.getElementById('settingsPassword').value = appSettings.password; 
+    document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; 
+    
+    document.getElementById('settingsUseDefaultApi').checked = appSettings.useDefaultApi !== false;
+    document.getElementById('settingsApiName').value = appSettings.customApiName || "";
+    document.getElementById('settingsApiKey').value = appSettings.customApiKey || "";
+    toggleApiInputs();
+    
+    document.getElementById('settingsModal').classList.remove('hidden'); 
+    history.pushState(null, null, "#settings"); 
+}
+function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
+
+window.saveSettings = function() { 
+    appSettings.password = document.getElementById('settingsPassword').value; 
+    appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; 
+    
+    appSettings.useDefaultApi = document.getElementById('settingsUseDefaultApi').checked;
+    appSettings.customApiName = document.getElementById('settingsApiName').value.trim();
+    appSettings.customApiKey = document.getElementById('settingsApiKey').value.trim();
+    
+    localStorage.setItem('app_settings', JSON.stringify(appSettings)); 
+    closeSettingsModal(); 
+    showToast("Pengaturan disimpan!"); 
+    renderMainButtons(); 
+    
+    // Ganti Akun & Refresh UI
+    if (viewingPresenceRef) { viewingPresenceRef.set(false); viewingPresenceRef.onDisconnect().cancel(); }
+    loginAccount(); 
+}
+
 async function apiCall(endpoint, method = "GET", body = null) { 
-    let authHeader = appSettings.customApiKey ? appSettings.customApiKey.trim() : activeAccountName;
+    let authHeader = (appSettings.useDefaultApi !== false) ? "PAK WOH" : (appSettings.customApiKey ? appSettings.customApiKey.trim() : "");
     const options = { method, headers: { "Content-Type": "application/json", "X-Account-Name": authHeader } }; 
     if (body) options.body = JSON.stringify(body); 
     try {
@@ -54,25 +111,22 @@ async function apiCall(endpoint, method = "GET", body = null) {
     } catch (err) { return { success: false, error: { message: "Koneksi Proxy Gagal: " + err.message } }; }
 }
 
-function openSettingsModal() { 
-    document.getElementById('settingsPassword').value = appSettings.password; 
-    document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; 
-    document.getElementById('settingsApiKey').value = appSettings.customApiKey || "";
-    document.getElementById('settingsModal').classList.remove('hidden'); 
-    history.pushState(null, null, "#settings"); 
+async function fetchAccounts() { 
+    loginAccount(); // Bypass API fetch karena ganti akun sudah ditangani oleh klien
 }
-function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
 
-window.saveSettings = function() { 
-    appSettings.password = document.getElementById('settingsPassword').value; 
-    appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; 
-    appSettings.customApiKey = document.getElementById('settingsApiKey').value.trim();
-    localStorage.setItem('app_settings', JSON.stringify(appSettings)); 
-    closeSettingsModal(); 
-    showToast("Pengaturan disimpan!"); 
-    renderMainButtons(); 
-    fetchBalance();
+function loginAccount() { 
+    activeAccountName = (appSettings.useDefaultApi !== false) ? "PAK_WOH" : (appSettings.customApiKey || "CUSTOM_API"); 
+    updateDashboardName();
+    setAccountViewingStatus(true); 
+    const rawOrders = JSON.parse(localStorage.getItem(`hero_orders_${activeAccountName}`)) || []; 
+    activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); 
+    if (rawOrders.length !== activeOrders.length) saveToStorage(); 
+    hiddenBadOrders = JSON.parse(localStorage.getItem(`hero_hidden_bad_orders_${activeAccountName}`)) || []; 
+    loadHistory(); 
+    initMainApp(); 
 }
+// ===================================================================
 
 function renderMainButtons() { const extraBtnWrapper = document.getElementById('extraBtnWrapper'); if (!extraBtnWrapper) return; if (appSettings.autoCopy) { extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 12px; color: #fff;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
 function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("0")) { p = "62" + p.substring(1); } return p; }
@@ -672,9 +726,6 @@ function renderHistory() {
 window.openHistoryModal = function() { document.getElementById('historyModal').classList.remove('hidden'); history.pushState(null, null, "#history"); }
 window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
 window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`hero_history_${activeAccountName}`); renderHistory(); } }
-
-async function fetchAccounts() { try { const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json(); if (data.accounts && data.accounts.length > 0) { loginAccount(data.accounts[0]); } else { if(currentAccountName) currentAccountName.innerText = "Tidak ada akun"; showToast("Tidak ada akun", "error"); } } catch (error) { if(currentAccountName) currentAccountName.innerText = "Error Koneksi"; showToast("Gagal terhubung", "error"); } }
-function loginAccount(accountName) { activeAccountName = accountName; if(currentAccountName) currentAccountName.innerText = accountName; setAccountViewingStatus(true); const rawOrders = JSON.parse(localStorage.getItem(`hero_orders_${accountName}`)) || []; activeOrders = rawOrders.filter(o => o.expiresAt > Date.now()); if (rawOrders.length !== activeOrders.length) saveToStorage(); hiddenBadOrders = JSON.parse(localStorage.getItem(`hero_hidden_bad_orders_${accountName}`)) || []; loadHistory(); initMainApp(); }
 
 async function initMainApp() { fetchBalance(); await loadServices(); renderOrders(); startPollingAndTimer(); }
 window.onload = () => { relocateBalanceUI(); setAccountViewingStatus(false); history.pushState(null, null, window.location.href); initUsedNumbersSync(); fetchAccounts(); renderMainButtons(); };
