@@ -1,11 +1,11 @@
-const BASE_URL = "https://hero-sms-proxy.masreno6pro.workers.dev"; 
+const BASE_URL = "https://hero-sms-proxy-2.masreno6pro.workers.dev"; 
 
 const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
 
-let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
+let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true, customApiKey: "" };
 let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; 
 let allServices = []; let availableProducts = []; 
 let currentServiceId = null; let selectedProductId = 'any'; 
@@ -40,7 +40,8 @@ window.openIframeNoteModal = function() { document.getElementById('iframeNoteMod
 window.closeIframeNoteModal = function() { document.getElementById('iframeNoteModal').classList.add('hidden'); }
 
 async function apiCall(endpoint, method = "GET", body = null) { 
-    const options = { method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; 
+    let authHeader = appSettings.customApiKey ? appSettings.customApiKey.trim() : activeAccountName;
+    const options = { method, headers: { "Content-Type": "application/json", "X-Account-Name": authHeader } }; 
     if (body) options.body = JSON.stringify(body); 
     try {
         const response = await fetch(`${BASE_URL}${endpoint}`, options); 
@@ -53,9 +54,26 @@ async function apiCall(endpoint, method = "GET", body = null) {
     } catch (err) { return { success: false, error: { message: "Koneksi Proxy Gagal: " + err.message } }; }
 }
 
-function openSettingsModal() { document.getElementById('settingsPassword').value = appSettings.password; document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; document.getElementById('settingsModal').classList.remove('hidden'); history.pushState(null, null, "#settings"); }
+function openSettingsModal() { 
+    document.getElementById('settingsPassword').value = appSettings.password; 
+    document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; 
+    document.getElementById('settingsApiKey').value = appSettings.customApiKey || "";
+    document.getElementById('settingsModal').classList.remove('hidden'); 
+    history.pushState(null, null, "#settings"); 
+}
 function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
-window.saveSettings = function() { appSettings.password = document.getElementById('settingsPassword').value; appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; localStorage.setItem('app_settings', JSON.stringify(appSettings)); closeSettingsModal(); showToast("Pengaturan disimpan!"); renderMainButtons(); }
+
+window.saveSettings = function() { 
+    appSettings.password = document.getElementById('settingsPassword').value; 
+    appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; 
+    appSettings.customApiKey = document.getElementById('settingsApiKey').value.trim();
+    localStorage.setItem('app_settings', JSON.stringify(appSettings)); 
+    closeSettingsModal(); 
+    showToast("Pengaturan disimpan!"); 
+    renderMainButtons(); 
+    fetchBalance();
+}
+
 function renderMainButtons() { const extraBtnWrapper = document.getElementById('extraBtnWrapper'); if (!extraBtnWrapper) return; if (appSettings.autoCopy) { extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 12px; color: #fff;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
 function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("0")) { p = "62" + p.substring(1); } return p; }
 function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
@@ -386,7 +404,6 @@ function createOrderCard(order) {
     const displayPrice = (order.price && order.price > 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || 0);
     const wait = order.cancelUnlockTime - now; 
     
-    // PERBAIKAN: Tombol Salin OTP dikunci dengan lebar absolut tanpa menggeser elemen
     let otpHtml = isSuccess 
         ? `<div class="otp-title">KODE OTP</div><div class="otp-code" style="margin:0 !important; letter-spacing: 4px !important;">${formatOTP(order.otp)}</div><button class="btn-copy" onclick="copyToClipboard('${order.otp}')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: #000000; color: #ffcc00; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><i class="fas fa-copy"></i></button>` 
         : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
