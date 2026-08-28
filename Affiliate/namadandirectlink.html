@@ -479,22 +479,25 @@
             return btoa(str).replace(/[=\+\/]/g, 'A').substring(0, 50); 
         }
 
-      // FUNGSI COPY & DIRECT LINK
+      // FUNGSI COPY & DIRECT LINK (TAMPILAN TETAP UTUH)
         function salinTautanAffiliate(url) {
-            // 1. Tetap salin URL ke Clipboard (agar bisa di-paste manual)
             const tempTextArea = document.createElement("textarea"); tempTextArea.value = url;
             tempTextArea.style.position = "absolute"; tempTextArea.style.left = "-9999px";
             document.body.appendChild(tempTextArea); tempTextArea.select(); tempTextArea.setSelectionRange(0, 99999);
-            try { document.execCommand('copy'); tampilkanToast("✅ Link berhasil disalin & dibuka!"); } 
-            catch (err) { tampilkanToast("❌ Gagal menyalin link"); }
+            try { 
+                document.execCommand('copy'); 
+                tampilkanToast("✅ Link disalin & membuka aplikasi..."); 
+            } catch (err) { 
+                tampilkanToast("❌ Gagal menyalin link"); 
+            }
             document.body.removeChild(tempTextArea); window.getSelection().removeAllRanges();
 
-            // 2. Logika Direct Link: Otomatis Buka URL
-            // Jika tautan mengandung format "http" (url valid), maka otomatis buka
             if (url && url.toLowerCase().startsWith("http")) {
                 setTimeout(() => {
-                    window.open(url, '_blank');
-                }, 300); // Beri jeda 300ms agar toast Salin muncul dulu sebelum lompat ke tab baru
+                    // Gunakan location.href. Ini akan memicu Kotlin untuk mencegatnya
+                    // dan membuka aplikasi tujuan tanpa merusak tampilan HTML ini.
+                    window.location.href = url;
+                }, 300);
             }
         }
         function initProductsSync() {
