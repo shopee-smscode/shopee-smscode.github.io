@@ -67,7 +67,7 @@
         .note-title { font-size: 16px; color: #000000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%; }
         .note-date { font-size: 12px; color: #888888; white-space: nowrap; margin-left: 10px; }
 
-        /* TOMBOL MELAYANG (FAB) - DIPOSISIKAN LEBIH TINGGI */
+        /* TOMBOL MELAYANG (FAB) */
         .fab-btn {
             position: absolute; bottom: 85px; right: 24px; width: 56px; height: 56px;
             background-color: #00bfa5; color: white; border-radius: 50%; border: none;
@@ -92,15 +92,11 @@
         
         .editor-subheader { display: flex; justify-content: space-between; padding: 8px 16px; font-size: 12px; color: #888; background-color: #fff; }
         
-        /* KERTAS BERGARIS DIPERBAIKI (SINKRONISASI SEMPURNA) */
+        /* KERTAS POLOS (TANPA GARIS) */
         .lined-bg {
             flex: 1; width: 100%; border: none; background-color: #ffffff;
-            /* Menggunakan background-size 32px agar sejalan mutlak dengan line-height 32px */
-            background-image: linear-gradient(transparent 31px, #e0e0e0 0);
-            background-size: 100% 32px; 
-            background-attachment: local; 
-            line-height: 32px; 
-            padding: 6px 16px; /* Offset 6px agar bagian bawah huruf menempel tepat di atas garis */
+            line-height: 1.6; 
+            padding: 16px; 
             font-size: 16px; 
             resize: none; outline: none; color: #333; box-sizing: border-box;
         }
