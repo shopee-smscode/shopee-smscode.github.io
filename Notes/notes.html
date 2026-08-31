@@ -92,11 +92,16 @@
         
         .editor-subheader { display: flex; justify-content: space-between; padding: 8px 16px; font-size: 12px; color: #888; background-color: #fff; }
         
-        /* KERTAS BERGARIS */
+        /* KERTAS BERGARIS DIPERBAIKI (SEJAJAR & IKUT SCROLL) */
         .lined-bg {
             flex: 1; width: 100%; border: none; background-color: #ffffff;
-            background-image: repeating-linear-gradient(transparent, transparent 31px, #f0f0f0 31px, #f0f0f0 32px);
-            line-height: 32px; padding: 0 16px; font-size: 16px; resize: none; outline: none; color: #333; box-sizing: border-box;
+            background-image: repeating-linear-gradient(transparent, transparent 31px, #e0e0e0 31px, #e0e0e0 32px);
+            background-attachment: local; /* Kunci agar garis ikut bergeser saat text di-scroll */
+            background-position: 0 4px; /* Sinkronisasi dengan padding-top */
+            line-height: 32px; 
+            padding: 4px 16px; 
+            font-size: 16px; 
+            resize: none; outline: none; color: #333; box-sizing: border-box;
         }
 
         /* MODAL WARNA */

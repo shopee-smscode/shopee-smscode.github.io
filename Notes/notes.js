@@ -60,12 +60,8 @@ function initNotesSync() {
             
             card.onclick = () => openDetail(d.key, d);
             
-            // Logika Cuplikan Judul: Jika judul kosong, ambil cuplikan dari isi konten
-            let displayTitle = d.title && d.title.trim() !== "" 
-                ? escapeHTML(d.title) 
-                : (d.content ? escapeHTML(d.content.substring(0, 30).replace(/\n/g, ' ')) + "..." : 'Tanpa Judul');
-
-            card.innerHTML = `<div class="note-info"><div class="note-title">${displayTitle}</div></div><div class="note-date">${formatDate(d.timestamp)}</div>`;
+            // Dikembalikan ke format penamaan otomatis aslinya (Judul atau Kosong)
+            card.innerHTML = `<div class="note-info"><div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div></div><div class="note-date">${formatDate(d.timestamp)}</div>`;
             grid.appendChild(card);
         });
     });
@@ -159,14 +155,25 @@ function saveNote() {
     if(!c || c === "") return showToast("⚠️ Konten tidak boleh kosong!", "error");
     
     db.ref(DB_PATH).once('value').then(snapshot => {
-        let isDuplicate = false; 
+        let isDuplicate = false; let usedNumbers = new Set();
         snapshot.forEach(child => {
-            let exContent = child.val().content;
+            let exTitle = child.val().title; let exContent = child.val().content;
+            
+            // Kumpulkan angka yang sudah dipakai jika judulnya berupa angka
+            if (exTitle && /^\d+$/.test(exTitle.toString().trim())) { usedNumbers.add(parseInt(exTitle.toString().trim())); }
+            
             if (exContent && exContent.trim() === c) { if (!isEditingNote || selectedNoteKey !== child.key) isDuplicate = true; }
         });
         
         if (isDuplicate) return showToast("⚠️ Gagal: Catatan yang sama persis sudah ada!", "error");
-        executeSave(t, c);
+        
+        // AUTO NUMBERING JIKA JUDUL KOSONG
+        if (!t) {
+            let nextNum = 1; while (usedNumbers.has(nextNum)) nextNum++;
+            executeSave(nextNum.toString(), c);
+        } else { 
+            executeSave(t, c); 
+        }
     });
 }
 
