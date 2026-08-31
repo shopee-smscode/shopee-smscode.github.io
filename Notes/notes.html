@@ -67,9 +67,9 @@
         .note-title { font-size: 16px; color: #000000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%; }
         .note-date { font-size: 12px; color: #888888; white-space: nowrap; margin-left: 10px; }
 
-        /* TOMBOL MELAYANG (FAB) */
+        /* TOMBOL MELAYANG (FAB) - DIPOSISIKAN LEBIH TINGGI */
         .fab-btn {
-            position: absolute; bottom: 24px; right: 24px; width: 56px; height: 56px;
+            position: absolute; bottom: 85px; right: 24px; width: 56px; height: 56px;
             background-color: #00bfa5; color: white; border-radius: 50%; border: none;
             display: flex; justify-content: center; align-items: center; font-size: 24px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3); cursor: pointer; z-index: 100; transition: transform 0.1s;
@@ -92,14 +92,15 @@
         
         .editor-subheader { display: flex; justify-content: space-between; padding: 8px 16px; font-size: 12px; color: #888; background-color: #fff; }
         
-        /* KERTAS BERGARIS DIPERBAIKI (SEJAJAR & IKUT SCROLL) */
+        /* KERTAS BERGARIS DIPERBAIKI (SINKRONISASI SEMPURNA) */
         .lined-bg {
             flex: 1; width: 100%; border: none; background-color: #ffffff;
-            background-image: repeating-linear-gradient(transparent, transparent 31px, #e0e0e0 31px, #e0e0e0 32px);
-            background-attachment: local; /* Kunci agar garis ikut bergeser saat text di-scroll */
-            background-position: 0 4px; /* Sinkronisasi dengan padding-top */
+            /* Menggunakan background-size 32px agar sejalan mutlak dengan line-height 32px */
+            background-image: linear-gradient(transparent 31px, #e0e0e0 0);
+            background-size: 100% 32px; 
+            background-attachment: local; 
             line-height: 32px; 
-            padding: 4px 16px; 
+            padding: 6px 16px; /* Offset 6px agar bagian bawah huruf menempel tepat di atas garis */
             font-size: 16px; 
             resize: none; outline: none; color: #333; box-sizing: border-box;
         }
