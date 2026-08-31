@@ -20,11 +20,23 @@ const viewList = document.getElementById('viewList');
 const viewForm = document.getElementById('viewForm');
 const viewDetail = document.getElementById('viewDetail');
 let selectedNoteKey = null;
+let currentNoteData = null;
 let isEditingNote = false;
 let currentNoteRawContent = "";
+let currentColor = 'white';
+
+const colorStyles = {
+    'white': { bg: '#ffffff', border: 'transparent', square: '#ffffff' },
+    'red': { bg: '#ffe6e6', border: '#ff3b30', square: '#ff3b30' },
+    'orange': { bg: '#fff0e6', border: '#ff9500', square: '#ff9500' },
+    'yellow': { bg: '#fffbe6', border: '#ffcc00', square: '#ffcc00' },
+    'green': { bg: '#e6f9e6', border: '#4cd964', square: '#4cd964' },
+    'blue': { bg: '#e6f0ff', border: '#2196f3', square: '#2196f3' },
+    'purple': { bg: '#f0e6ff', border: '#af52de', square: '#af52de' }
+};
 
 // ==========================================
-// INISIALISASI & RENDER
+// INISIALISASI & RENDER LIST
 // ==========================================
 function initNotesSync() {
     const grid = document.getElementById('notes-grid');
@@ -34,26 +46,63 @@ function initNotesSync() {
         
         document.getElementById('notesCount').innerText = `(${items.length})`;
         
-        if(items.length === 0) { grid.innerHTML = '<div style="text-align:center; color:#9ca3af; padding: 20px;">Belum ada catatan.</div>'; return; }
+        if(items.length === 0) { grid.innerHTML = '<div style="text-align:center; color:#9e9e9e; padding: 20px;">Belum ada catatan.</div>'; return; }
         
         items.reverse().forEach((d) => {
-            const card = document.createElement('div'); card.className = 'note-card'; 
+            const card = document.createElement('div'); 
+            card.className = 'note-card'; 
+            
+            let cTheme = colorStyles[d.color || 'white'];
+            card.style.backgroundColor = cTheme.bg;
+            card.style.borderLeft = `5px solid ${cTheme.border}`;
+            
             card.onclick = () => openDetail(d.key, d);
-            const previewText = escapeHTML(d.content).replace(/\n/g, ' ');
-            card.innerHTML = `<div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div><div class="note-preview">${previewText}</div><div class="note-date">${formatDate(d.timestamp)}</div>`;
+            card.innerHTML = `<div class="note-info"><div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div></div><div class="note-date">${formatDate(d.timestamp)}</div>`;
             grid.appendChild(card);
         });
     });
 }
 
 // ==========================================
+// PENGATURAN WARNA (COLOR PICKER)
+// ==========================================
+function openColorModal() { document.getElementById('colorModal').classList.remove('hidden'); }
+function closeColorModal() { document.getElementById('colorModal').classList.add('hidden'); }
+function selectColor(c) {
+    currentColor = c;
+    document.getElementById('color-square').style.backgroundColor = colorStyles[c].square;
+    closeColorModal();
+}
+
+// ==========================================
+// DROPDOWN MENU GLOBAL
+// ==========================================
+function toggleDropdown(id) { document.getElementById(id).classList.toggle('show'); }
+
+window.onclick = function(event) {
+    if (!event.target.matches('.icon-btn') && !event.target.matches('.icon-btn *')) {
+        let dropdowns = document.getElementsByClassName("dropdown-content");
+        for (let i = 0; i < dropdowns.length; i++) {
+            if (dropdowns[i].classList.contains('show')) dropdowns[i].classList.remove('show');
+        }
+    }
+    if (event.target.id === 'colorModal') { closeColorModal(); }
+}
+
+// ==========================================
 // NAVIGASI VIEW
 // ==========================================
 function openAddForm() {
-    isEditingNote = false; selectedNoteKey = null;
-    document.getElementById('form-title').innerText = "Catatan Baru";
+    isEditingNote = false; selectedNoteKey = null; currentNoteData = null;
+    
+    // Reset Warna ke Default Putih
+    currentColor = 'white';
+    document.getElementById('color-square').style.backgroundColor = colorStyles['white'].square;
+    
+    document.getElementById('editor-date').innerText = formatDate(Date.now());
     document.getElementById('note-title').value = "";
     document.getElementById('note-content').value = "";
+    
     viewList.classList.add('hidden'); viewForm.classList.remove('hidden');
 }
 
@@ -64,21 +113,33 @@ function cancelForm() {
 }
 
 function openDetail(key, data) {
-    selectedNoteKey = key; currentNoteRawContent = data.content;
-    document.getElementById('view-tag').innerText = `Dibuat: ${formatDate(data.timestamp)}`;
+    selectedNoteKey = key; currentNoteData = data; currentNoteRawContent = data.content;
+    
+    document.getElementById('view-date').innerText = formatDate(data.timestamp);
     document.getElementById('view-title').value = data.title || "Tanpa Judul";
+    
+    // Set warna kotak indikator di mode View
+    let savedColor = data.color || 'white';
+    document.getElementById('view-color-square').style.backgroundColor = colorStyles[savedColor].square;
+    
     document.getElementById('view-content').innerText = data.content;
+    
     viewList.classList.add('hidden'); viewDetail.classList.remove('hidden');
 }
 
 function closeDetail() { viewDetail.classList.add('hidden'); viewList.classList.remove('hidden'); }
 
 function editFromDetail() {
-    const t = document.getElementById('view-title').value;
     isEditingNote = true;
-    document.getElementById('form-title').innerText = "Edit Catatan";
-    document.getElementById('note-title').value = (t === "Tanpa Judul") ? "" : t;
+    
+    // Tarik warna dan data dari catatan yang sedang dibuka
+    currentColor = currentNoteData.color || 'white';
+    document.getElementById('color-square').style.backgroundColor = colorStyles[currentColor].square;
+    
+    document.getElementById('editor-date').innerText = formatDate(Date.now());
+    document.getElementById('note-title').value = (currentNoteData.title === "Tanpa Judul") ? "" : currentNoteData.title;
     document.getElementById('note-content').value = currentNoteRawContent;
+    
     viewDetail.classList.add('hidden'); viewForm.classList.remove('hidden');
 }
 
@@ -95,6 +156,7 @@ function saveNote() {
         snapshot.forEach(child => {
             let exTitle = child.val().title; let exContent = child.val().content;
             if (exTitle && /^\d+$/.test(exTitle.toString().trim())) { usedNumbers.add(parseInt(exTitle.toString().trim())); }
+            // Cek duplikasi hanya jika isinya persis sama dan ini bukan catatan yang sedang diedit
             if (exContent && exContent.trim() === c) { if (!isEditingNote || selectedNoteKey !== child.key) isDuplicate = true; }
         });
         
@@ -108,7 +170,8 @@ function saveNote() {
 }
 
 function executeSave(title, content) {
-    const data = { title: title, content: content, timestamp: Date.now() };
+    // Menyimpan data beserta properti WARNA
+    const data = { title: title, content: content, timestamp: Date.now(), color: currentColor };
     const promise = (isEditingNote && selectedNoteKey) ? db.ref(`${DB_PATH}/${selectedNoteKey}`).update(data) : db.ref(DB_PATH).push(data);
     promise.then(() => { 
         viewForm.classList.add('hidden'); viewList.classList.remove('hidden'); 
@@ -129,7 +192,8 @@ function confirmDelete() {
 // ==========================================
 function formatDate(ts) {
     if(!ts) return "---"; const d = new Date(ts);
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)} - ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    // Format persis seperti Color Note: 01/09/26 02.00
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)} ${String(d.getHours()).padStart(2, '0')}.${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 function escapeHTML(str) { 
@@ -138,7 +202,7 @@ function escapeHTML(str) {
 
 function showToast(pesan, type="success") {
     const t = document.getElementById("toast"); t.innerHTML = pesan;
-    t.style.backgroundColor = type === "error" ? "#ef4444" : "#1f2937";
+    t.style.backgroundColor = type === "error" ? "#f44336" : "#323232";
     t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 3000);
 }
 
@@ -149,6 +213,8 @@ function copyNoteContent() {
     } else { 
         const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast("Berhasil disalin!"); 
     }
+    // Tutup menu dropdown setelah klik
+    document.getElementById('detailMenu').classList.remove('show');
 }
 
 async function pasteFromClipboard() {
@@ -164,8 +230,9 @@ async function pasteFromClipboard() {
         showToast("Teks berhasil ditempel!");
     } catch (err) {
         showToast("Gagal menempel! Izinkan akses clipboard.", "error");
-        console.error("Gagal membaca clipboard: ", err);
     }
+    // Tutup menu dropdown setelah klik
+    document.getElementById('formMenu').classList.remove('show');
 }
 
 // Mulai

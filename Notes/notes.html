@@ -10,89 +10,198 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
     <style>
-        /* TEMA CERAH UNTUK CATATAN */
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background-color: #f3f4f6; color: #1f2937; margin: 0; padding: 10px; }
+        /* TEMA UMUM */
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            background-color: #e8e8e8; 
+            color: #333333; 
+            margin: 0; 
+            padding: 0;
+            display: flex;
+            justify-content: center;
+        }
         
-        /* TAMPILAN LEBIH PENDEK UNTUK MOBILE */
-        .container { max-width: 480px; margin: 0 auto; background: #ffffff; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); min-height: 75vh; display: flex; flex-direction: column; }
+        .container { 
+            width: 100%;
+            max-width: 480px; 
+            background: #ffffff; 
+            min-height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            position: relative; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        
         .hidden { display: none !important; }
         
-        /* Header */
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px; }
-        .header h1 { margin: 0; font-size: 18px; color: #ea580c; font-weight: 800; }
-        .btn-back { background: #e5e7eb; color: #374151; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 13px; }
+        /* HEADER LIST */
+        .header-list { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background-color: #333333; 
+            color: white;
+            padding: 12px 16px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+        .header-list h1 { margin: 0; font-size: 18px; font-weight: normal; }
+        .btn-header { background: transparent; color: white; border: none; font-size: 18px; cursor: pointer; padding: 4px; }
         
-        /* List Catatan (Warna Hijau Permanen) */
-        .notes-list { display: flex; flex-direction: column; gap: 8px; flex: 1; overflow-y: auto; }
-        .note-card { background: #dcfce7; padding: 12px; border-radius: 8px; border: 1px solid #bbf7d0; border-left: 5px solid #22c55e; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .note-card:hover { border-color: #86efac; background: #dcfce7; /* Warna statis saat disorot */ }
-        .note-title { font-weight: bold; font-size: 14px; margin-bottom: 4px; color: #14532d; }
-        .note-preview { font-size: 12px; color: #166534; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; }
-        .note-date { font-size: 11px; color: #15803d; font-weight: bold; text-align: right; }
+        /* DAFTAR CATATAN */
+        .notes-list { display: flex; flex-direction: column; flex: 1; overflow-y: auto; padding: 0; background: #e8e8e8; }
         
-        /* Form & Detail Input */
-        .form-input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; box-sizing: border-box; background: #f9fafb; color: #1f2937; margin-bottom: 12px; }
-        .form-input:focus { outline: none; border-color: #f59e0b; background: #ffffff; }
-        #view-content { flex: 1; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; white-space: pre-wrap; word-wrap: break-word; font-size: 14px; min-height: 200px; color: #374151; margin-bottom: 12px; line-height: 1.5; }
+        .note-card { 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 16px; 
+            background: #ffffff; 
+            border-bottom: 1px solid #dcdcdc; 
+            cursor: pointer; 
+            transition: 0.2s;
+        }
+        .note-card:active { opacity: 0.7; }
         
-        /* Tombol Form (Batal, Tempel, Simpan) */
-        .btn-success { background: #10b981; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .btn-switch { background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .btn-paste { background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .note-info { flex: 1; display: flex; flex-direction: column; }
+        .note-title { font-size: 16px; color: #000000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%; }
+        .note-date { font-size: 12px; color: #888888; white-space: nowrap; margin-left: 10px; }
+
+        /* TOMBOL MELAYANG (FAB) */
+        .fab-btn {
+            position: absolute; bottom: 24px; right: 24px; width: 56px; height: 56px;
+            background-color: #00bfa5; color: white; border-radius: 50%; border: none;
+            display: flex; justify-content: center; align-items: center; font-size: 24px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); cursor: pointer; z-index: 100; transition: transform 0.1s;
+        }
+        .fab-btn:active { transform: scale(0.95); background-color: #009688; }
         
-        /* Action Grid (Edit, Salin, Hapus) */
-        .action-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; width: 100%; }
-        .action-btn { padding: 10px 5px; border: none; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: white; transition: opacity 0.2s; }
-        .action-btn i { font-size: 16px; }
-        .action-btn:active { opacity: 0.8; transform: scale(0.98); }
-        .btn-edit { background: #3b82f6; }
-        .btn-copy { background: #10b981; }
-        .btn-delete { background: #ef4444; }
+        /* HEADER EDITOR (BARU) */
+        .editor-topbar {
+            display: flex; align-items: center; background-color: #f2f2f2; padding: 8px 12px; gap: 8px; border-bottom: 1px solid #e0e0e0;
+        }
+        .icon-btn { background: transparent; border: none; font-size: 20px; color: #333; cursor: pointer; padding: 8px; }
+        .icon-btn:active { opacity: 0.6; }
         
-        /* Toast Notifikasi */
-        .toast { visibility: hidden; min-width: 200px; background-color: #1f2937; color: #fff; text-align: center; border-radius: 30px; padding: 10px 16px; position: fixed; z-index: 9999; left: 50%; transform: translateX(-50%); bottom: 20px; font-size: 13px; font-weight: bold; opacity: 0; transition: 0.3s; }
-        .toast.show { visibility: visible; opacity: 1; bottom: 35px; }
+        .title-input {
+            flex: 1; border: 1px solid #ccc; border-radius: 2px; padding: 8px; font-size: 16px; outline: none; background: #fff;
+        }
+        
+        .color-square { width: 22px; height: 22px; border: 1px solid #999; border-radius: 4px; background-color: #ffffff; cursor: pointer; flex-shrink: 0; }
+        
+        .editor-subheader { display: flex; justify-content: space-between; padding: 8px 16px; font-size: 12px; color: #888; background-color: #fff; }
+        
+        /* KERTAS BERGARIS */
+        .lined-bg {
+            flex: 1; width: 100%; border: none; background-color: #ffffff;
+            background-image: repeating-linear-gradient(transparent, transparent 31px, #f0f0f0 31px, #f0f0f0 32px);
+            line-height: 32px; padding: 0 16px; font-size: 16px; resize: none; outline: none; color: #333; box-sizing: border-box;
+        }
+
+        /* DROPDOWN MENU */
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-content { 
+            display: none; position: absolute; background-color: #ffffff; min-width: 160px; 
+            box-shadow: 0px 4px 12px rgba(0,0,0,0.2); z-index: 1000; border-radius: 4px; border: 1px solid #eee;
+        }
+        .dropdown-right { right: 0; }
+        .dropdown-content.show { display: block; }
+        .dropdown-content a { color: #333; padding: 12px 16px; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 14px; border-bottom: 1px solid #f5f5f5; }
+        .dropdown-content a:hover { background-color: #f9f9f9; }
+
+        /* MODAL WARNA */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99999; display: flex; justify-content: center; align-items: center; }
+        .modal-content { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); width: 260px; }
+        .color-circle { width: 42px; height: 42px; border-radius: 50%; cursor: pointer; transition: 0.1s; }
+        .color-circle:active { transform: scale(0.9); }
+
+        /* TOAST */
+        .toast { visibility: hidden; min-width: 200px; background-color: #323232; color: #fff; text-align: center; border-radius: 4px; padding: 12px; position: fixed; z-index: 9999; left: 50%; transform: translateX(-50%); bottom: 24px; font-size: 14px; opacity: 0; transition: 0.3s; }
+        .toast.show { visibility: visible; opacity: 1; bottom: 40px; }
     </style>
 </head>
 <body>
 
+    <!-- HALAMAN 1: DAFTAR CATATAN -->
     <div id="viewList" class="container">
-        <div class="header">
-            <button class="btn-back" onclick="history.back()"><i class="fas fa-arrow-left"></i> Kembali</button>
-            <h1>Catatanku <span id="notesCount" style="font-size:14px; color:#6b7280;">(0)</span></h1>
-            <button class="btn-success" style="padding: 8px 12px; font-size: 13px;" onclick="openAddForm()"><i class="fas fa-plus"></i> Baru</button>
+        <div class="header-list">
+            <button class="btn-header" onclick="history.back()"><i class="fas fa-arrow-left"></i></button>
+            <h1>Catatan <span id="notesCount" style="font-size:14px; opacity:0.8;">(0)</span></h1>
+            <div style="width: 24px;"></div>
         </div>
+        
         <div id="notes-grid" class="notes-list">
-            <div style="text-align:center; color:#9ca3af; padding: 20px;">Memuat catatan...</div>
+            <div style="text-align:center; color:#9e9e9e; padding: 20px;">Memuat catatan...</div>
         </div>
+
+        <button class="fab-btn" onclick="openAddForm()"><i class="fas fa-plus"></i></button>
     </div>
 
+    <!-- HALAMAN 2: FORM TAMBAH / EDIT (EDITOR) -->
     <div id="viewForm" class="container hidden">
-        <div class="header">
-            <h1 id="form-title" style="color: #1f2937;">Catatan Baru</h1>
+        <div class="editor-topbar">
+            <button class="icon-btn" onclick="saveNote()"><i class="fas fa-check"></i></button>
+            <input type="text" id="note-title" class="title-input" placeholder="Judul Catatan">
+            <div id="color-square" class="color-square" onclick="openColorModal()"></div>
+            
+            <div class="dropdown">
+                <button class="icon-btn" onclick="toggleDropdown('formMenu')"><i class="fas fa-ellipsis-v"></i></button>
+                <div id="formMenu" class="dropdown-content dropdown-right" style="top: 45px;">
+                    <a href="#" onclick="cancelForm(); return false;"><i class="fas fa-times" style="width:16px;"></i> Batal</a>
+                    <a href="#" onclick="pasteFromClipboard(); return false;"><i class="fas fa-paste" style="width:16px;"></i> Tempel Teks</a>
+                </div>
+            </div>
         </div>
-        <input type="text" id="note-title" class="form-input" placeholder="Judul (Kosong = Auto Number)" style="font-weight:bold; font-size: 15px;">
-        <textarea id="note-content" class="form-input" placeholder="Tulis catatan Anda di sini..." style="flex:1; resize: none;"></textarea>
         
-        <div style="display: flex; gap: 8px;">
-            <button class="btn-switch" style="flex:1; padding: 10px; font-size: 13px;" onclick="cancelForm()">Batal</button>
-            <button class="btn-paste" style="flex:1; padding: 10px; font-size: 13px;" onclick="pasteFromClipboard()"><i class="fas fa-paste"></i> Tempel</button>
-            <button class="btn-success" style="flex:1.2; padding: 10px; font-size: 13px;" onclick="saveNote()"><i class="fas fa-check"></i> Simpan</button>
+        <div class="editor-subheader">
+            <span id="editor-status">Suntingan</span>
+            <span id="editor-date"></span>
         </div>
+        
+        <textarea id="note-content" class="lined-bg" placeholder=""></textarea>
     </div>
 
+    <!-- HALAMAN 3: LIHAT DETAIL (READ-ONLY) -->
     <div id="viewDetail" class="container hidden">
-        <div class="header" style="margin-bottom: 10px; border-bottom: none;">
-            <button class="btn-back" onclick="closeDetail()"><i class="fas fa-arrow-left"></i></button>
-            <span id="view-tag" style="font-size: 11px; color: #9ca3af; font-weight: bold;"></span>
+        <div class="editor-topbar">
+            <button class="icon-btn" onclick="closeDetail()"><i class="fas fa-arrow-left"></i></button>
+            <input type="text" id="view-title" class="title-input" readonly style="background:transparent; border:none; font-weight:bold; color:#000;">
+            <div id="view-color-square" class="color-square" style="border:none; cursor:default;"></div>
+            
+            <div class="dropdown">
+                <button class="icon-btn" onclick="toggleDropdown('detailMenu')"><i class="fas fa-ellipsis-v"></i></button>
+                <div id="detailMenu" class="dropdown-content dropdown-right" style="top: 45px;">
+                    <a href="#" onclick="editFromDetail(); return false;"><i class="fas fa-edit" style="width:16px;"></i> Edit</a>
+                    <a href="#" onclick="copyNoteContent(); return false;"><i class="fas fa-copy" style="width:16px;"></i> Salin Teks</a>
+                    <a href="#" onclick="confirmDelete(); return false;" style="color:#f44336;"><i class="fas fa-trash" style="width:16px;"></i> Hapus</a>
+                </div>
+            </div>
         </div>
-        <input type="text" id="view-title" readonly style="width:100%; border:none; padding:0; font-size:20px; font-weight:800; margin-bottom:10px; background:transparent; outline: none; color: #111827;">
-        <div id="view-content"></div>
         
-        <div class="action-grid">
-            <button class="action-btn btn-edit" onclick="editFromDetail()"><i class="fas fa-edit"></i> Edit</button>
-            <button class="action-btn btn-copy" onclick="copyNoteContent()"><i class="fas fa-copy"></i> Salin</button>
-            <button class="action-btn btn-delete" onclick="confirmDelete()"><i class="fas fa-trash"></i> Hapus</button>
+        <div class="editor-subheader">
+            <span>Dilihat</span>
+            <span id="view-date"></span>
+        </div>
+        
+        <div id="view-content" class="lined-bg" style="overflow-y:auto;"></div>
+    </div>
+
+    <!-- MODAL PILIH WARNA -->
+    <div id="colorModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 style="margin-top:0; font-size: 16px; color:#333;">Pilih Warna</h3>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+                <div class="color-circle" style="background:#ffffff; border: 1px solid #ccc;" onclick="selectColor('white')"></div>
+                <div class="color-circle" style="background:#ff3b30;" onclick="selectColor('red')"></div>
+                <div class="color-circle" style="background:#ff9500;" onclick="selectColor('orange')"></div>
+                <div class="color-circle" style="background:#ffcc00;" onclick="selectColor('yellow')"></div>
+                <div class="color-circle" style="background:#4cd964;" onclick="selectColor('green')"></div>
+                <div class="color-circle" style="background:#2196f3;" onclick="selectColor('blue')"></div>
+                <div class="color-circle" style="background:#af52de;" onclick="selectColor('purple')"></div>
+            </div>
+            <div style="text-align: right;">
+                <button style="background:transparent; border:none; color: #2196f3; font-weight:bold; cursor:pointer; font-size:14px;" onclick="closeColorModal()">BATAL</button>
+            </div>
         </div>
     </div>
 
