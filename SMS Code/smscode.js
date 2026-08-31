@@ -306,7 +306,7 @@ window.filterServices = function() {
     });
 }
 
-// === FUNGSI LOAD PRODUCTS ===
+// === FUNGSI LOAD PRODUCTS DENGAN HARGA SPESIFIK OPERATOR ===
 async function loadProducts(serviceId) {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Operator...</div>';
@@ -318,42 +318,39 @@ async function loadProducts(serviceId) {
             apiCall(`/catalog/operators?country_id=${currentCountryId}&platform_id=${serviceId}`)
         ]);
 
-        let baseProduct = null;
-        if (productsRes.success && productsRes.data && productsRes.data.length > 0) {
-            let sortedProducts = productsRes.data.sort((a, b) => {
-                let priceA = (a.price && typeof a.price.canonical_amount !== 'undefined') ? a.price.canonical_amount : (a.price || 0);
-                let priceB = (b.price && typeof b.price.canonical_amount !== 'undefined') ? b.price.canonical_amount : (b.price || 0);
-                return priceA - priceB;
-            });
-            baseProduct = sortedProducts[0];
-        }
-
-        if (!baseProduct) {
+        let allProducts = (productsRes.success && productsRes.data) ? productsRes.data : [];
+        if (allProducts.length === 0) {
             if (productList) productList.innerHTML = '<div class="status-text-mini" style="color:var(--warning-color);">Stok kosong untuk layanan ini.</div>';
             return;
         }
-
-        let catalogProductId = baseProduct.catalog_product_id || baseProduct.id;
-        let basePrice = (baseProduct.price && typeof baseProduct.price.canonical_amount !== 'undefined') ? baseProduct.price.canonical_amount : (baseProduct.price || 0);
 
         let ops = [];
         if (operatorsRes.success && operatorsRes.data && operatorsRes.data.length > 0) {
             ops = operatorsRes.data.map(op => {
                 let isAny = op.operator_id === null;
+                
+                // MENCARI HARGA SPESIFIK TIAP OPERATOR (BUKAN HARGA GLOBAL)
+                let specificProduct = allProducts.find(p => p.operator_id === op.operator_id);
+                if (!specificProduct) { specificProduct = allProducts.find(p => p.operator_id === null) || allProducts[0]; }
+                
+                let opPrice = 0;
+                if (specificProduct) {
+                    if (specificProduct.price && typeof specificProduct.price.canonical_amount !== 'undefined') { opPrice = specificProduct.price.canonical_amount; } 
+                    else { opPrice = specificProduct.price || 0; }
+                }
+
                 return {
                     id: isAny ? 'any' : op.operator_id,
                     name: isAny ? 'Acak' : (op.name || op.local_name || op.code),
-                    catalog_product_id: catalogProductId,
-                    price: basePrice
+                    catalog_product_id: specificProduct ? (specificProduct.catalog_product_id || specificProduct.id) : null,
+                    price: opPrice
                 };
             });
         } else {
-            ops = [{
-                id: 'any',
-                name: 'Acak',
-                catalog_product_id: catalogProductId,
-                price: basePrice
-            }];
+            // Fallback if no operators list returned
+            let defaultProd = allProducts.find(p => p.operator_id === null) || allProducts[0];
+            let defPrice = defaultProd.price && typeof defaultProd.price.canonical_amount !== 'undefined' ? defaultProd.price.canonical_amount : (defaultProd.price || 0);
+            ops = [{ id: 'any', name: 'Acak', catalog_product_id: defaultProd.catalog_product_id || defaultProd.id, price: defPrice }];
         }
 
         availableProducts = ops;
@@ -472,7 +469,10 @@ window.onOrderButtonClicked = async function() {
             const opInfo = availableProducts.find(p => String(p.id) === String(actualOpId)); 
             
             let opPrice = 0;
-            if (o.amount && typeof o.amount.canonical_amount !== 'undefined') { opPrice = o.amount.canonical_amount; } 
+            // MEMBACA HARGA ASLI LANGSUNG DARI SERVER ORDER
+            if (o.cost) { opPrice = parseFloat(o.cost); }
+            else if (o.price && typeof o.price === 'number') { opPrice = o.price; }
+            else if (o.amount && typeof o.amount.canonical_amount !== 'undefined') { opPrice = o.amount.canonical_amount; } 
             else if (opInfo && opInfo.price) { opPrice = opInfo.price; }
 
             const expiresAtMs = o.expires_at ? new Date(o.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
@@ -508,6 +508,7 @@ function renderOrders() {
     activeOrders.forEach(order => {
         const card = document.createElement("div"); card.className = "order-card"; card.id = `order-card-${order.id}`; 
         let isSuccess = (order.status === "OTP_RECEIVED" && order.otp); const wait = order.cancelUnlockTime - now;
+        
         let otpHtml = isSuccess 
             ? `<div class="otp-title">KODE OTP</div><div class="otp-code" style="margin:0 !important; letter-spacing: 4px !important;">${formatOTP(order.otp)}</div><button class="btn-copy" onclick="copyToClipboard('${order.otp}')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: #000000; color: #ffcc00; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><i class="fas fa-copy"></i></button>` 
             : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
@@ -592,6 +593,7 @@ function startPollingAndTimer() {
     }, 10000);
 }
 
+// === FUNGSI SINKRONISASI SERVER DIPERBAIKI (TIDAK BERCAMPUR ANTAR HP) ===
 async function syncServerOrders() {
     try {
         const res = await apiCall('/orders'); 
@@ -602,10 +604,9 @@ async function syncServerOrders() {
             let localUpdated = false;
             
             serverOrders.forEach(order => {
-                // KUNCI PERBAIKAN: Cari apakah pesanan dari server ini memang DIBUAT di HP ini.
                 let localIndex = activeOrders.findIndex(o => String(o.id) === String(order.id));
                 
-                // Jika ADA di HP ini, perbarui status OTP-nya jika sudah masuk
+                // HANYA perbarui pesanan jika ID pesanan tersebut memang dibuat oleh HP ini (ada di local storage)
                 if (localIndex !== -1) {
                     let localOrder = activeOrders[localIndex];
                     if (order.status === 'OTP_RECEIVED' && localOrder.status !== 'OTP_RECEIVED') {
@@ -614,7 +615,6 @@ async function syncServerOrders() {
                         localUpdated = true;
                     }
                 }
-                // Jika TIDAK ADA di memori HP ini (berarti milik HP lain), ABAIKAN dan jangan dimasukkan.
             });
             
             if (localUpdated) {
@@ -624,7 +624,6 @@ async function syncServerOrders() {
         }
     } catch (e) {}
 }
-
 
 function removeOrderWithAnimation(idStr, callback) { const card = document.getElementById(`order-card-${idStr}`); if (card) { card.classList.add('removing'); setTimeout(() => { callback(); }, 300); } else { callback(); } }
 
@@ -646,7 +645,15 @@ window.replaceSpecificOrder = async function(orderId) {
                 const n = await processOrderFreshNumber(opToUse, 5);
                 if (n) {
                     const actualOpId = n.finalOperatorId || opToUse;
-                    let finalPrice = 0; if (n.amount && typeof n.amount.canonical_amount !== 'undefined') { finalPrice = n.amount.canonical_amount; } 
+                    let finalPrice = 0; 
+                    
+                    if (n.cost) { finalPrice = parseFloat(n.cost); }
+                    else if (n.price && typeof n.price === 'number') { finalPrice = n.price; }
+                    else if (n.amount && typeof n.amount.canonical_amount !== 'undefined') { finalPrice = n.amount.canonical_amount; } 
+                    else {
+                        const pInfo = availableProducts.find(p => String(p.id) === String(actualOpId));
+                        if (pInfo) finalPrice = pInfo.price;
+                    }
                     
                     const expiresAtMs = n.expires_at ? new Date(n.expires_at).getTime() : Date.now() + (20 * 60 * 1000); 
                     activeOrders.unshift({ id: n.id, productId: String(actualOpId), phone: n.phone_number || n.phone, price: finalPrice, otp: null, status: "ACTIVE", expiresAt: expiresAtMs, cancelUnlockTime: Date.now() + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
