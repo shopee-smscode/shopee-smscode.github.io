@@ -76,18 +76,19 @@
         }
         .fab-btn:active { transform: scale(0.95); background-color: #009688; }
         
-        /* HEADER EDITOR (BARU) */
+        /* HEADER EDITOR & BAR AKSI */
         .editor-topbar {
             display: flex; align-items: center; background-color: #f2f2f2; padding: 8px 12px; gap: 8px; border-bottom: 1px solid #e0e0e0;
         }
-        .icon-btn { background: transparent; border: none; font-size: 20px; color: #333; cursor: pointer; padding: 8px; }
-        .icon-btn:active { opacity: 0.6; }
+        .icon-btn { background: transparent; border: none; font-size: 18px; color: #333; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .icon-btn:active { opacity: 0.5; transform: scale(0.9); }
         
         .title-input {
-            flex: 1; border: 1px solid #ccc; border-radius: 2px; padding: 8px; font-size: 16px; outline: none; background: #fff;
+            flex: 1; border: 1px solid #ccc; border-radius: 2px; padding: 8px; font-size: 16px; outline: none; background: #fff; min-width: 0;
         }
         
-        .color-square { width: 22px; height: 22px; border: 1px solid #999; border-radius: 4px; background-color: #ffffff; cursor: pointer; flex-shrink: 0; }
+        .action-bar-group { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+        .color-square { width: 20px; height: 20px; border: 1px solid #999; border-radius: 4px; background-color: #ffffff; cursor: pointer; flex-shrink: 0; margin: 0 4px; }
         
         .editor-subheader { display: flex; justify-content: space-between; padding: 8px 16px; font-size: 12px; color: #888; background-color: #fff; }
         
@@ -97,17 +98,6 @@
             background-image: repeating-linear-gradient(transparent, transparent 31px, #f0f0f0 31px, #f0f0f0 32px);
             line-height: 32px; padding: 0 16px; font-size: 16px; resize: none; outline: none; color: #333; box-sizing: border-box;
         }
-
-        /* DROPDOWN MENU */
-        .dropdown { position: relative; display: inline-block; }
-        .dropdown-content { 
-            display: none; position: absolute; background-color: #ffffff; min-width: 160px; 
-            box-shadow: 0px 4px 12px rgba(0,0,0,0.2); z-index: 1000; border-radius: 4px; border: 1px solid #eee;
-        }
-        .dropdown-right { right: 0; }
-        .dropdown-content.show { display: block; }
-        .dropdown-content a { color: #333; padding: 12px 16px; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 14px; border-bottom: 1px solid #f5f5f5; }
-        .dropdown-content a:hover { background-color: #f9f9f9; }
 
         /* MODAL WARNA */
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99999; display: flex; justify-content: center; align-items: center; }
@@ -140,16 +130,14 @@
     <!-- HALAMAN 2: FORM TAMBAH / EDIT (EDITOR) -->
     <div id="viewForm" class="container hidden">
         <div class="editor-topbar">
-            <button class="icon-btn" onclick="saveNote()"><i class="fas fa-check"></i></button>
+            <!-- Tombol Batal diganti ikon silang -->
+            <button class="icon-btn" onclick="cancelForm()"><i class="fas fa-times"></i></button>
             <input type="text" id="note-title" class="title-input" placeholder="Judul Catatan">
-            <div id="color-square" class="color-square" onclick="openColorModal()"></div>
             
-            <div class="dropdown">
-                <button class="icon-btn" onclick="toggleDropdown('formMenu')"><i class="fas fa-ellipsis-v"></i></button>
-                <div id="formMenu" class="dropdown-content dropdown-right" style="top: 45px;">
-                    <a href="#" onclick="cancelForm(); return false;"><i class="fas fa-times" style="width:16px;"></i> Batal</a>
-                    <a href="#" onclick="pasteFromClipboard(); return false;"><i class="fas fa-paste" style="width:16px;"></i> Tempel Teks</a>
-                </div>
+            <div class="action-bar-group">
+                <div id="color-square" class="color-square" onclick="openColorModal()"></div>
+                <button class="icon-btn" onclick="pasteFromClipboard()" style="color: #2196f3;" title="Tempel"><i class="fas fa-paste"></i></button>
+                <button class="icon-btn" onclick="saveNote()" style="color: #00bfa5;" title="Simpan"><i class="fas fa-check"></i></button>
             </div>
         </div>
         
@@ -158,23 +146,21 @@
             <span id="editor-date"></span>
         </div>
         
-        <textarea id="note-content" class="lined-bg" placeholder=""></textarea>
+        <textarea id="note-content" class="lined-bg" placeholder="Ketik catatan di sini..."></textarea>
     </div>
 
-    <!-- HALAMAN 3: LIHAT DETAIL (READ-ONLY) -->
+    <!-- HALAMAN 3: LIHAT DETAIL DENGAN BARIS AKSI IKON -->
     <div id="viewDetail" class="container hidden">
         <div class="editor-topbar">
             <button class="icon-btn" onclick="closeDetail()"><i class="fas fa-arrow-left"></i></button>
             <input type="text" id="view-title" class="title-input" readonly style="background:transparent; border:none; font-weight:bold; color:#000;">
-            <div id="view-color-square" class="color-square" style="border:none; cursor:default;"></div>
             
-            <div class="dropdown">
-                <button class="icon-btn" onclick="toggleDropdown('detailMenu')"><i class="fas fa-ellipsis-v"></i></button>
-                <div id="detailMenu" class="dropdown-content dropdown-right" style="top: 45px;">
-                    <a href="#" onclick="editFromDetail(); return false;"><i class="fas fa-edit" style="width:16px;"></i> Edit</a>
-                    <a href="#" onclick="copyNoteContent(); return false;"><i class="fas fa-copy" style="width:16px;"></i> Salin Teks</a>
-                    <a href="#" onclick="confirmDelete(); return false;" style="color:#f44336;"><i class="fas fa-trash" style="width:16px;"></i> Hapus</a>
-                </div>
+            <!-- BARIS AKSI DI POJOK (Warna, Edit, Salin, Hapus) -->
+            <div class="action-bar-group">
+                <div id="view-color-square" class="color-square" onclick="openColorModal()" title="Ubah Warna"></div>
+                <button class="icon-btn" onclick="editFromDetail()" style="color: #2196f3;" title="Edit"><i class="fas fa-edit"></i></button>
+                <button class="icon-btn" onclick="copyNoteContent()" style="color: #00bfa5;" title="Salin"><i class="fas fa-copy"></i></button>
+                <button class="icon-btn" id="btn-delete-detail" onclick="handleDeleteTap()" style="color: #f44336;" title="Hapus"><i class="fas fa-trash"></i></button>
             </div>
         </div>
         

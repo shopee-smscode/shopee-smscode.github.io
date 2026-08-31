@@ -24,6 +24,8 @@ let currentNoteData = null;
 let isEditingNote = false;
 let currentNoteRawContent = "";
 let currentColor = 'white';
+let deletePending = false;
+let deleteTimer = null;
 
 const colorStyles = {
     'white': { bg: '#ffffff', border: 'transparent', square: '#ffffff' },
@@ -57,7 +59,13 @@ function initNotesSync() {
             card.style.borderLeft = `5px solid ${cTheme.border}`;
             
             card.onclick = () => openDetail(d.key, d);
-            card.innerHTML = `<div class="note-info"><div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div></div><div class="note-date">${formatDate(d.timestamp)}</div>`;
+            
+            // Logika Cuplikan Judul: Jika judul kosong, ambil cuplikan dari isi konten
+            let displayTitle = d.title && d.title.trim() !== "" 
+                ? escapeHTML(d.title) 
+                : (d.content ? escapeHTML(d.content.substring(0, 30).replace(/\n/g, ' ')) + "..." : 'Tanpa Judul');
+
+            card.innerHTML = `<div class="note-info"><div class="note-title">${displayTitle}</div></div><div class="note-date">${formatDate(d.timestamp)}</div>`;
             grid.appendChild(card);
         });
     });
@@ -70,22 +78,18 @@ function openColorModal() { document.getElementById('colorModal').classList.remo
 function closeColorModal() { document.getElementById('colorModal').classList.add('hidden'); }
 function selectColor(c) {
     currentColor = c;
+    // Update kotak warna di form edit
     document.getElementById('color-square').style.backgroundColor = colorStyles[c].square;
+    
+    // Jika diubah dari mode Read (View Detail), langsung simpan ke database
+    if (!document.getElementById('viewDetail').classList.contains('hidden') && selectedNoteKey) {
+        db.ref(`${DB_PATH}/${selectedNoteKey}`).update({ color: c });
+        document.getElementById('view-color-square').style.backgroundColor = colorStyles[c].square;
+    }
     closeColorModal();
 }
 
-// ==========================================
-// DROPDOWN MENU GLOBAL
-// ==========================================
-function toggleDropdown(id) { document.getElementById(id).classList.toggle('show'); }
-
 window.onclick = function(event) {
-    if (!event.target.matches('.icon-btn') && !event.target.matches('.icon-btn *')) {
-        let dropdowns = document.getElementsByClassName("dropdown-content");
-        for (let i = 0; i < dropdowns.length; i++) {
-            if (dropdowns[i].classList.contains('show')) dropdowns[i].classList.remove('show');
-        }
-    }
     if (event.target.id === 'colorModal') { closeColorModal(); }
 }
 
@@ -116,7 +120,7 @@ function openDetail(key, data) {
     selectedNoteKey = key; currentNoteData = data; currentNoteRawContent = data.content;
     
     document.getElementById('view-date').innerText = formatDate(data.timestamp);
-    document.getElementById('view-title').value = data.title || "Tanpa Judul";
+    document.getElementById('view-title').value = data.title || "";
     
     // Set warna kotak indikator di mode View
     let savedColor = data.color || 'white';
@@ -124,10 +128,13 @@ function openDetail(key, data) {
     
     document.getElementById('view-content').innerText = data.content;
     
+    // Reset status tombol hapus
+    resetDeleteButton();
+    
     viewList.classList.add('hidden'); viewDetail.classList.remove('hidden');
 }
 
-function closeDetail() { viewDetail.classList.add('hidden'); viewList.classList.remove('hidden'); }
+function closeDetail() { viewDetail.classList.add('hidden'); viewList.classList.remove('hidden'); resetDeleteButton(); }
 
 function editFromDetail() {
     isEditingNote = true;
@@ -144,7 +151,7 @@ function editFromDetail() {
 }
 
 // ==========================================
-// LOGIKA DATABASE (SIMPAN & HAPUS)
+// LOGIKA DATABASE (SIMPAN & HAPUS TAB GANDA)
 // ==========================================
 function saveNote() {
     let t = document.getElementById('note-title').value.trim(); 
@@ -152,25 +159,18 @@ function saveNote() {
     if(!c || c === "") return showToast("⚠️ Konten tidak boleh kosong!", "error");
     
     db.ref(DB_PATH).once('value').then(snapshot => {
-        let isDuplicate = false; let usedNumbers = new Set();
+        let isDuplicate = false; 
         snapshot.forEach(child => {
-            let exTitle = child.val().title; let exContent = child.val().content;
-            if (exTitle && /^\d+$/.test(exTitle.toString().trim())) { usedNumbers.add(parseInt(exTitle.toString().trim())); }
-            // Cek duplikasi hanya jika isinya persis sama dan ini bukan catatan yang sedang diedit
+            let exContent = child.val().content;
             if (exContent && exContent.trim() === c) { if (!isEditingNote || selectedNoteKey !== child.key) isDuplicate = true; }
         });
         
         if (isDuplicate) return showToast("⚠️ Gagal: Catatan yang sama persis sudah ada!", "error");
-        
-        if (!t) {
-            let nextNum = 1; while (usedNumbers.has(nextNum)) nextNum++;
-            executeSave(nextNum.toString(), c);
-        } else { executeSave(t, c); }
+        executeSave(t, c);
     });
 }
 
 function executeSave(title, content) {
-    // Menyimpan data beserta properti WARNA
     const data = { title: title, content: content, timestamp: Date.now(), color: currentColor };
     const promise = (isEditingNote && selectedNoteKey) ? db.ref(`${DB_PATH}/${selectedNoteKey}`).update(data) : db.ref(DB_PATH).push(data);
     promise.then(() => { 
@@ -179,11 +179,45 @@ function executeSave(title, content) {
     });
 }
 
-function confirmDelete() {
-    if(confirm("Apakah Anda yakin ingin menghapus catatan ini?")) {
+// Logika Double Tap Delete
+function handleDeleteTap() {
+    const btn = document.getElementById('btn-delete-detail');
+    const icon = btn.querySelector('i');
+
+    if (!deletePending) {
+        // Tap pertama (Warning)
+        deletePending = true;
+        icon.classList.remove('fa-trash');
+        icon.classList.add('fa-exclamation-triangle'); 
+        btn.style.color = '#ff9500'; // Warna peringatan oranye
+        showToast("Ketuk sekali lagi untuk HAPUS", "warning");
+
+        // Batal otomatis setelah 2 detik
+        deleteTimer = setTimeout(() => {
+            resetDeleteButton();
+        }, 2000);
+    } else {
+        // Tap kedua (Eksekusi Hapus)
+        clearTimeout(deleteTimer);
+        resetDeleteButton();
+        
         db.ref(`${DB_PATH}/${selectedNoteKey}`).remove().then(() => { 
-            viewDetail.classList.add('hidden'); viewList.classList.remove('hidden'); showToast("Catatan dihapus."); 
+            viewDetail.classList.add('hidden'); 
+            viewList.classList.remove('hidden'); 
+            showToast("Catatan dihapus."); 
         });
+    }
+}
+
+function resetDeleteButton() {
+    deletePending = false;
+    if(deleteTimer) clearTimeout(deleteTimer);
+    const btn = document.getElementById('btn-delete-detail');
+    if(btn) {
+        const icon = btn.querySelector('i');
+        icon.classList.remove('fa-exclamation-triangle');
+        icon.classList.add('fa-trash');
+        btn.style.color = '#f44336';
     }
 }
 
@@ -192,7 +226,6 @@ function confirmDelete() {
 // ==========================================
 function formatDate(ts) {
     if(!ts) return "---"; const d = new Date(ts);
-    // Format persis seperti Color Note: 01/09/26 02.00
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)} ${String(d.getHours()).padStart(2, '0')}.${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
@@ -202,7 +235,11 @@ function escapeHTML(str) {
 
 function showToast(pesan, type="success") {
     const t = document.getElementById("toast"); t.innerHTML = pesan;
-    t.style.backgroundColor = type === "error" ? "#f44336" : "#323232";
+    
+    // Warna khusus untuk warning double tap
+    if (type === "warning") t.style.backgroundColor = "#ff9500";
+    else t.style.backgroundColor = type === "error" ? "#f44336" : "#323232";
+    
     t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 3000);
 }
 
@@ -213,8 +250,6 @@ function copyNoteContent() {
     } else { 
         const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast("Berhasil disalin!"); 
     }
-    // Tutup menu dropdown setelah klik
-    document.getElementById('detailMenu').classList.remove('show');
 }
 
 async function pasteFromClipboard() {
@@ -231,9 +266,6 @@ async function pasteFromClipboard() {
     } catch (err) {
         showToast("Gagal menempel! Izinkan akses clipboard.", "error");
     }
-    // Tutup menu dropdown setelah klik
-    document.getElementById('formMenu').classList.remove('show');
 }
 
-// Mulai
 window.onload = initNotesSync;
