@@ -598,22 +598,33 @@ async function syncServerOrders() {
         if (res.success && res.data) {
             let serverOrders = Array.isArray(res.data) ? res.data : (res.data.data || []);
             serverOrders = serverOrders.filter(o => o.status === 'ACTIVE' || o.status === 'OTP_RECEIVED' || o.status === 'PENDING');
+            
+            let localUpdated = false;
+            
             serverOrders.forEach(order => {
-                if (!activeOrders.find(o => o.id === order.id)) {
-                    let syncedPrice = 0;
-                    if (order.amount && typeof order.amount.canonical_amount !== 'undefined') { syncedPrice = order.amount.canonical_amount; } 
-                    
-                    let opId = order.operator_id !== null ? String(order.operator_id) : 'any';
-                    
-                    const exp = order.expires_at ? new Date(order.expires_at).getTime() : Date.now() + (20*60*1000);
-                    const cTime = order.created_at ? new Date(order.created_at).getTime() : (exp - (20*60*1000));
-                    activeOrders.unshift({ id: order.id, productId: opId, phone: order.phone_number || order.phone, price: syncedPrice, otp: order.otp_code, status: order.status, expiresAt: exp, cancelUnlockTime: cTime + (120*1000), isAutoCanceling: false, disableAutoCancel: false });
+                // KUNCI PERBAIKAN: Cari apakah pesanan dari server ini memang DIBUAT di HP ini.
+                let localIndex = activeOrders.findIndex(o => String(o.id) === String(order.id));
+                
+                // Jika ADA di HP ini, perbarui status OTP-nya jika sudah masuk
+                if (localIndex !== -1) {
+                    let localOrder = activeOrders[localIndex];
+                    if (order.status === 'OTP_RECEIVED' && localOrder.status !== 'OTP_RECEIVED') {
+                        activeOrders[localIndex].status = "OTP_RECEIVED";
+                        activeOrders[localIndex].otp = order.otp_code;
+                        localUpdated = true;
+                    }
                 }
+                // Jika TIDAK ADA di memori HP ini (berarti milik HP lain), ABAIKAN dan jangan dimasukkan.
             });
-            saveToStorage(); startPollingAndTimer(); fetchBalance();
+            
+            if (localUpdated) {
+                saveToStorage(); 
+                fetchBalance();
+            }
         }
     } catch (e) {}
 }
+
 
 function removeOrderWithAnimation(idStr, callback) { const card = document.getElementById(`order-card-${idStr}`); if (card) { card.classList.add('removing'); setTimeout(() => { callback(); }, 300); } else { callback(); } }
 
