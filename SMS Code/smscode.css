@@ -80,7 +80,22 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .otp-display { background: var(--otp-bg); padding: 12px 10px !important; border-radius: 10px !important; border: 2px solid var(--otp-border); margin: 8px 0 !important; text-align: center; position: relative; overflow: hidden; }
 .otp-title { font-size: 11px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 4px; }
 .otp-code { font-size: clamp(28px, 8vw, 40px) !important; letter-spacing: 4px !important; font-weight: 900; color: var(--otp-text); text-shadow: 0 0 10px var(--shadow-color); }
-.success-glow { border-color: var(--success-color) !important; box-shadow: 0 0 15px rgba(249, 115, 22, 0.3); }
+
+/* WARNA KUNING SOLID SAAT OTP MASUK */
+.success-glow { 
+    background-color: #ffcc00 !important; 
+    border-color: #ffcc00 !important; 
+    box-shadow: 0 0 15px rgba(255, 204, 0, 0.5) !important; 
+}
+.success-glow .otp-title { 
+    color: #000000 !important; 
+    font-weight: 900; 
+    opacity: 0.6; 
+}
+.success-glow .otp-code { 
+    color: #000000 !important; 
+    text-shadow: none !important; 
+}
 
 .action-buttons-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .btn-replace, .btn-resend, .btn-danger, .btn-success { height: 42px !important; font-size: 13px !important; font-weight: 800; border-radius: 10px !important; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 6px; border: none; cursor: pointer; transition: transform 0.1s, filter 0.2s, opacity 0.2s; }

@@ -508,7 +508,9 @@ function renderOrders() {
     activeOrders.forEach(order => {
         const card = document.createElement("div"); card.className = "order-card"; card.id = `order-card-${order.id}`; 
         let isSuccess = (order.status === "OTP_RECEIVED" && order.otp); const wait = order.cancelUnlockTime - now;
-        let otpHtml = isSuccess ? `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
+        let otpHtml = isSuccess 
+            ? `<div class="otp-title">KODE OTP</div><div class="otp-code" style="margin:0 !important; letter-spacing: 4px !important;">${formatOTP(order.otp)}</div><button class="btn-copy" onclick="copyToClipboard('${order.otp}')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: #000000; color: #ffcc00; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><i class="fas fa-copy"></i></button>` 
+            : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
         
         let opTag = 'Acak';
         const matchedProduct = availableProducts.find(p => String(p.id) === String(order.productId));
