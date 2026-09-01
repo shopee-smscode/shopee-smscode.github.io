@@ -34,6 +34,7 @@ let deleteTimer = null;
 let allNotesData = []; 
 let quickDeletePending = false;
 let quickDeleteTimer = null;
+let quickDeleteTargetKey = null; // Pengunci ID target agar hapus 100% akurat
 
 const colorStyles = {
     'white': { bg: '#ffffff', border: 'transparent', square: '#ffffff' },
@@ -55,7 +56,7 @@ function initNotesSync() {
         snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); });
         
         document.getElementById('notesCount').innerText = `(${items.length})`;
-        allNotesData = items.reverse(); // Catatan teratas ada di index 0
+        allNotesData = items.reverse(); // Index 0 = Paling Atas (Terbaru)
         
         if(allNotesData.length === 0) { grid.innerHTML = '<div style="text-align:center; color:#9e9e9e; padding: 20px;">Belum ada catatan.</div>'; return; }
         
@@ -80,28 +81,32 @@ function initNotesSync() {
 }
 
 // ==========================================
-// LOGIKA SALIN & HAPUS CEPAT (FAB)
+// LOGIKA SALIN & HAPUS CEPAT DARI BAWAH (FAB)
 // ==========================================
 function handleQuickCopyDelete() {
     if (allNotesData.length === 0) {
         return showToast("Tidak ada catatan untuk disalin", "error");
     }
     
-    // Selalu ambil catatan yang paling atas
-    const topNote = allNotesData[0];
     const btn = document.getElementById('fab-quick-btn');
     const icon = btn.querySelector('i');
 
     if (!quickDeletePending) {
-        // TAP 1: Salin Konten
-        const text = topNote.content;
+        // TAP 1: Ambil catatan Paling Bawah (Index Terakhir)
+        const bottomNote = allNotesData[allNotesData.length - 1];
+        
+        // Kunci ID Catatan agar ketukan ke-2 menghapus data yang tepat
+        quickDeleteTargetKey = bottomNote.key; 
+
+        // Salin Konten
+        const text = bottomNote.content;
         if (navigator.clipboard && window.isSecureContext) { 
             navigator.clipboard.writeText(text).then(() => showToast("Disalin! Ketuk lagi untuk HAPUS", "warning")); 
         } else { 
             const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast("Disalin! Ketuk lagi untuk HAPUS", "warning"); 
         }
 
-        // Siap-siap untuk Tap 2
+        // Siap-siap untuk Tap 2 (Ubah UI Tombol)
         quickDeletePending = true;
         icon.classList.remove('fa-copy');
         icon.classList.add('fa-trash');
@@ -113,18 +118,22 @@ function handleQuickCopyDelete() {
         }, 2000);
 
     } else {
-        // TAP 2: Hapus Instan
+        // TAP 2: Hapus Instan menggunakan Kunci ID yang sudah disimpan
         clearTimeout(quickDeleteTimer);
         resetQuickButton();
         
-        db.ref(`${DB_PATH}/${topNote.key}`).remove().then(() => { 
-            showToast("Catatan teratas dihapus!"); 
-        });
+        if (quickDeleteTargetKey) {
+            db.ref(`${DB_PATH}/${quickDeleteTargetKey}`).remove().then(() => { 
+                showToast("Catatan terlama dihapus!"); 
+                quickDeleteTargetKey = null; // Bersihkan memori kunci
+            });
+        }
     }
 }
 
 function resetQuickButton() {
     quickDeletePending = false;
+    quickDeleteTargetKey = null;
     if(quickDeleteTimer) clearTimeout(quickDeleteTimer);
     const btn = document.getElementById('fab-quick-btn');
     if(btn) {
