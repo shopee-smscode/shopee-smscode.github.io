@@ -56,7 +56,7 @@ function initNotesSync() {
         snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); });
         
         document.getElementById('notesCount').innerText = `(${items.length})`;
-        allNotesData = items.reverse(); // Index 0 = Paling Atas (Terbaru)
+        allNotesData = items.reverse(); // Index 0 = Terbaru, Index Terakhir = Terlama
         
         if(allNotesData.length === 0) { grid.innerHTML = '<div style="text-align:center; color:#9e9e9e; padding: 20px;">Belum ada catatan.</div>'; return; }
         
@@ -92,10 +92,10 @@ function handleQuickCopyDelete() {
     const icon = btn.querySelector('i');
 
     if (!quickDeletePending) {
-        // TAP 1: Ambil catatan Paling Bawah (Index Terakhir)
+        // TAP 1: Ambil catatan Paling Bawah (Index Terakhir / Terlama)
         const bottomNote = allNotesData[allNotesData.length - 1];
         
-        // Kunci ID Catatan agar ketukan ke-2 menghapus data yang tepat
+        // Kunci ID Catatan secara spesifik agar tidak terhapus saat reset
         quickDeleteTargetKey = bottomNote.key; 
 
         // Salin Konten
@@ -112,20 +112,25 @@ function handleQuickCopyDelete() {
         icon.classList.add('fa-trash');
         btn.style.backgroundColor = '#f44336'; 
 
-        // Reset kembali ke tombol salin setelah 2 detik jika tidak ditekan
+        // Batal otomatis setelah 2 detik jika tidak ditekan
         quickDeleteTimer = setTimeout(() => {
             resetQuickButton();
         }, 2000);
 
     } else {
-        // TAP 2: Hapus Instan menggunakan Kunci ID yang sudah disimpan
+        // TAP 2: Hapus Instan
         clearTimeout(quickDeleteTimer);
+        
+        // KUNCI UTAMA PERBAIKAN: Selamatkan ID target ke variabel lokal dulu
+        const targetKeyToDestroy = quickDeleteTargetKey; 
+        
+        // Baru reset UI Tombolnya
         resetQuickButton();
         
-        if (quickDeleteTargetKey) {
-            db.ref(`${DB_PATH}/${quickDeleteTargetKey}`).remove().then(() => { 
+        // Eksekusi penghapusan menggunakan ID yang diselamatkan
+        if (targetKeyToDestroy) {
+            db.ref(`${DB_PATH}/${targetKeyToDestroy}`).remove().then(() => { 
                 showToast("Catatan terlama dihapus!"); 
-                quickDeleteTargetKey = null; // Bersihkan memori kunci
             });
         }
     }
@@ -133,7 +138,7 @@ function handleQuickCopyDelete() {
 
 function resetQuickButton() {
     quickDeletePending = false;
-    quickDeleteTargetKey = null;
+    quickDeleteTargetKey = null; // Memori dibersihkan saat waktu habis/selesai
     if(quickDeleteTimer) clearTimeout(quickDeleteTimer);
     const btn = document.getElementById('fab-quick-btn');
     if(btn) {
@@ -216,7 +221,7 @@ function editFromDetail() {
 }
 
 // ==========================================
-// LOGIKA DATABASE (SIMPAN & HAPUS TAB GANDA)
+// LOGIKA DATABASE (SIMPAN & HAPUS DETAIL)
 // ==========================================
 function saveNote() {
     let t = document.getElementById('note-title').value.trim(); 
