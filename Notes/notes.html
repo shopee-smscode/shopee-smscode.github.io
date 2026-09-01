@@ -37,7 +37,7 @@
         /* HEADER LIST */
         .header-list { 
             display: flex; 
-            justify-content: space-between; 
+            justify-content: center; /* Judul dibuat di tengah karena tombol back dihapus */
             align-items: center; 
             background-color: #333333; 
             color: white;
@@ -87,7 +87,7 @@
         
         /* HEADER EDITOR & BAR AKSI */
         .editor-topbar {
-            display: flex; align-items: center; background-color: #f2f2f2; padding: 8px 12px; gap: 8px; border-bottom: 1px solid #e0e0e0;
+            display: flex; align-items: center; justify-content: space-between; background-color: #f2f2f2; padding: 8px 12px; gap: 8px; border-bottom: 1px solid #e0e0e0;
         }
         .icon-btn { background: transparent; border: none; font-size: 18px; color: #333; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
         .icon-btn:active { opacity: 0.5; transform: scale(0.9); }
@@ -126,9 +126,7 @@
     <!-- HALAMAN 1: DAFTAR CATATAN -->
     <div id="viewList" class="container">
         <div class="header-list">
-            <button class="btn-header" onclick="history.back()"><i class="fas fa-arrow-left"></i></button>
             <h1>Catatan <span id="notesCount" style="font-size:14px; opacity:0.8;">(0)</span></h1>
-            <div style="width: 24px;"></div>
         </div>
         
         <div id="notes-grid" class="notes-list">
@@ -149,7 +147,7 @@
     <!-- HALAMAN 2: FORM TAMBAH / EDIT (EDITOR) -->
     <div id="viewForm" class="container hidden">
         <div class="editor-topbar">
-            <!-- Tombol Batal diganti ikon silang -->
+            <!-- Tombol Batal -->
             <button class="icon-btn" onclick="cancelForm()"><i class="fas fa-times"></i></button>
             <input type="text" id="note-title" class="title-input" placeholder="Judul Catatan">
             
