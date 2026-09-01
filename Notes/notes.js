@@ -19,13 +19,21 @@ const DB_PATH = 'notes/public';
 const viewList = document.getElementById('viewList');
 const viewForm = document.getElementById('viewForm');
 const viewDetail = document.getElementById('viewDetail');
+
 let selectedNoteKey = null;
 let currentNoteData = null;
 let isEditingNote = false;
 let currentNoteRawContent = "";
 let currentColor = 'white';
+
+// State Hapus Detail
 let deletePending = false;
 let deleteTimer = null;
+
+// State Hapus Cepat (FAB)
+let allNotesData = []; 
+let quickDeletePending = false;
+let quickDeleteTimer = null;
 
 const colorStyles = {
     'white': { bg: '#ffffff', border: 'transparent', square: '#ffffff' },
@@ -47,10 +55,11 @@ function initNotesSync() {
         snapshot.forEach(child => { items.push({ key: child.key, ...child.val() }); });
         
         document.getElementById('notesCount').innerText = `(${items.length})`;
+        allNotesData = items.reverse(); // Catatan teratas ada di index 0
         
-        if(items.length === 0) { grid.innerHTML = '<div style="text-align:center; color:#9e9e9e; padding: 20px;">Belum ada catatan.</div>'; return; }
+        if(allNotesData.length === 0) { grid.innerHTML = '<div style="text-align:center; color:#9e9e9e; padding: 20px;">Belum ada catatan.</div>'; return; }
         
-        items.reverse().forEach((d) => {
+        allNotesData.forEach((d) => {
             const card = document.createElement('div'); 
             card.className = 'note-card'; 
             
@@ -60,11 +69,70 @@ function initNotesSync() {
             
             card.onclick = () => openDetail(d.key, d);
             
-            // Dikembalikan ke format penamaan otomatis aslinya (Judul atau Kosong)
-            card.innerHTML = `<div class="note-info"><div class="note-title">${escapeHTML(d.title) || 'Tanpa Judul'}</div></div><div class="note-date">${formatDate(d.timestamp)}</div>`;
+            let displayTitle = d.title && d.title.trim() !== "" 
+                ? escapeHTML(d.title) 
+                : (d.content ? escapeHTML(d.content.substring(0, 30).replace(/\n/g, ' ')) + "..." : 'Tanpa Judul');
+
+            card.innerHTML = `<div class="note-info"><div class="note-title">${displayTitle}</div></div><div class="note-date">${formatDate(d.timestamp)}</div>`;
             grid.appendChild(card);
         });
     });
+}
+
+// ==========================================
+// LOGIKA SALIN & HAPUS CEPAT (FAB)
+// ==========================================
+function handleQuickCopyDelete() {
+    if (allNotesData.length === 0) {
+        return showToast("Tidak ada catatan untuk disalin", "error");
+    }
+    
+    // Selalu ambil catatan yang paling atas
+    const topNote = allNotesData[0];
+    const btn = document.getElementById('fab-quick-btn');
+    const icon = btn.querySelector('i');
+
+    if (!quickDeletePending) {
+        // TAP 1: Salin Konten
+        const text = topNote.content;
+        if (navigator.clipboard && window.isSecureContext) { 
+            navigator.clipboard.writeText(text).then(() => showToast("Disalin! Ketuk lagi untuk HAPUS", "warning")); 
+        } else { 
+            const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "absolute"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast("Disalin! Ketuk lagi untuk HAPUS", "warning"); 
+        }
+
+        // Siap-siap untuk Tap 2
+        quickDeletePending = true;
+        icon.classList.remove('fa-copy');
+        icon.classList.add('fa-trash');
+        btn.style.backgroundColor = '#f44336'; 
+
+        // Reset kembali ke tombol salin setelah 2 detik jika tidak ditekan
+        quickDeleteTimer = setTimeout(() => {
+            resetQuickButton();
+        }, 2000);
+
+    } else {
+        // TAP 2: Hapus Instan
+        clearTimeout(quickDeleteTimer);
+        resetQuickButton();
+        
+        db.ref(`${DB_PATH}/${topNote.key}`).remove().then(() => { 
+            showToast("Catatan teratas dihapus!"); 
+        });
+    }
+}
+
+function resetQuickButton() {
+    quickDeletePending = false;
+    if(quickDeleteTimer) clearTimeout(quickDeleteTimer);
+    const btn = document.getElementById('fab-quick-btn');
+    if(btn) {
+        const icon = btn.querySelector('i');
+        icon.classList.remove('fa-trash');
+        icon.classList.add('fa-copy');
+        btn.style.backgroundColor = '#2196f3'; // Kembali ke warna biru
+    }
 }
 
 // ==========================================
@@ -74,10 +142,7 @@ function openColorModal() { document.getElementById('colorModal').classList.remo
 function closeColorModal() { document.getElementById('colorModal').classList.add('hidden'); }
 function selectColor(c) {
     currentColor = c;
-    // Update kotak warna di form edit
     document.getElementById('color-square').style.backgroundColor = colorStyles[c].square;
-    
-    // Jika diubah dari mode Read (View Detail), langsung simpan ke database
     if (!document.getElementById('viewDetail').classList.contains('hidden') && selectedNoteKey) {
         db.ref(`${DB_PATH}/${selectedNoteKey}`).update({ color: c });
         document.getElementById('view-color-square').style.backgroundColor = colorStyles[c].square;
@@ -95,7 +160,6 @@ window.onclick = function(event) {
 function openAddForm() {
     isEditingNote = false; selectedNoteKey = null; currentNoteData = null;
     
-    // Reset Warna ke Default Putih
     currentColor = 'white';
     document.getElementById('color-square').style.backgroundColor = colorStyles['white'].square;
     
@@ -118,15 +182,12 @@ function openDetail(key, data) {
     document.getElementById('view-date').innerText = formatDate(data.timestamp);
     document.getElementById('view-title').value = data.title || "";
     
-    // Set warna kotak indikator di mode View
     let savedColor = data.color || 'white';
     document.getElementById('view-color-square').style.backgroundColor = colorStyles[savedColor].square;
     
     document.getElementById('view-content').innerText = data.content;
     
-    // Reset status tombol hapus
     resetDeleteButton();
-    
     viewList.classList.add('hidden'); viewDetail.classList.remove('hidden');
 }
 
@@ -135,7 +196,6 @@ function closeDetail() { viewDetail.classList.add('hidden'); viewList.classList.
 function editFromDetail() {
     isEditingNote = true;
     
-    // Tarik warna dan data dari catatan yang sedang dibuka
     currentColor = currentNoteData.color || 'white';
     document.getElementById('color-square').style.backgroundColor = colorStyles[currentColor].square;
     
@@ -158,16 +218,12 @@ function saveNote() {
         let isDuplicate = false; let usedNumbers = new Set();
         snapshot.forEach(child => {
             let exTitle = child.val().title; let exContent = child.val().content;
-            
-            // Kumpulkan angka yang sudah dipakai jika judulnya berupa angka
             if (exTitle && /^\d+$/.test(exTitle.toString().trim())) { usedNumbers.add(parseInt(exTitle.toString().trim())); }
-            
             if (exContent && exContent.trim() === c) { if (!isEditingNote || selectedNoteKey !== child.key) isDuplicate = true; }
         });
         
         if (isDuplicate) return showToast("⚠️ Gagal: Catatan yang sama persis sudah ada!", "error");
         
-        // AUTO NUMBERING JIKA JUDUL KOSONG
         if (!t) {
             let nextNum = 1; while (usedNumbers.has(nextNum)) nextNum++;
             executeSave(nextNum.toString(), c);
@@ -186,25 +242,22 @@ function executeSave(title, content) {
     });
 }
 
-// Logika Double Tap Delete
+// Logika Double Tap Delete Detail
 function handleDeleteTap() {
     const btn = document.getElementById('btn-delete-detail');
     const icon = btn.querySelector('i');
 
     if (!deletePending) {
-        // Tap pertama (Warning)
         deletePending = true;
         icon.classList.remove('fa-trash');
         icon.classList.add('fa-exclamation-triangle'); 
-        btn.style.color = '#ff9500'; // Warna peringatan oranye
+        btn.style.color = '#ff9500';
         showToast("Ketuk sekali lagi untuk HAPUS", "warning");
 
-        // Batal otomatis setelah 2 detik
         deleteTimer = setTimeout(() => {
             resetDeleteButton();
         }, 2000);
     } else {
-        // Tap kedua (Eksekusi Hapus)
         clearTimeout(deleteTimer);
         resetDeleteButton();
         
@@ -242,11 +295,8 @@ function escapeHTML(str) {
 
 function showToast(pesan, type="success") {
     const t = document.getElementById("toast"); t.innerHTML = pesan;
-    
-    // Warna khusus untuk warning double tap
     if (type === "warning") t.style.backgroundColor = "#ff9500";
     else t.style.backgroundColor = type === "error" ? "#f44336" : "#323232";
-    
     t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 3000);
 }
 
