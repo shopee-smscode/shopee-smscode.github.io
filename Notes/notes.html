@@ -19,21 +19,20 @@
             padding: 0;
             display: flex;
             justify-content: center;
-            height: 100vh; /* Kunci tinggi sesuai layar HP */
-            height: 100dvh; /* Dukungan layar modern */
-            overflow: hidden; /* Matikan scroll bawaan browser */
+            height: 100vh;
+            height: 100dvh; 
+            overflow: hidden; 
         }
         
         .container { 
             width: 100%;
             max-width: 480px; 
             background: #ffffff; 
-            height: 100%; /* Penuhi tinggi body secara absolut */
+            height: 100%; 
             display: flex; 
             flex-direction: column; 
             position: relative; 
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            overflow: hidden; /* Pastikan wadah tidak bisa molor */
         }
         
         .hidden { display: none !important; }
@@ -48,7 +47,7 @@
             padding: 12px 16px; 
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             z-index: 10;
-            flex-shrink: 0; /* Cegah header menyusut */
+            flex-shrink: 0; 
         }
         .header-list h1 { margin: 0; font-size: 18px; font-weight: normal; }
         .btn-header { background: transparent; color: white; border: none; font-size: 18px; cursor: pointer; padding: 4px; }
@@ -58,7 +57,7 @@
             display: flex; 
             flex-direction: column; 
             flex: 1; 
-            overflow-y: auto; /* Aktifkan scroll hanya di dalam kotak list */
+            overflow-y: auto; 
             padding: 0; 
             background: #e8e8e8; 
         }
@@ -79,18 +78,20 @@
         .note-title { font-size: 16px; color: #000000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%; }
         .note-date { font-size: 12px; color: #888888; white-space: nowrap; margin-left: 10px; }
 
-        /* TOMBOL MELAYANG (FAB TAMBAH) */
+        /* TOMBOL MELAYANG (FAB TAMBAH) - DIKUNCI FIXED */
         .fab-btn {
-            position: absolute; bottom: 85px; right: 24px; width: 56px; height: 56px;
+            position: fixed; /* Berubah dari absolute ke fixed agar terkunci di layar */
+            bottom: 85px; right: 24px; width: 56px; height: 56px;
             background-color: #00bfa5; color: white; border-radius: 50%; border: none;
             display: flex; justify-content: center; align-items: center; font-size: 24px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3); cursor: pointer; z-index: 100; transition: transform 0.1s;
         }
         .fab-btn:active { transform: scale(0.95); background-color: #009688; }
         
-        /* TOMBOL MELAYANG (FAB SALIN & HAPUS CEPAT) */
+        /* TOMBOL MELAYANG (FAB SALIN & HAPUS CEPAT) - DIKUNCI FIXED */
         .fab-btn-quick {
-            position: absolute; bottom: 155px; right: 28px; width: 48px; height: 48px;
+            position: fixed; /* Berubah dari absolute ke fixed agar terkunci di layar */
+            bottom: 155px; right: 28px; width: 48px; height: 48px;
             background-color: #2196f3; color: white; border-radius: 50%; border: none;
             display: flex; justify-content: center; align-items: center; font-size: 20px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3); cursor: pointer; z-index: 100; transition: 0.2s;
@@ -121,7 +122,7 @@
             padding: 16px; 
             font-size: 16px; 
             resize: none; outline: none; color: #333; box-sizing: border-box;
-            overflow-y: auto; /* Aktifkan scroll di area teks */
+            overflow-y: auto; 
         }
 
         /* MODAL WARNA */
@@ -161,6 +162,7 @@
     <!-- HALAMAN 2: FORM TAMBAH / EDIT (EDITOR) -->
     <div id="viewForm" class="container hidden">
         <div class="editor-topbar">
+            <!-- Tombol Batal -->
             <button class="icon-btn" onclick="cancelForm()"><i class="fas fa-times"></i></button>
             <input type="text" id="note-title" class="title-input" placeholder="Judul Catatan">
             
@@ -185,6 +187,7 @@
             <button class="icon-btn" onclick="closeDetail()"><i class="fas fa-arrow-left"></i></button>
             <input type="text" id="view-title" class="title-input" readonly style="background:transparent; border:none; font-weight:bold; color:#000;">
             
+            <!-- BARIS AKSI DI POJOK (Warna, Edit, Salin, Hapus) -->
             <div class="action-bar-group">
                 <div id="view-color-square" class="color-square" onclick="openColorModal()" title="Ubah Warna"></div>
                 <button class="icon-btn" onclick="editFromDetail()" style="color: #2196f3;" title="Edit"><i class="fas fa-edit"></i></button>
