@@ -55,7 +55,7 @@
         
         .shopee-header h1 { margin: 0; font-size: 18px; font-weight: 500; letter-spacing: 0.5px; }
 
-        /* Card Section Umum - Ditambahkan Position Relative untuk Tombol Melayang */
+        /* Card Section Umum */
         .section-card {
             background-color: var(--card-bg);
             margin: 12px;
@@ -65,7 +65,6 @@
             position: relative;
         }
 
-        /* Dikembalikan persis ke nilai asli agar tidak ada geseran */
         .section-title { font-size: 15px; color: var(--text-main); margin: 0 0 12px 0; font-weight: 600; }
 
         /* Generator Alamat Textarea */
@@ -131,7 +130,6 @@
         
         .btn-product-link.flagged { background-color: #f1f1f1 !important; filter: grayscale(100%); opacity: 0.5; cursor: not-allowed; border: 1px dashed #ccc; }
         
-        /* KELAS BARU: Hijau Transparan setelah 24 Jam */
         .btn-product-link.flagged-green { 
             background-color: rgba(46, 204, 113, 0.15) !important; 
             cursor: not-allowed; 
@@ -146,8 +144,6 @@
         .btn-flag { width: 30px; border-radius: 8px; border: 1px solid #ffcdd2; background: #fff5f5; color: var(--danger-red); font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
         .btn-flag:active { transform: scale(0.9); }
         .btn-flag.active { background: var(--danger-red); color: white; border-color: var(--danger-red); }
-        
-        /* KELAS BARU: Tombol Pending/Konfirmasi (Warna Oranye) */
         .btn-flag.pending { background: var(--warning-orange); color: white; border-color: var(--warning-orange); }
 
         /* PROGRESS BAR */
@@ -162,9 +158,38 @@
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .modal.hidden { display: none; }
         .modal-content { background: var(--bg-color); padding: 15px; border-radius: 12px; position: relative; display: flex; flex-direction: column; width: 95%; max-width: 500px; max-height: 90vh; }
-        .editor-store-card { background: #fff; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 15px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
+        
         .editor-btn { background: #f0f0f0; border: 1px solid #ccc; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
         .editor-btn:active:not(:disabled) { background: #e0e0e0; }
+
+        /* CSS BARU UNTUK SCROLL SAMPING (CAROUSEL) DI EDITOR */
+        #editorBody {
+            display: flex;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scroll-snap-type: x mandatory;
+            gap: 12px;
+            flex: 1;
+            padding-bottom: 5px;
+            scroll-behavior: smooth;
+        }
+        
+        #editorBody::-webkit-scrollbar { height: 6px; }
+        #editorBody::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+        .editor-store-card { 
+            background: #fff; 
+            border: 1px solid var(--border-color); 
+            border-radius: 8px; 
+            padding: 12px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.03); 
+            flex: 0 0 100%; 
+            width: 100%;
+            scroll-snap-align: center;
+            max-height: 100%; 
+            overflow-y: auto; 
+            box-sizing: border-box;
+        }
 
         /* TOGGLE SWITCH CSS */
         .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
@@ -189,7 +214,6 @@
         </div>
 
         <div class="section-card">
-            <!-- TATA LETAK DIKEMBALIKAN SEMPURNA: Tombol ditaruh absolut agar margin h2 sama sekali tidak rusak -->
             <button onclick="openAddressSettingsModal()" style="position: absolute; right: 16px; top: 16px; background: none; border: none; font-size: 18px; cursor: pointer; color: var(--shopee-orange); padding: 0; z-index: 10;"><i class="fas fa-cog"></i></button>
             <h2 class="section-title">Generator Identitas & Alamat</h2>
             
@@ -233,7 +257,6 @@
             <div style="text-align: left; font-size: 12px; color: var(--text-muted); margin-bottom: 10px; font-weight: 500;">Aktifkan provinsi yang ingin digunakan saat mengacak alamat (Tersinkronisasi 15 HP):</div>
             
             <div id="provinceTogglesContainer" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; padding-right: 4px;">
-                <!-- Daftar toggle akan dimuat lewat JavaScript -->
             </div>
 
             <div style="margin-top: 5px; display: flex; flex-direction: column; gap: 10px;">
@@ -242,19 +265,23 @@
         </div>
     </div>
 
-    <!-- MODAL KELOLA DATABASE PRODUK -->
+    <!-- MODAL KELOLA DATABASE PRODUK (DIUBAH KE HORIZONTAL) -->
     <div id="editorModal" class="modal hidden">
-        <div class="modal-content">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--shopee-orange); padding-bottom: 10px; margin-bottom: 10px;">
+        <div class="modal-content" style="height: 85vh;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--shopee-orange); padding-bottom: 10px; margin-bottom: 10px; flex-shrink: 0;">
                 <h3 style="margin:0; font-size: 16px; color: var(--shopee-orange);">⚙️ Kelola Database Produk</h3>
                 <button onclick="closeEditorModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--danger-red);">✖</button>
             </div>
             
-            <div id="editorBody" style="overflow-y: auto; flex: 1; padding-right: 5px;">
+            <!-- Area Geser Samping -->
+            <div id="editorBody">
             </div>
 
-            <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
-                <button class="btn-main-large" style="background: var(--success-green); padding: 12px; margin: 0; font-size: 13px;" onclick="addStore()">+ Tambah Toko Baru</button>
+            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0;">
+                <!-- Petunjuk Geser Samping -->
+                <div style="text-align: center; font-size: 11px; color: var(--text-muted); font-weight: bold; animation: pulse 2s infinite;">
+                    <i class="fas fa-chevron-left"></i> Geser layar ke samping untuk toko lainnya <i class="fas fa-chevron-right"></i>
+                </div>
                 <button class="btn-main-large" style="background: var(--shopee-orange); padding: 12px; margin: 0; font-size: 13px;" onclick="saveEditorData()">💾 SIMPAN & SINKRONKAN KE 15 HP</button>
             </div>
         </div>
@@ -281,7 +308,7 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.database();
 
-        // ================= LOGIKA PENGATURAN WILAYAH ALAMAT (REALTIME FIREBASE) =================
+        // ================= LOGIKA PENGATURAN WILAYAH ALAMAT =================
         const ALL_PROVINCES_LIST = [
             "ACEH", "SUMATERA UTARA", "SUMATERA BARAT", "RIAU", "JAMBI", "SUMATERA SELATAN", "BENGKULU", "LAMPUNG", "KEPULAUAN BANGKA BELITUNG", "KEPULAUAN RIAU",
             "JAKARTA", "JAWA BARAT", "JAWA TENGAH", "YOGYAKARTA", "JAWA TIMUR", "BANTEN",
@@ -291,21 +318,17 @@
             "MALUKU", "MALUKU UTARA", "PAPUA", "PAPUA BARAT", "PAPUA SELATAN", "PAPUA TENGAH", "PAPUA PEGUNUNGAN", "PAPUA BARAT DAYA"
         ];
         
-        // DEFAULT HANYA PULAU JAWA SAJA
         const DEFAULT_PROVINCES = ["BANTEN", "JAKARTA", "JAWA BARAT", "JAWA TENGAH", "YOGYAKARTA", "JAWA TIMUR"];
         
         let activeProvinces = DEFAULT_PROVINCES;
         const activeProvincesRef = db.ref('shopee_affiliate/active_provinces');
 
-        // Mendengarkan perubahan pengaturan dari server
         activeProvincesRef.on('value', snap => {
             if(snap.exists()) {
                 activeProvinces = snap.val();
             } else {
                 activeProvinces = DEFAULT_PROVINCES;
             }
-            
-            // Perbarui centang di UI jika modal kebetulan sedang dibuka
             if(!document.getElementById('addressSettingsModal').classList.contains('hidden')){
                 ALL_PROVINCES_LIST.forEach(prov => {
                     const cb = document.getElementById(`toggle_prov_${prov.replace(/\s/g, '_')}`);
@@ -357,7 +380,6 @@
             btnSave.innerText = "⏳ Menyimpan...";
             btnSave.disabled = true;
             
-            // Simpan langsung ke Firebase Realtime DB
             activeProvincesRef.set(newActive).then(() => {
                 closeAddressSettingsModal();
                 tampilkanToast("✅ Tersinkronisasi ke 15 HP!");
@@ -417,11 +439,9 @@
                 const resProv = await fetch(`${BASE_API_URL}/provinsi.json`);
                 const allProvinces = await resProv.json();
 
-                // Menggunakan pilihan provinsi tersinkronisasi dari Firebase
                 const targetProvinces = activeProvinces; 
                 const validProvincesPool = allProvinces.filter(p => targetProvinces.some(target => p.nama.toUpperCase().includes(target)));
                 
-                // Jaga-jaga jika filter kosong karena error, gunakan semua provinsi
                 let finalPool = validProvincesPool.length > 0 ? validProvincesPool : allProvinces; 
                 const randomProv = getRandomItem(finalPool);
 
@@ -479,7 +499,6 @@
             return btoa(str).replace(/[=\+\/]/g, 'A').substring(0, 50); 
         }
 
-      // FUNGSI COPY & DIRECT LINK (TAMPILAN TETAP UTUH)
         function salinTautanAffiliate(url) {
             const tempTextArea = document.createElement("textarea"); tempTextArea.value = url;
             tempTextArea.style.position = "absolute"; tempTextArea.style.left = "-9999px";
@@ -494,12 +513,11 @@
 
             if (url && url.toLowerCase().startsWith("http")) {
                 setTimeout(() => {
-                    // Gunakan location.href. Ini akan memicu Kotlin untuk mencegatnya
-                    // dan membuka aplikasi tujuan tanpa merusak tampilan HTML ini.
                     window.location.href = url;
                 }, 300);
             }
         }
+        
         function initProductsSync() {
             productsRef.on('value', snap => {
                 statusDiv.style.display = 'none';
@@ -748,7 +766,7 @@
             });
         });
 
-        // ================= EDITOR VISUAL =================
+        // ================= EDITOR VISUAL (DIUBAH KE HORIZONTAL) =================
         let editorData = [];
 
         window.openEditorModal = function() {
@@ -772,17 +790,13 @@
             document.getElementById('editorModal').classList.add('hidden');
         }
 
+        // FUNGSI RENDER DIUBAH UNTUK CAROUSEL SAMPING
         function renderEditorUI(focusSIdx = -1, focusPIdx = -1) {
             let editorBody = document.getElementById('editorBody');
-            let currentScroll = editorBody ? editorBody.scrollTop : 0;
+            let currentScrollLeft = editorBody ? editorBody.scrollLeft : 0;
 
-            const body = document.getElementById('editorBody');
-            body.innerHTML = '';
+            editorBody.innerHTML = '';
             
-            if (editorData.length === 0) {
-                body.innerHTML = '<div style="text-align:center; padding: 30px; color: #888; border: 2px dashed #ccc; border-radius: 8px;">Database masih kosong.<br>Silakan klik Tambah Toko Baru.</div>';
-            }
-
             editorData.forEach((store, sIdx) => {
                 const storeDiv = document.createElement('div');
                 storeDiv.className = 'editor-store-card';
@@ -818,7 +832,6 @@
 
                         let flagBadge = isFlagged ? `<span style="background: var(--danger-red); color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 5px;">DIBLOKIR</span>${timeHtmlEditor}` : '';
 
-                        // STRUKTUR FLEXBOX DIPERBAIKI: Menggunakan flex: 1 dan flex-shrink: 0 agar tidak saling tekan
                         productsHtml += `
                         <div id="editor-prod-${sIdx}-${pIdx}" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: ${originalBgColor}; padding: 8px; border-radius: 6px; border: 1px solid ${borderColor}; transition: background-color 0.4s ease-out;">
                             <div style="font-size: 12px; line-height: 1.4; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;">
@@ -839,22 +852,47 @@
                 }
 
                 storeDiv.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px; flex-shrink: 0;">
                         <strong style="color: var(--shopee-orange); font-size: 15px;">${store.name}</strong>
                         <div>
-                            <button class="editor-btn" onclick="editStoreName(${sIdx})" style="margin-right: 4px;">✏️ Ganti Nama</button>
+                            <button class="editor-btn" onclick="editStoreName(${sIdx})" style="margin-right: 4px;">✏️ Nama</button>
                             <button class="editor-btn" style="color: var(--danger-red);" onclick="deleteStore(${sIdx})">🗑️ Hapus</button>
                         </div>
                     </div>
                     <div id="editor-store-list-${sIdx}" style="padding-right: 5px; margin-bottom: 10px;">
                         ${productsHtml}
                     </div>
-                    <button onclick="addProduct(${sIdx})" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; background: #fff; cursor: pointer; font-weight: bold; color: var(--action-blue);">+ Tambah Produk ke Toko Ini</button>
+                    <button onclick="addProduct(${sIdx})" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; background: #fff; cursor: pointer; font-weight: bold; color: var(--action-blue); flex-shrink: 0; margin-top: auto;">+ Tambah Produk ke Toko Ini</button>
                 `;
-                body.appendChild(storeDiv);
+                editorBody.appendChild(storeDiv);
             });
 
-            if (editorBody) editorBody.scrollTop = currentScroll;
+            // KARTU KHUSUS UNTUK "BUAT TOKO BARU" DI UJUNG KANAN
+            const addStoreCard = document.createElement('div');
+            addStoreCard.className = 'editor-store-card';
+            addStoreCard.style.display = 'flex';
+            addStoreCard.style.flexDirection = 'column';
+            addStoreCard.style.justifyContent = 'center';
+            addStoreCard.style.alignItems = 'center';
+            addStoreCard.style.border = '2px dashed #ccc';
+            addStoreCard.style.backgroundColor = '#fafafa';
+            addStoreCard.style.cursor = 'pointer';
+            addStoreCard.onclick = addStore; 
+            addStoreCard.innerHTML = `
+                <i class="fas fa-plus-circle" style="font-size: 40px; color: var(--success-green); margin-bottom: 10px;"></i>
+                <div style="font-weight: bold; color: var(--success-green); font-size: 16px;">Buat Toko Baru</div>
+                <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: center;">Akan ditambahkan ke ujung daftar.</div>
+            `;
+            editorBody.appendChild(addStoreCard);
+
+            if (editorBody) {
+                // Jika baru menambah toko (focusSIdx = -2), scroll full ke ujung kanan
+                if(focusSIdx === -2) {
+                    setTimeout(() => { editorBody.scrollLeft = editorBody.scrollWidth; }, 100);
+                } else {
+                    editorBody.scrollLeft = currentScrollLeft;
+                }
+            }
 
             if (focusSIdx !== -1 && focusPIdx !== -1) {
                 let el = document.getElementById(`editor-prod-${focusSIdx}-${focusPIdx}`);
@@ -901,10 +939,15 @@
             return insertIndex;
         }
 
+        // FUNGSI BUAT TOKO DIUBAH AGAR LANGSUNG SCROLL KE UJUNG
         window.addStore = function() {
             let name = prompt("Masukkan nama toko baru:");
-            if (name) { editorData.push({ name: name, products: [] }); renderEditorUI(); }
+            if (name) { 
+                editorData.push({ name: name, products: [] }); 
+                renderEditorUI(-2, -1); // -2 memberi sinyal untuk auto-scroll ke ujung kanan
+            }
         }
+        
         window.editStoreName = function(sIdx) {
             let newName = prompt("Ganti nama toko:", editorData[sIdx].name);
             if (newName) { editorData[sIdx].name = newName; renderEditorUI(); }
@@ -929,10 +972,8 @@
             renderEditorUI(sIdx, insertIndex);
         }
 
-        // FITUR BARU: SALIN PRODUK
         window.copyProduct = function(sIdx, pIdx) {
             let prod = editorData[sIdx].products[pIdx];
-            // Tambahkan " (Copy)" pada default agar mudah dibedakan
             let nama = prompt("Salin Produk (Sesuaikan Nama):", prod.nama + " (Copy)");
             if (!nama) return;
             let link = prompt("Salin Produk (Sesuaikan Link):", prod.link);
