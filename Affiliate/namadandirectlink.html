@@ -768,6 +768,7 @@
 
         // ================= EDITOR VISUAL =================
         let editorData = [];
+        let expandedStores = {}; // Menyimpan memori toko mana yang sedang di-"Tampilkan Lebih Banyak"
 
         window.openEditorModal = function() {
             editorData = JSON.parse(JSON.stringify(groupedProducts)); 
@@ -790,14 +791,12 @@
             document.getElementById('editorModal').classList.add('hidden');
         }
 
-        // FUNGSI RENDER DENGAN PEREKAM JEJAK SCROLL
+        // FUNGSI RENDER
         function renderEditorUI(focusSIdx = -1, focusPIdx = -1) {
             let editorBody = document.getElementById('editorBody');
             
-            // 1. Rekam jejak scroll Horizontal utama
             let currentScrollLeft = editorBody ? editorBody.scrollLeft : 0;
             
-            // 2. Rekam jejak scroll Vertikal tiap-tiap kolom/toko
             let verticalScrolls = [];
             if (editorBody) {
                 let cards = editorBody.getElementsByClassName('editor-store-card');
@@ -813,6 +812,9 @@
                 storeDiv.className = 'editor-store-card';
                 
                 let productsHtml = '';
+                let hiddenProductsHtml = '';
+                let hasHidden = false;
+
                 if(store.products && store.products.length > 0) {
                     store.products.forEach((p, pIdx) => {
                         let pId = encodeFirebaseKey(p.link);
@@ -843,7 +845,7 @@
 
                         let flagBadge = isFlagged ? `<span style="background: var(--danger-red); color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 5px;">DIBLOKIR</span>${timeHtmlEditor}` : '';
 
-                        productsHtml += `
+                        let prodHtml = `
                         <div id="editor-prod-${sIdx}-${pIdx}" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: ${originalBgColor}; padding: 8px; border-radius: 6px; border: 1px solid ${borderColor}; transition: background-color 0.4s ease-out;">
                             <div style="font-size: 12px; line-height: 1.4; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;">
                                 <strong style="${titleStyle}">${p.nama}</strong> ${flagBadge}<br>
@@ -857,7 +859,32 @@
                                 <button class="editor-btn" onclick="deleteProduct(${sIdx}, ${pIdx})">🗑️</button>
                             </div>
                         </div>`;
+
+                        // PISAHKAN PRODUK KE-6 DAN SETERUSNYA
+                        if (pIdx < 5) {
+                            productsHtml += prodHtml;
+                        } else {
+                            hasHidden = true;
+                            hiddenProductsHtml += prodHtml;
+                        }
                     });
+
+                    // JIKA ADA PRODUK TERSEMBUNYI, TAMBAHKAN TOMBOL TOGGLE
+                    if (hasHidden) {
+                        let isExpanded = !!expandedStores[sIdx];
+                        let displayStyle = isExpanded ? 'block' : 'none';
+                        let btnText = isExpanded ? '<i class="fas fa-chevron-up"></i> Sembunyikan' : `<i class="fas fa-chevron-down"></i> Tampilkan ${store.products.length - 5} Produk Lainnya`;
+
+                        productsHtml += `
+                            <div id="hidden-prods-${sIdx}" style="display: ${displayStyle};">
+                                ${hiddenProductsHtml}
+                            </div>
+                            <button class="editor-btn" onclick="toggleHiddenProducts(${sIdx}, ${store.products.length - 5})" id="btn-toggle-prods-${sIdx}" style="width: 100%; margin-bottom: 8px; border: 1px dashed #ccc; color: var(--action-blue); background: #fafafa; transition: 0.2s;">
+                                ${btnText}
+                            </button>
+                        `;
+                    }
+
                 } else {
                     productsHtml = '<div style="font-size: 11px; color: #999; text-align: center; padding: 10px;">Belum ada produk di toko ini.</div>';
                 }
@@ -896,14 +923,12 @@
             editorBody.appendChild(addStoreCard);
 
             if (editorBody) {
-                // 3. Kembalikan jejak scroll Horizontal
                 if(focusSIdx === -2) {
                     setTimeout(() => { editorBody.scrollLeft = editorBody.scrollWidth; }, 100);
                 } else {
                     editorBody.scrollLeft = currentScrollLeft;
                 }
                 
-                // 4. Kembalikan jejak scroll Vertikal tiap-tiap kolom/toko
                 let newCards = editorBody.getElementsByClassName('editor-store-card');
                 for (let i = 0; i < verticalScrolls.length; i++) {
                     if (newCards[i]) {
@@ -927,6 +952,20 @@
                         el.style.backgroundColor = isFlag ? (isOvr24 ? "rgba(46, 204, 113, 0.15)" : "#f0f0f0") : "#f9f9f9"; 
                     }, 600);
                 }
+            }
+        }
+
+        // FUNGSI BUKA TUTUP PRODUK
+        window.toggleHiddenProducts = function(sIdx, hiddenCount) {
+            expandedStores[sIdx] = !expandedStores[sIdx];
+            const hiddenDiv = document.getElementById(`hidden-prods-${sIdx}`);
+            const btn = document.getElementById(`btn-toggle-prods-${sIdx}`);
+            if (expandedStores[sIdx]) {
+                hiddenDiv.style.display = 'block';
+                btn.innerHTML = '<i class="fas fa-chevron-up"></i> Sembunyikan';
+            } else {
+                hiddenDiv.style.display = 'none';
+                btn.innerHTML = `<i class="fas fa-chevron-down"></i> Tampilkan ${hiddenCount} Produk Lainnya`;
             }
         }
 
@@ -986,6 +1025,9 @@
             let insertIndex = getInsertIndexForActive(editorData[sIdx].products);
             editorData[sIdx].products.splice(insertIndex, 0, newProd);
             
+            // Otomatis expand list jika produk baru ditambahkan dan tersembunyi
+            if(editorData[sIdx].products.length > 5) expandedStores[sIdx] = true;
+            
             renderEditorUI(sIdx, insertIndex);
         }
 
@@ -1003,6 +1045,9 @@
             let insertIndex = getInsertIndexForActive(editorData[sIdx].products);
             editorData[sIdx].products.splice(insertIndex, 0, newProd);
             
+            // Otomatis expand list jika produk disalin dan list menjadi > 5
+            if(editorData[sIdx].products.length > 5) expandedStores[sIdx] = true;
+
             renderEditorUI(sIdx, insertIndex);
             tampilkanToast("✅ Produk berhasil diduplikat!");
         }
