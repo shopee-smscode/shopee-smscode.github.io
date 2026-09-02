@@ -766,7 +766,7 @@
             });
         });
 
-        // ================= EDITOR VISUAL (DIUBAH KE HORIZONTAL) =================
+        // ================= EDITOR VISUAL =================
         let editorData = [];
 
         window.openEditorModal = function() {
@@ -790,10 +790,21 @@
             document.getElementById('editorModal').classList.add('hidden');
         }
 
-        // FUNGSI RENDER DIUBAH UNTUK CAROUSEL SAMPING
+        // FUNGSI RENDER DENGAN PEREKAM JEJAK SCROLL
         function renderEditorUI(focusSIdx = -1, focusPIdx = -1) {
             let editorBody = document.getElementById('editorBody');
+            
+            // 1. Rekam jejak scroll Horizontal utama
             let currentScrollLeft = editorBody ? editorBody.scrollLeft : 0;
+            
+            // 2. Rekam jejak scroll Vertikal tiap-tiap kolom/toko
+            let verticalScrolls = [];
+            if (editorBody) {
+                let cards = editorBody.getElementsByClassName('editor-store-card');
+                for (let i = 0; i < cards.length; i++) {
+                    verticalScrolls.push(cards[i].scrollTop);
+                }
+            }
 
             editorBody.innerHTML = '';
             
@@ -867,7 +878,6 @@
                 editorBody.appendChild(storeDiv);
             });
 
-            // KARTU KHUSUS UNTUK "BUAT TOKO BARU" DI UJUNG KANAN
             const addStoreCard = document.createElement('div');
             addStoreCard.className = 'editor-store-card';
             addStoreCard.style.display = 'flex';
@@ -886,11 +896,19 @@
             editorBody.appendChild(addStoreCard);
 
             if (editorBody) {
-                // Jika baru menambah toko (focusSIdx = -2), scroll full ke ujung kanan
+                // 3. Kembalikan jejak scroll Horizontal
                 if(focusSIdx === -2) {
                     setTimeout(() => { editorBody.scrollLeft = editorBody.scrollWidth; }, 100);
                 } else {
                     editorBody.scrollLeft = currentScrollLeft;
+                }
+                
+                // 4. Kembalikan jejak scroll Vertikal tiap-tiap kolom/toko
+                let newCards = editorBody.getElementsByClassName('editor-store-card');
+                for (let i = 0; i < verticalScrolls.length; i++) {
+                    if (newCards[i]) {
+                        newCards[i].scrollTop = verticalScrolls[i];
+                    }
                 }
             }
 
@@ -939,12 +957,11 @@
             return insertIndex;
         }
 
-        // FUNGSI BUAT TOKO DIUBAH AGAR LANGSUNG SCROLL KE UJUNG
         window.addStore = function() {
             let name = prompt("Masukkan nama toko baru:");
             if (name) { 
                 editorData.push({ name: name, products: [] }); 
-                renderEditorUI(-2, -1); // -2 memberi sinyal untuk auto-scroll ke ujung kanan
+                renderEditorUI(-2, -1); 
             }
         }
         
