@@ -107,7 +107,7 @@
         .btn-global-random { background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); }
 
         /* DAFTAR PRODUK AFFILIATE */
-        .scroll-wrapper { width: 100%; overflow-x: auto; display: flex; padding-bottom: 12px; scroll-snap-type: x mandatory; }
+        .scroll-wrapper { width: 100%; overflow-x: auto; display: flex; padding-bottom: 12px; scroll-snap-type: x mandatory; align-items: flex-start; }
         .note-list { display: flex; gap: 12px; padding: 0; margin: 0; list-style-type: none; width: 100%; }
 
         /* Tiap Kolom (Toko) */
@@ -477,7 +477,7 @@
         }
         btnGenerate.addEventListener("click", generateCompleteData);
 
-        // ================= LOGIKA PRODUK AFFILIATE =================
+        // ================= LOGIKA PRODUK AFFILIATE (TAMPILAN UTAMA) =================
         const productsRef = db.ref('shopee_affiliate/products_db');
         const flagRef = db.ref('shopee_affiliate/flagged_links');
         const usedLinksRef = db.ref('shopee_affiliate/used_links');
@@ -493,6 +493,9 @@
         
         let pendingFlagId = null;
         let pendingFlagTimer = null;
+        
+        // Perekam Jejak Buka/Tutup di Layar Utama
+        let expandedMainStores = {}; 
 
         function encodeFirebaseKey(str) { 
             if (!str) return "";
@@ -638,7 +641,12 @@
                         return aFlag - bFlag;
                     });
 
-                    sortedProducts.forEach(prod => {
+                    let hiddenContainer = document.createElement('div');
+                    hiddenContainer.id = `main-hidden-prods-${index}`;
+                    hiddenContainer.style.display = expandedMainStores[index] ? 'block' : 'none';
+                    let hasHidden = false;
+
+                    sortedProducts.forEach((prod, pIdx) => {
                         const linkKey = encodeFirebaseKey(prod.link);
                         const isFlagged = flaggedMap.has(linkKey);
                         const isPending = (!isFlagged && linkKey === pendingFlagId); 
@@ -680,8 +688,39 @@
                             </button>
                             <button class="${flagBtnClass}" onclick="toggleFlag('${linkKey}', ${isFlagged})">${isFlagged ? '❌' : (isPending ? '✖' : '✖')}</button>
                         `;
-                        columnLi.appendChild(prodDiv);
+
+                        // PISAHKAN PRODUK KE-6 DAN SETERUSNYA (Tampilan Utama)
+                        if (pIdx < 5) {
+                            columnLi.appendChild(prodDiv);
+                        } else {
+                            hasHidden = true;
+                            hiddenContainer.appendChild(prodDiv);
+                        }
                     });
+
+                    // TAMBAHKAN TOMBOL TOGGLE JIKA ADA PRODUK TERSEMBUNYI
+                    if (hasHidden) {
+                        columnLi.appendChild(hiddenContainer);
+                        
+                        let toggleBtn = document.createElement('button');
+                        let isExpanded = !!expandedMainStores[index];
+                        toggleBtn.innerHTML = isExpanded ? '<i class="fas fa-chevron-up"></i> Sembunyikan' : `<i class="fas fa-chevron-down"></i> Tampilkan ${sortedProducts.length - 5} Lainnya`;
+                        
+                        // Gaya tombol dropdown di layar utama
+                        toggleBtn.style.cssText = "width: 100%; padding: 10px; border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer; text-align: center; margin-top: 5px; border: 1px dashed #ccc; background: transparent; color: var(--text-muted); transition: 0.2s;";
+                        
+                        toggleBtn.onclick = () => {
+                            expandedMainStores[index] = !expandedMainStores[index];
+                            if (expandedMainStores[index]) {
+                                hiddenContainer.style.display = 'block';
+                                toggleBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Sembunyikan';
+                            } else {
+                                hiddenContainer.style.display = 'none';
+                                toggleBtn.innerHTML = `<i class="fas fa-chevron-down"></i> Tampilkan ${sortedProducts.length - 5} Lainnya`;
+                            }
+                        };
+                        columnLi.appendChild(toggleBtn);
+                    }
                 }
                 productList.appendChild(columnLi);
             });
@@ -768,7 +807,7 @@
 
         // ================= EDITOR VISUAL =================
         let editorData = [];
-        let expandedStores = {}; // Menyimpan memori toko mana yang sedang di-"Tampilkan Lebih Banyak"
+        let expandedStores = {}; 
 
         window.openEditorModal = function() {
             editorData = JSON.parse(JSON.stringify(groupedProducts)); 
@@ -791,7 +830,6 @@
             document.getElementById('editorModal').classList.add('hidden');
         }
 
-        // FUNGSI RENDER
         function renderEditorUI(focusSIdx = -1, focusPIdx = -1) {
             let editorBody = document.getElementById('editorBody');
             
@@ -860,7 +898,6 @@
                             </div>
                         </div>`;
 
-                        // PISAHKAN PRODUK KE-6 DAN SETERUSNYA
                         if (pIdx < 5) {
                             productsHtml += prodHtml;
                         } else {
@@ -869,7 +906,6 @@
                         }
                     });
 
-                    // JIKA ADA PRODUK TERSEMBUNYI, TAMBAHKAN TOMBOL TOGGLE
                     if (hasHidden) {
                         let isExpanded = !!expandedStores[sIdx];
                         let displayStyle = isExpanded ? 'block' : 'none';
@@ -955,7 +991,6 @@
             }
         }
 
-        // FUNGSI BUKA TUTUP PRODUK
         window.toggleHiddenProducts = function(sIdx, hiddenCount) {
             expandedStores[sIdx] = !expandedStores[sIdx];
             const hiddenDiv = document.getElementById(`hidden-prods-${sIdx}`);
@@ -1025,7 +1060,6 @@
             let insertIndex = getInsertIndexForActive(editorData[sIdx].products);
             editorData[sIdx].products.splice(insertIndex, 0, newProd);
             
-            // Otomatis expand list jika produk baru ditambahkan dan tersembunyi
             if(editorData[sIdx].products.length > 5) expandedStores[sIdx] = true;
             
             renderEditorUI(sIdx, insertIndex);
@@ -1045,7 +1079,6 @@
             let insertIndex = getInsertIndexForActive(editorData[sIdx].products);
             editorData[sIdx].products.splice(insertIndex, 0, newProd);
             
-            // Otomatis expand list jika produk disalin dan list menjadi > 5
             if(editorData[sIdx].products.length > 5) expandedStores[sIdx] = true;
 
             renderEditorUI(sIdx, insertIndex);
