@@ -277,7 +277,6 @@ window.filterServices = function() {
         else others.push(svc); 
     });
 
-    // MURNI: Tidak ada lagi harga yang menyatu di dalam kotak layanan
     const renderBtn = (svc, isFav) => {
         const isActive = (String(svc.id) === String(currentServiceId));
         const btn = document.createElement('div');
@@ -312,7 +311,7 @@ window.toggleFavorite = function(id, event) {
     localStorage.setItem('hero_favorite_services', JSON.stringify(favoriteServices)); filterServices(); 
 }
 
-// ======================== LOGIKA PRODUK & PENCARIAN HARGA ASLI ========================
+// ======================== LOGIKA PRODUK & PENCARIAN HARGA ASLI SERVER ========================
 async function loadProducts(serviceId) {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
@@ -325,37 +324,49 @@ async function loadProducts(serviceId) {
         if (productsRes.success && productsRes.data.length > 0) {
             let opsList = productsRes.data; 
             
-            // --- 1. BANGUN DROPDOWN HARGA MURNI DARI SEMUA HARGA DI SERVER ---
+            // --- 1. MEMBONGKAR SELURUH DAFTAR HARGA DAN STOK DARI SERVER ---
             const priceSelect = document.getElementById('priceSelect');
             let pricesSet = new Set();
             let priceQtyMap = {};
             
-            opsList.forEach(o => {
-                // Ekstrak dari map asli HeroSMS v1 (Paling akurat: memuat banyak harga)
-                if (o.map && typeof o.map === 'object') {
-                    Object.keys(o.map).forEach(priceKey => {
-                        let pVal = parseFloat(priceKey);
-                        pricesSet.add(pVal);
-                        priceQtyMap[pVal] = (priceQtyMap[pVal] || 0) + parseInt(o.map[priceKey]);
-                    });
+            // Fungsi bantuan untuk menampung harga
+            const addPrice = (priceVal, qtyVal) => {
+                let p = parseFloat(priceVal);
+                if (!isNaN(p) && p > 0) {
+                    pricesSet.add(p);
+                    let q = parseInt(qtyVal) || 0;
+                    priceQtyMap[p] = (priceQtyMap[p] || 0) + q;
                 }
-                // Ekstrak dari list harga cadangan (jika format proxy menggunakan array)
+            };
+            
+            opsList.forEach(o => {
+                // Ekstrak Harga Dasar
+                addPrice(o.price, o.count || o.quantity || o.total || o.qty);
+                
+                // Ekstrak dari struktur o.map (Sistem HeroSMS v1) -> "0.0334": 10184181
+                if (o.map && typeof o.map === 'object' && !Array.isArray(o.map)) {
+                    Object.keys(o.map).forEach(k => addPrice(k, o.map[k]));
+                }
+                
+                // Ekstrak dari struktur o.physicalPriceMap (Sistem SMS-Activate) -> "0.04": 24
+                if (o.physicalPriceMap && typeof o.physicalPriceMap === 'object' && !Array.isArray(o.physicalPriceMap)) {
+                    Object.keys(o.physicalPriceMap).forEach(k => addPrice(k, o.physicalPriceMap[k]));
+                }
+                
+                // Ekstrak dari struktur o.prices (Jaga-jaga jika format Proxy menggunakan array/object lain)
                 if (o.prices && Array.isArray(o.prices)) {
                     o.prices.forEach(pObj => {
-                        let pVal = parseFloat(pObj.price || pObj);
-                        pricesSet.add(pVal);
-                        if(pObj.count) priceQtyMap[pVal] = (priceQtyMap[pVal] || 0) + parseInt(pObj.count);
+                        if (typeof pObj === 'object') addPrice(pObj.price || pObj.cost || pObj.default, pObj.count || pObj.quantity);
+                        else addPrice(pObj, 0);
                     });
-                }
-                // Ekstrak dari harga tunggal sebagai fallback akhir
-                if (o.price !== undefined && o.price !== null) {
-                    let pVal = parseFloat(o.price);
-                    pricesSet.add(pVal);
-                    if(o.count) priceQtyMap[pVal] = (priceQtyMap[pVal] || 0) + parseInt(o.count);
+                } else if (o.prices && typeof o.prices === 'object') {
+                    Object.keys(o.prices).forEach(k => {
+                        if(typeof o.prices[k] === 'number') addPrice(o.prices[k], 0);
+                    });
                 }
             });
             
-            // Urutkan dari Termurah ke Termahal
+            // Urutkan List Harga dari yang Termurah ke Termahal
             let uniquePrices = Array.from(pricesSet).sort((a, b) => a - b);
             
             if (priceSelect && uniquePrices.length > 0) {
@@ -363,14 +374,14 @@ async function loadProducts(serviceId) {
                 uniquePrices.forEach(p => {
                     let opt = document.createElement('option');
                     opt.value = p;
-                    // Menampilkan Harga dan (pcs) stok asli server seperti di web aslinya
                     let qty = priceQtyMap[p];
-                    let qtyText = qty ? ` (${qty} pcs)` : '';
+                    // Format tampilan sama persis dengan web asli: $0.07 (203.557 pcs)
+                    let qtyText = qty ? ` - ${qty.toLocaleString('id-ID')} pcs` : '';
                     opt.text = `${usdFormatter.format(p)}${qtyText}`;
                     priceSelect.appendChild(opt);
                 });
                 
-                // Kunci harga yang pernah dipilih, atau gunakan termurah sebagai default
+                // Kunci memori harga terakhir pengguna, JIKA TIDAK ADA gunakan yang TERMURAH
                 let savedPrice = localStorage.getItem('hero_selected_max_price');
                 if (savedPrice && uniquePrices.includes(parseFloat(savedPrice))) {
                     selectedMaxPrice = parseFloat(savedPrice);
@@ -380,6 +391,7 @@ async function loadProducts(serviceId) {
                 priceSelect.value = selectedMaxPrice;
             } else if (priceSelect) {
                 priceSelect.innerHTML = '<option value="">Kosong</option>';
+                selectedMaxPrice = null;
             }
 
             // --- 2. BANGUN KOTAK GRID OPERATOR UI ---
@@ -392,7 +404,7 @@ async function loadProducts(serviceId) {
                 return { id: opId, price: found ? found.price : anyOp.price }; 
             });
             
-            // Tambahkan sisa operator unik
+            // Tambahkan sisa operator lain yang mungkin dilempar server
             opsList.forEach(o => {
                 if (o.id && o.id !== 'any' && !standardOps.includes(o.id)) {
                     if (!specificOps.find(s => s.id === o.id)) {
@@ -446,7 +458,7 @@ async function loadProducts(serviceId) {
     }
 }
 
-// Terpisah: Mengganti harga tidak mengubah pilihan kotak operator yang sudah dipilih
+// Terpisah: Mengganti harga TIDAK akan mereset operator
 window.onPriceSelected = function() {
     const priceSelect = document.getElementById('priceSelect');
     if (!priceSelect) return;
@@ -455,7 +467,7 @@ window.onPriceSelected = function() {
     localStorage.setItem('hero_selected_max_price', selectedMaxPrice);
 };
 
-// Terpisah: Mengklik "Acak" / operator tidak akan membuang pilihan harga yang diatur
+// Terpisah: Mengganti operator TIDAK akan mereset harga
 window.toggleRandomOperator = function() {
     const chk = document.getElementById('chkRandomOp');
     if (chk.checked) { 
@@ -486,7 +498,7 @@ async function processOrderFreshNumber(operatorId, serviceIdParam, maxRetries = 
     // MELEMPARKAN PARAMETER HARGA KE API AGAR SERVER TAHU HARGA TARGET KITA
     if (selectedMaxPrice) {
         payload.maxPrice = parseFloat(selectedMaxPrice);
-        payload.price = parseFloat(selectedMaxPrice); // Fallback jika proxy jadul
+        payload.price = parseFloat(selectedMaxPrice); 
         payload.fixedPrice = true; // Mengunci agar server memberikan harga fix sesuai yang diklik[span_0](start_span)[span_0](end_span)
     }
     
