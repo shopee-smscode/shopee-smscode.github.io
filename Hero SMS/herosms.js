@@ -311,7 +311,7 @@ window.toggleFavorite = function(id, event) {
     localStorage.setItem('hero_favorite_services', JSON.stringify(favoriteServices)); filterServices(); 
 }
 
-// ======================== LOGIKA PRODUK & PENCARIAN HARGA DINAMIS ========================
+// ======================== LOGIKA PRODUK & FILTER HARGA CERDAS ========================
 async function loadProducts(serviceId) {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server & Harga...</div>';
@@ -322,28 +322,44 @@ async function loadProducts(serviceId) {
         if (productsRes.error && productsRes.error.message) { showToast("Server: " + productsRes.error.message, "error"); }
 
         if (productsRes.success && productsRes.data && productsRes.data.length > 0) {
-            // Simpan data utuh secara global untuk dipakai saat memfilter harga
-            window.availableProductsRaw = productsRes.data; 
-            
             let opsList = productsRes.data; 
-            let anyOp = opsList.find(o => o.id === 'any') || { id: 'any', price: opsList[0]?.price || 0 };
             
+            // 1. SIMPAN PETA HARGA GLOBAL DARI HASIL PROBING WORKER
+            let rawMapPrices = {};
+            opsList.forEach(o => {
+                if (o.map && typeof o.map === 'object' && !Array.isArray(o.map)) {
+                    Object.keys(o.map).forEach(k => {
+                        rawMapPrices[parseFloat(k)] = parseInt(o.map[k]) || 0;
+                    });
+                }
+            });
+            window.globalPriceMap = rawMapPrices; // Disimpan agar bisa diakses oleh updatePriceDropdown
+
+            // 2. BANGUN KOTAK GRID OPERATOR UI
+            let anyOp = opsList.find(o => o.id === 'any') || { id: 'any', price: opsList[0]?.price || 0, available: opsList[0]?.count || 0 };
             const standardOps = ['telkomsel', 'indosat', 'xl', 'axis', 'three', 'smartfren'];
+            
             let specificOps = standardOps.map(opId => {
                 let apiOpId = (opId === 'xl') ? 'axis' : opId;
                 let found = opsList.find(o => o.id === apiOpId);
-                return { id: opId, price: found ? found.price : anyOp.price, available: found ? found.available : 0 }; 
+                return { 
+                    id: opId, 
+                    price: found ? found.price : anyOp.price, 
+                    available: found ? (found.count || found.quantity || found.available || 0) : 0 
+                }; 
             });
             
             opsList.forEach(o => {
                 if (o.id && o.id !== 'any' && !standardOps.includes(o.id)) {
                     if (!specificOps.find(s => s.id === o.id)) {
-                        specificOps.push({ id: o.id, price: o.price, available: o.available });
+                        specificOps.push({ id: o.id, price: o.price, available: o.count || o.quantity || o.available || 0 });
                     }
                 }
             });
             
             availableProducts = [anyOp, ...specificOps]; 
+            window.availableProductsParsed = availableProducts; // Disimpan global untuk filter
+
             if (productList) productList.innerHTML = ''; 
             
             let savedOp = localStorage.getItem('hero_selected_operator') || 'any';
@@ -373,13 +389,13 @@ async function loadProducts(serviceId) {
                     selectedProductId = String(opCode); 
                     localStorage.setItem('hero_selected_operator', selectedProductId); 
                     
-                    // PERBARUI DROPDOWN HARGA BERDASARKAN OPERATOR
+                    // PERBARUI & FILTER DROPDOWN HARGA BERDASARKAN OPERATOR YANG DIKLIK
                     window.updatePriceDropdown(selectedProductId);
                 };
                 if (productList) productList.appendChild(card);
             });
 
-            // PERBARUI DROPDOWN HARGA SAAT PERTAMA KALI DIMUAT
+            // 3. JALANKAN PEMBARUAN DROPDOWN HARGA PERTAMA KALI
             window.updatePriceDropdown(selectedProductId);
 
         } else { 
@@ -392,12 +408,13 @@ async function loadProducts(serviceId) {
     }
 }
 
-// Logika Pembaruan Dropdown Harga (Membuang harga tidak valid dan menyesuaikan operator)
+// LOGIKA FILTER HARGA CERDAS: Menghilangkan harga yang tidak valid/stok habis
 window.updatePriceDropdown = function(opId) {
     const priceSelect = document.getElementById('priceSelect');
-    if (!priceSelect || !window.availableProductsRaw) return;
+    if (!priceSelect || !window.availableProductsParsed) return;
 
-    let prod = window.availableProductsRaw.find(p => p.id === opId);
+    // Cari operator yang sedang aktif
+    let prod = window.availableProductsParsed.find(p => p.id === opId);
     if (!prod) {
         priceSelect.innerHTML = '<option value="">Kosong</option>';
         const btnOrder = document.getElementById('btnOrder');
@@ -406,30 +423,29 @@ window.updatePriceDropdown = function(opId) {
     }
 
     let validPrices = [];
-    let baseCost = parseFloat(prod.price) || 0; // Harga Minimum Eceran yang valid
+    let baseCost = parseFloat(prod.price) || 0; // Ini adalah harga minimum yang diizinkan untuk operator ini
+    let globalMap = window.globalPriceMap || {};
+    let hasMapData = Object.keys(globalMap).length > 0;
 
-    if (opId === 'any' && prod.map) {
-        // Murni ambil dari V1 Map
-        Object.keys(prod.map).forEach(k => {
+    if (hasMapData) {
+        Object.keys(globalMap).forEach(k => {
             let pVal = parseFloat(k);
-            // FILTER: Hanya masukkan harga yang bisa dipakai (Lebih besar/sama dengan minimum dasar)
+            // KUNCI FILTER: Hanya masukkan daftar harga yang >= harga minimum operator!
             if (!isNaN(pVal) && pVal >= baseCost) {
-                let q = parseInt(prod.map[k]);
-                if (q > 0) validPrices.push({ price: pVal, qty: q });
+                let q = parseInt(globalMap[k]);
+                if (q > 0) {
+                    validPrices.push({ price: pVal, qty: q });
+                }
             }
         });
-        // Jika kosong, gunakan harga standar dasar dari operator Any
-        if (validPrices.length === 0 && baseCost > 0) {
-            validPrices.push({ price: baseCost, qty: parseInt(prod.available) || 0 });
-        }
-    } else {
-        // Untuk operator spesifik, tampilkan hanya harga base khususnya
-        if (baseCost > 0) {
-            validPrices.push({ price: baseCost, qty: parseInt(prod.available) || 0 });
-        }
     }
 
-    // Urutkan termurah ke termahal
+    // Jika map kosong atau difilter habis, gunakan baseCost bawaannya saja
+    if (validPrices.length === 0 && baseCost > 0) {
+        validPrices.push({ price: baseCost, qty: parseInt(prod.available) || 0 });
+    }
+
+    // Urutkan dari termurah ke termahal
     validPrices.sort((a, b) => a.price - b.price);
 
     priceSelect.innerHTML = '';
@@ -442,14 +458,15 @@ window.updatePriceDropdown = function(opId) {
             priceSelect.appendChild(opt);
         });
 
-        // Setel ke harga termurah atau yang diingat sebelumnya
+        // Coba pertahankan pilihan harga sebelumnya jika masih ada di daftar baru
         let savedPrice = parseFloat(localStorage.getItem('hero_selected_max_price'));
         let exists = validPrices.find(v => v.price === savedPrice);
         if (exists) {
             priceSelect.value = savedPrice;
             selectedMaxPrice = savedPrice;
         } else {
-            priceSelect.value = validPrices[0].price;
+            // Jika harga sebelumnya diblokir/hilang, paksa ke harga termurah di operator ini
+            priceSelect.value = validPrices[0].price; 
             selectedMaxPrice = validPrices[0].price;
             localStorage.setItem('hero_selected_max_price', selectedMaxPrice);
         }
