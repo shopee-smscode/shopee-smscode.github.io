@@ -126,8 +126,6 @@ function loginAccount() {
     initMainApp(); 
 }
 
-// ===================================================================
-
 function renderMainButtons() { const extraBtnWrapper = document.getElementById('extraBtnWrapper'); if (!extraBtnWrapper) return; if (appSettings.autoCopy) { extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 12px; color: #fff;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
 function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("0")) { p = "62" + p.substring(1); } return p; }
 function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
@@ -230,7 +228,7 @@ window.refreshStock = function() {
     }
 };
 
-// ======================= PERUBAHAN UTAMA LOGIKA LAYANAN =======================
+// ======================= LOGIKA LAYANAN (DIKEMBALIKAN NORMAL) =======================
 async function loadServices() {
     const btnSvc = document.getElementById('btnServiceSelect');
     if (!btnSvc) return;
@@ -240,11 +238,8 @@ async function loadServices() {
         const servicesRes = await apiCall(`/catalog/services`);
         
         if (servicesRes.success && servicesRes.data) {
-            allServices = servicesRes.data.sort((a, b) => {
-                let priceA = parseFloat(a.price) || 0;
-                let priceB = parseFloat(b.price) || 0;
-                return priceA - priceB;
-            });
+            // Urutan layanan dikembalikan sesuai abjad seperti aslinya
+            allServices = servicesRes.data.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
             
             let savedId = localStorage.getItem('hero_selected_service'); 
             let selectedSvc;
@@ -290,25 +285,14 @@ window.filterServices = function() {
         else others.push(svc); 
     });
 
-    // Modifikasi renderBtn untuk memotong nama layanan dan menaruh harga di sebelahnya
+    // Menghilangkan harga yang dicampur ke dalam menu layanan (dikembalikan seperti semula)
     const renderBtn = (svc, isFav) => {
         const isActive = (String(svc.id) === String(currentServiceId));
         const btn = document.createElement('div');
         
-        let priceFormat = (svc.price && svc.price > 0) ? usdFormatter.format(svc.price) : "Bervariasi";
-        
         btn.style = `width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 13px; font-weight: bold; text-align: left; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15); margin-bottom: 6px;`;
         
-        // Membungkus teks harga di sebelah kanan nama dengan struktur sejajar (row)
-        btn.innerHTML = `
-            <div style="display:flex; align-items: center; flex:1; min-width: 0; padding-right: 10px;" onclick="selectService('${svc.id}', '${(svc.name||svc.id).replace(/'/g, "\\'")}')">
-                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; margin-right: 8px;">${(svc.name||svc.id).toUpperCase()}</span>
-                <span style="font-size: 11px; color: ${isActive ? 'var(--primary-color)' : 'var(--warning-color)'}; font-weight: 900; white-space: nowrap; flex-shrink: 0;">💰 ${priceFormat}</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:12px; flex-shrink: 0;">
-                ${isActive ? '<i class="fas fa-check-circle" style="color:var(--primary-color);"></i>' : ''}
-                <i class="fas fa-star" style="font-size:16px; color:${isFav ? 'var(--warning-color)' : 'var(--text-secondary)'}; text-shadow: ${isFav ? '0 0 8px rgba(245, 158, 11, 0.5)' : 'none'}; cursor:pointer; padding:4px;" onclick="toggleFavorite('${svc.id}', event)"></i>
-            </div>`;
+        btn.innerHTML = `<div style="display:flex; align-items:center; flex:1;" onclick="selectService('${svc.id}', '${(svc.name||svc.id).replace(/'/g, "\\'")}')"><span>${(svc.name||svc.id).toUpperCase()}</span></div><div style="display:flex; align-items:center; gap:12px;">${isActive ? '<i class="fas fa-check-circle" style="color:var(--primary-color);"></i>' : ''}<i class="fas fa-star" style="font-size:16px; color:${isFav ? 'var(--warning-color)' : 'var(--text-secondary)'}; text-shadow: ${isFav ? '0 0 8px rgba(245, 158, 11, 0.5)' : 'none'}; cursor:pointer; padding:4px;" onclick="toggleFavorite('${svc.id}', event)"></i></div>`;
         return btn;
     };
 
@@ -318,7 +302,7 @@ window.filterServices = function() {
     }
 
     if (others.length > 0) {
-        const othTitle = document.createElement('div'); othTitle.style = "font-size: 10px; font-weight: 900; color: var(--text-secondary); margin-top: 10px; margin-bottom: 8px; letter-spacing: 1px;"; othTitle.innerText = "DARI TERMURAH HINGGA TERMAHAL"; container.appendChild(othTitle);
+        const othTitle = document.createElement('div'); othTitle.style = "font-size: 10px; font-weight: 900; color: var(--text-secondary); margin-top: 10px; margin-bottom: 8px; letter-spacing: 1px;"; othTitle.innerText = "SEMUA LAYANAN"; container.appendChild(othTitle);
         others.forEach(svc => container.appendChild(renderBtn(svc, false)));
     }
 }
@@ -335,8 +319,8 @@ window.toggleFavorite = function(id, event) {
     if (favoriteServices.includes(id)) { favoriteServices = favoriteServices.filter(f => f !== id); } else { favoriteServices.push(id); }
     localStorage.setItem('hero_favorite_services', JSON.stringify(favoriteServices)); filterServices(); 
 }
-// ==============================================================================
 
+// ======================== LOGIKA PRODUK & DROPDOWN HARGA ========================
 async function loadProducts(serviceId) {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
@@ -366,14 +350,31 @@ async function loadProducts(serviceId) {
             
             availableProducts = [anyOp, ...specificOps]; 
             if (productList) productList.innerHTML = ''; 
+
+            // -- MEMASUKKAN HARGA KE DROPDOWN BARU DAN JADIKAN TERMURAH SEBAGAI DEFAULT --
+            const priceSelect = document.getElementById('priceSelect');
+            let sortedByPrice = availableProducts.slice().sort((a,b) => parseFloat(a.price) - parseFloat(b.price));
             
-            let savedOp = localStorage.getItem('hero_selected_operator') || 'any';
-            const chkRandom = document.getElementById('chkRandomOp'); 
+            if (priceSelect) {
+                priceSelect.innerHTML = '';
+                sortedByPrice.forEach(p => {
+                    let opName = (p.id === 'any') ? 'Acak' : p.id.toUpperCase();
+                    let opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.text = `${usdFormatter.format(p.price)} - ${opName}`;
+                    priceSelect.appendChild(opt);
+                });
+                
+                // Secara otomatis selalu menjadikan opsi paling atas (termurah) sebagai default
+                selectedProductId = sortedByPrice[0].id;
+                priceSelect.value = selectedProductId;
+            } else {
+                selectedProductId = sortedByPrice[0].id;
+            }
             
-            let isOpExist = availableProducts.find(p => String(p.id) === String(savedOp));
-            selectedProductId = isOpExist ? savedOp : 'any'; 
             localStorage.setItem('hero_selected_operator', selectedProductId);
 
+            const chkRandom = document.getElementById('chkRandomOp'); 
             if (chkRandom) chkRandom.checked = (selectedProductId === 'any');
             if (btnOrder) btnOrder.disabled = false;
             
@@ -395,12 +396,37 @@ async function loadProducts(serviceId) {
                     selectedProductId = String(opCode); 
                     localStorage.setItem('hero_selected_operator', selectedProductId); 
                     if (btnOrder) btnOrder.disabled = false; 
+                    
+                    // Sinkronisasi otomatis ke dropdown Harga saat produk ditekan
+                    if (document.getElementById('priceSelect')) {
+                        document.getElementById('priceSelect').value = selectedProductId;
+                    }
                 };
                 if (productList) productList.appendChild(card);
             });
         } else { if (productList) productList.innerHTML = '<div class="status-text-mini">Stok sedang kosong.</div>'; }
     } catch (error) { if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error muat data.</div>`; }
 }
+
+// Logika sinkronisasi jika dropdown Harga diubah secara manual oleh pengguna
+window.onPriceSelected = function() {
+    const priceSelect = document.getElementById('priceSelect');
+    if (!priceSelect) return;
+    
+    selectedProductId = priceSelect.value;
+    localStorage.setItem('hero_selected_operator', selectedProductId);
+    
+    const chkRandom = document.getElementById('chkRandomOp');
+    if (chkRandom) chkRandom.checked = (selectedProductId === 'any');
+    
+    // Sinkronisasi ke daftar produk grid
+    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
+    let targetCard = document.getElementById(`op-card-${selectedProductId}`);
+    if (targetCard) targetCard.classList.add('selected');
+    
+    const btnOrder = document.getElementById('btnOrder');
+    if (btnOrder) btnOrder.disabled = false;
+};
 
 window.toggleRandomOperator = function() {
     const chk = document.getElementById('chkRandomOp');
@@ -409,17 +435,25 @@ window.toggleRandomOperator = function() {
         selectedProductId = 'any'; 
         localStorage.setItem('hero_selected_operator', 'any'); 
     } else { 
-        let nextAvail = availableProducts.find(p => p.id !== 'any');
+        let sortedByPrice = availableProducts.slice().sort((a,b) => parseFloat(a.price) - parseFloat(b.price));
+        let nextAvail = sortedByPrice.find(p => p.id !== 'any');
         if (nextAvail) { 
             selectedProductId = String(nextAvail.id); 
             document.getElementById(`op-card-${nextAvail.id}`).classList.add('selected'); 
             localStorage.setItem('hero_selected_operator', selectedProductId); 
         } 
     }
+    
+    // Sinkronisasi ke dropdown Harga
+    if (document.getElementById('priceSelect')) {
+        document.getElementById('priceSelect').value = selectedProductId;
+    }
+    
     const btn = document.getElementById('btnOrder');
     if (btn) btn.disabled = false;
 }
 
+// ======================== LOGIKA PESANAN ========================
 async function processOrderFreshNumber(operatorId, serviceIdParam, maxRetries = 5) {
     if (maxRetries <= 0) { showToast("Terlalu banyak stok nomor bekas.", "error"); return null; }
     

@@ -79,15 +79,29 @@
 
         <div style="margin-top: 24px;">
             <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-bottom: 12px;">
-                <div style="flex: 1; text-align: left;">
+                
+                <!-- BAGIAN 1: TOMBOL LAYANAN -->
+                <div style="flex: 1; text-align: left; min-width: 0;">
                     <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; padding-left: 4px;">Layanan</label>
                     <button id="btnServiceSelect" onclick="openServiceModal()" class="form-input" style="text-align: left; font-weight: 800; font-size: 13px; padding: 10px 12px; border-radius: 10px; background-color: var(--bg-card); cursor: pointer; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); color: var(--primary-color); height: 36px; margin: 0;">
-                        <span>Memuat...</span>
-                        <i class="fas fa-search" style="font-size: 11px;"></i>
+                        <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Memuat...</span>
+                        <i class="fas fa-search" style="font-size: 11px; flex-shrink: 0; margin-left: 5px;"></i>
                     </button>
                 </div>
                 
-                <div style="display: flex; gap: 8px;">
+                <!-- BAGIAN 2: DROPDOWN HARGA BARU -->
+                <div style="flex: 1; text-align: left; min-width: 0;">
+                    <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; padding-left: 4px;">Harga</label>
+                    <div style="position: relative;">
+                        <select id="priceSelect" onchange="onPriceSelected()" class="form-input" style="height: 36px; padding: 0 10px; font-weight: 800; font-size: 13px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--warning-color); background-color: var(--bg-card); cursor: pointer; width: 100%; margin: 0; outline: none; appearance: none; text-overflow: ellipsis;">
+                            <option value="">Memuat...</option>
+                        </select>
+                        <i class="fas fa-chevron-down" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--text-secondary); pointer-events: none;"></i>
+                    </div>
+                </div>
+                
+                <!-- BAGIAN 3: OPERATOR & STOK -->
+                <div style="display: flex; gap: 8px; flex-shrink: 0;">
                     <div>
                         <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; text-align: center;">Operator</label>
                         <label style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--primary-color); cursor: pointer; background: var(--bg-card); padding: 0 10px; border-radius: 10px; border: 1px solid var(--border-color); flex-shrink: 0; height: 36px; margin: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
@@ -252,6 +266,6 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <script src="herosms.js?v=39"></script>
+    <script src="herosms.js?v=40"></script>
 </body>
 </html>
