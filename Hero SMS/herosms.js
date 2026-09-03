@@ -8,7 +8,7 @@ const db = firebase.database();
 let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true, customApiKey: "", customApiName: "", useDefaultApi: true };
 let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; 
 let allServices = []; let availableProducts = []; 
-let currentServiceId = null; let selectedProductId = 'any'; 
+let currentServiceId = null; let selectedProductId = 'any'; let selectedMaxPrice = null;
 let timerInterval = null; let orderHistory = [];
 let activeWebhookListeners = {}; 
 let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
@@ -228,6 +228,7 @@ window.refreshStock = function() {
     }
 };
 
+// ======================= LOGIKA LAYANAN =======================
 async function loadServices() {
     const btnSvc = document.getElementById('btnServiceSelect');
     if (!btnSvc) return;
@@ -240,14 +241,7 @@ async function loadServices() {
             allServices = servicesRes.data.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
             
             let savedId = localStorage.getItem('hero_selected_service'); 
-            let selectedSvc;
-            
-            if (savedId) {
-                let exists = allServices.find(s => String(s.id) === String(savedId));
-                selectedSvc = exists ? exists : allServices[0];
-            } else {
-                selectedSvc = allServices[0];
-            }
+            let selectedSvc = savedId ? (allServices.find(s => String(s.id) === String(savedId)) || allServices[0]) : allServices[0];
             
             currentServiceId = selectedSvc.id; 
             localStorage.setItem('hero_selected_service', currentServiceId); 
@@ -283,6 +277,7 @@ window.filterServices = function() {
         else others.push(svc); 
     });
 
+    // DIKEMBALIKAN MURNI: Tidak ada lagi harga yang menyatu di dalam kotak layanan
     const renderBtn = (svc, isFav) => {
         const isActive = (String(svc.id) === String(currentServiceId));
         const btn = document.createElement('div');
@@ -317,7 +312,7 @@ window.toggleFavorite = function(id, event) {
     localStorage.setItem('hero_favorite_services', JSON.stringify(favoriteServices)); filterServices(); 
 }
 
-// ======================== LOGIKA PRODUK & DROPDOWN HARGA PERBAIKAN ========================
+// ======================== LOGIKA PRODUK & DROPDOWN HARGA MURNI ========================
 async function loadProducts(serviceId) {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
@@ -330,7 +325,40 @@ async function loadProducts(serviceId) {
         if (productsRes.success && productsRes.data.length > 0) {
             let opsList = productsRes.data; 
             
-            // --- 1. BANGUN SELURUH DAFTAR OPERATOR (TERMASUK FALLBACK GRID) ---
+            // --- 1. BANGUN DROPDOWN HARGA MURNI DARI SEMUA HARGA DI SERVER ---
+            let pricesSet = new Set();
+            opsList.forEach(o => {
+                if (o.price !== undefined && o.price !== null) {
+                    pricesSet.add(parseFloat(o.price));
+                }
+            });
+            
+            // Urutkan dari termurah ke termahal
+            let uniquePrices = Array.from(pricesSet).sort((a, b) => a - b);
+            
+            const priceSelect = document.getElementById('priceSelect');
+            if (priceSelect && uniquePrices.length > 0) {
+                priceSelect.innerHTML = '';
+                uniquePrices.forEach(p => {
+                    let opt = document.createElement('option');
+                    opt.value = p;
+                    opt.text = usdFormatter.format(p); // Cuma angka harga, tanpa nama operator
+                    priceSelect.appendChild(opt);
+                });
+                
+                // Set memori harga jika cocok, atau default ke termurah
+                let savedPrice = localStorage.getItem('hero_selected_max_price');
+                if (savedPrice && uniquePrices.includes(parseFloat(savedPrice))) {
+                    selectedMaxPrice = parseFloat(savedPrice);
+                } else {
+                    selectedMaxPrice = uniquePrices[0]; 
+                }
+                priceSelect.value = selectedMaxPrice;
+            } else if (priceSelect) {
+                priceSelect.innerHTML = '<option value="">Harga Kosong</option>';
+            }
+
+            // --- 2. BANGUN KOTAK GRID OPERATOR UI ---
             let anyOp = opsList.find(o => o.id === 'any') || { id: 'any', price: opsList[0]?.price || 0 };
             
             const standardOps = ['telkomsel', 'indosat', 'xl', 'axis', 'three', 'smartfren'];
@@ -340,39 +368,25 @@ async function loadProducts(serviceId) {
                 return { id: opId, price: found ? found.price : anyOp.price }; 
             });
             
+            // Tambahkan sisa operator unik yang mungkin dilempar server
             opsList.forEach(o => {
-                if (o.id !== 'any' && o.id !== '' && !standardOps.includes(o.id)) {
-                    specificOps.push({ id: o.id, price: o.price });
+                if (o.id && o.id !== 'any' && !standardOps.includes(o.id)) {
+                    if (!specificOps.find(s => s.id === o.id)) {
+                        specificOps.push({ id: o.id, price: o.price });
+                    }
                 }
             });
             
             availableProducts = [anyOp, ...specificOps]; 
-            
-            // --- 2. MASUKKAN SELURUH DATA KE DROPDOWN HARGA DAN URUTKAN ---
-            const priceSelect = document.getElementById('priceSelect');
-            let sortedByPrice = availableProducts.slice().sort((a,b) => parseFloat(a.price) - parseFloat(b.price));
-            
-            if (priceSelect && sortedByPrice.length > 0) {
-                priceSelect.innerHTML = '';
-                
-                sortedByPrice.forEach(p => {
-                    let opName = (p.id === 'any') ? 'Acak' : p.id.toUpperCase();
-                    let opt = document.createElement('option');
-                    opt.value = p.id;
-                    opt.text = `${usdFormatter.format(p.price)} - ${opName}`;
-                    priceSelect.appendChild(opt);
-                });
-                
-                // JADIKAN HARGA TERMURAH SEBAGAI DEFAULT SAAT LAYANAN DIBUKA
-                selectedProductId = sortedByPrice[0].id;
-                priceSelect.value = selectedProductId;
-                localStorage.setItem('hero_selected_operator', selectedProductId);
-            }
-
-            // --- 3. RENDER KOTAK GRID UI ---
             if (productList) productList.innerHTML = ''; 
-
+            
+            let savedOp = localStorage.getItem('hero_selected_operator') || 'any';
             const chkRandom = document.getElementById('chkRandomOp'); 
+            
+            let isOpExist = availableProducts.find(p => String(p.id) === String(savedOp));
+            selectedProductId = isOpExist ? savedOp : 'any'; 
+            localStorage.setItem('hero_selected_operator', selectedProductId);
+
             if (chkRandom) chkRandom.checked = (selectedProductId === 'any');
             if (btnOrder) btnOrder.disabled = false;
             
@@ -385,6 +399,7 @@ async function loadProducts(serviceId) {
                 if (selectedProductId === String(opCode)) { card.classList.add('selected'); }
                 
                 let logoImg = getOperatorLogo(opCode); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
+                // Tetap biarkan harga operator di bawah icon sebagai referensi visual dasar
                 card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
                 
                 card.onclick = () => { 
@@ -394,16 +409,6 @@ async function loadProducts(serviceId) {
                     selectedProductId = String(opCode); 
                     localStorage.setItem('hero_selected_operator', selectedProductId); 
                     if (btnOrder) btnOrder.disabled = false; 
-                    
-                    // Sinkronisasi otomatis ke dropdown Harga saat produk ditekan
-                    if (document.getElementById('priceSelect')) {
-                        let matchingOpt = Array.from(document.getElementById('priceSelect').options).find(opt => opt.value === selectedProductId);
-                        if(matchingOpt) {
-                            document.getElementById('priceSelect').value = selectedProductId;
-                        } else {
-                            document.getElementById('priceSelect').value = 'any';
-                        }
-                    }
                 };
                 if (productList) productList.appendChild(card);
             });
@@ -417,25 +422,16 @@ async function loadProducts(serviceId) {
     }
 }
 
+// Terpisah! Tidak mengubah operator saat ganti harga.
 window.onPriceSelected = function() {
     const priceSelect = document.getElementById('priceSelect');
     if (!priceSelect) return;
     
-    selectedProductId = priceSelect.value;
-    localStorage.setItem('hero_selected_operator', selectedProductId);
-    
-    const chkRandom = document.getElementById('chkRandomOp');
-    if (chkRandom) chkRandom.checked = (selectedProductId === 'any');
-    
-    // Sinkronisasi ke UI Grid
-    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
-    let targetCard = document.getElementById(`op-card-${selectedProductId}`);
-    if (targetCard) targetCard.classList.add('selected');
-    
-    const btnOrder = document.getElementById('btnOrder');
-    if (btnOrder) btnOrder.disabled = false;
+    selectedMaxPrice = priceSelect.value;
+    localStorage.setItem('hero_selected_max_price', selectedMaxPrice);
 };
 
+// Terpisah! Tidak merubah Harga saat ganti operator.
 window.toggleRandomOperator = function() {
     const chk = document.getElementById('chkRandomOp');
     if (chk.checked) { 
@@ -443,27 +439,13 @@ window.toggleRandomOperator = function() {
         selectedProductId = 'any'; 
         localStorage.setItem('hero_selected_operator', 'any'); 
     } else { 
-        const priceSelect = document.getElementById('priceSelect');
-        if (priceSelect) {
-            let ops = Array.from(priceSelect.options).filter(o => o.value !== 'any');
-            if (ops.length > 0) {
-                selectedProductId = ops[0].value;
-            }
-        }
-        
-        document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
-        let tc = document.getElementById(`op-card-${selectedProductId}`);
-        if (tc) tc.classList.add('selected'); 
-        
-        localStorage.setItem('hero_selected_operator', selectedProductId); 
+        let nextAvail = availableProducts.find(p => p.id !== 'any');
+        if (nextAvail) { 
+            selectedProductId = String(nextAvail.id); 
+            document.getElementById(`op-card-${nextAvail.id}`).classList.add('selected'); 
+            localStorage.setItem('hero_selected_operator', selectedProductId); 
+        } 
     }
-    
-    // Sinkronisasi ke dropdown Harga
-    if (document.getElementById('priceSelect')) {
-        let matchingOpt = Array.from(document.getElementById('priceSelect').options).find(opt => opt.value === selectedProductId);
-        if(matchingOpt) document.getElementById('priceSelect').value = selectedProductId;
-    }
-    
     const btn = document.getElementById('btnOrder');
     if (btn) btn.disabled = false;
 }
@@ -475,7 +457,15 @@ async function processOrderFreshNumber(operatorId, serviceIdParam, maxRetries = 
     let apiOperatorId = (operatorId === 'xl') ? 'axis' : operatorId;
     const targetSvc = serviceIdParam || currentServiceId;
     
-    const res = await apiCall('/orders/create', 'POST', { operator: apiOperatorId, service: targetSvc });
+    let payload = { operator: apiOperatorId, service: targetSvc };
+    
+    // MELEMPARKAN PARAMETER HARGA KE API AGAR SERVER TAHU HARGA YANG ANDA MAU
+    if (selectedMaxPrice) {
+        payload.maxPrice = parseFloat(selectedMaxPrice);
+        payload.price = parseFloat(selectedMaxPrice); // Fallback param
+    }
+    
+    const res = await apiCall('/orders/create', 'POST', payload);
     
     if (res.success && res.data && res.data.orders && res.data.orders.length > 0) {
         const o = res.data.orders[0]; const rawPhone = String(o.phone_number); const phoneStr = normalizePhone(rawPhone);
@@ -503,8 +493,8 @@ window.onOrderButtonClicked = async function() {
     try {
         const o = await processOrderFreshNumber(selectedProductId, currentServiceId, 5); 
         if (o) {
-            const opInfo = availableProducts.find(p => String(p.id) === String(selectedProductId)); 
-            const opPrice = o.price || (opInfo ? opInfo.price : 0);
+            // Kita ambil harga fix dari respons order (jika ada), kalau tidak dari selectedMaxPrice
+            const opPrice = o.price || (selectedMaxPrice ? parseFloat(selectedMaxPrice) : 0);
             
             const svcObj = allServices.find(s => String(s.id) === String(currentServiceId));
             const sName = svcObj ? svcObj.name : "SHOPEE";
@@ -542,8 +532,8 @@ function createOrderCard(order) {
     
     let srvName = order.serviceName ? String(order.serviceName).toUpperCase() : "SHOPEE";
     
-    const matchedProduct = availableProducts.find(p => p.id === order.productId);
-    const displayPrice = (order.price && order.price > 0) ? usdFormatter.format(order.price) : usdFormatter.format(matchedProduct?.price || 0);
+    // Tampilkan harga fix dari pesanan
+    const displayPrice = usdFormatter.format(order.price || 0);
     const wait = order.cancelUnlockTime - now; 
     
     let otpHtml = isSuccess 
