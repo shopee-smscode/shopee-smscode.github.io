@@ -277,7 +277,7 @@ window.filterServices = function() {
         else others.push(svc); 
     });
 
-    // DIKEMBALIKAN MURNI: Tidak ada lagi harga yang menyatu di dalam kotak layanan
+    // MURNI: Tidak ada lagi harga yang menyatu di dalam kotak layanan
     const renderBtn = (svc, isFav) => {
         const isActive = (String(svc.id) === String(currentServiceId));
         const btn = document.createElement('div');
@@ -312,7 +312,7 @@ window.toggleFavorite = function(id, event) {
     localStorage.setItem('hero_favorite_services', JSON.stringify(favoriteServices)); filterServices(); 
 }
 
-// ======================== LOGIKA PRODUK & DROPDOWN HARGA MURNI ========================
+// ======================== LOGIKA PRODUK & PENCARIAN HARGA ASLI ========================
 async function loadProducts(serviceId) {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
@@ -326,27 +326,51 @@ async function loadProducts(serviceId) {
             let opsList = productsRes.data; 
             
             // --- 1. BANGUN DROPDOWN HARGA MURNI DARI SEMUA HARGA DI SERVER ---
+            const priceSelect = document.getElementById('priceSelect');
             let pricesSet = new Set();
+            let priceQtyMap = {};
+            
             opsList.forEach(o => {
+                // Ekstrak dari map asli HeroSMS v1 (Paling akurat: memuat banyak harga)
+                if (o.map && typeof o.map === 'object') {
+                    Object.keys(o.map).forEach(priceKey => {
+                        let pVal = parseFloat(priceKey);
+                        pricesSet.add(pVal);
+                        priceQtyMap[pVal] = (priceQtyMap[pVal] || 0) + parseInt(o.map[priceKey]);
+                    });
+                }
+                // Ekstrak dari list harga cadangan (jika format proxy menggunakan array)
+                if (o.prices && Array.isArray(o.prices)) {
+                    o.prices.forEach(pObj => {
+                        let pVal = parseFloat(pObj.price || pObj);
+                        pricesSet.add(pVal);
+                        if(pObj.count) priceQtyMap[pVal] = (priceQtyMap[pVal] || 0) + parseInt(pObj.count);
+                    });
+                }
+                // Ekstrak dari harga tunggal sebagai fallback akhir
                 if (o.price !== undefined && o.price !== null) {
-                    pricesSet.add(parseFloat(o.price));
+                    let pVal = parseFloat(o.price);
+                    pricesSet.add(pVal);
+                    if(o.count) priceQtyMap[pVal] = (priceQtyMap[pVal] || 0) + parseInt(o.count);
                 }
             });
             
-            // Urutkan dari termurah ke termahal
+            // Urutkan dari Termurah ke Termahal
             let uniquePrices = Array.from(pricesSet).sort((a, b) => a - b);
             
-            const priceSelect = document.getElementById('priceSelect');
             if (priceSelect && uniquePrices.length > 0) {
                 priceSelect.innerHTML = '';
                 uniquePrices.forEach(p => {
                     let opt = document.createElement('option');
                     opt.value = p;
-                    opt.text = usdFormatter.format(p); // Cuma angka harga, tanpa nama operator
+                    // Menampilkan Harga dan (pcs) stok asli server seperti di web aslinya
+                    let qty = priceQtyMap[p];
+                    let qtyText = qty ? ` (${qty} pcs)` : '';
+                    opt.text = `${usdFormatter.format(p)}${qtyText}`;
                     priceSelect.appendChild(opt);
                 });
                 
-                // Set memori harga jika cocok, atau default ke termurah
+                // Kunci harga yang pernah dipilih, atau gunakan termurah sebagai default
                 let savedPrice = localStorage.getItem('hero_selected_max_price');
                 if (savedPrice && uniquePrices.includes(parseFloat(savedPrice))) {
                     selectedMaxPrice = parseFloat(savedPrice);
@@ -355,7 +379,7 @@ async function loadProducts(serviceId) {
                 }
                 priceSelect.value = selectedMaxPrice;
             } else if (priceSelect) {
-                priceSelect.innerHTML = '<option value="">Harga Kosong</option>';
+                priceSelect.innerHTML = '<option value="">Kosong</option>';
             }
 
             // --- 2. BANGUN KOTAK GRID OPERATOR UI ---
@@ -368,7 +392,7 @@ async function loadProducts(serviceId) {
                 return { id: opId, price: found ? found.price : anyOp.price }; 
             });
             
-            // Tambahkan sisa operator unik yang mungkin dilempar server
+            // Tambahkan sisa operator unik
             opsList.forEach(o => {
                 if (o.id && o.id !== 'any' && !standardOps.includes(o.id)) {
                     if (!specificOps.find(s => s.id === o.id)) {
@@ -399,7 +423,7 @@ async function loadProducts(serviceId) {
                 if (selectedProductId === String(opCode)) { card.classList.add('selected'); }
                 
                 let logoImg = getOperatorLogo(opCode); let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
-                // Tetap biarkan harga operator di bawah icon sebagai referensi visual dasar
+                // Kotak operator tetap memperlihatkan harga dasarnya sebagai patokan
                 card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.onerror=null; this.src='${fallbackImg}';" class="op-logo" alt="${opName}"></div><div class="product-info"><h4>${opName}</h4></div><div class="product-price">${usdFormatter.format(product.price)}</div>`;
                 
                 card.onclick = () => { 
@@ -422,7 +446,7 @@ async function loadProducts(serviceId) {
     }
 }
 
-// Terpisah! Tidak mengubah operator saat ganti harga.
+// Terpisah: Mengganti harga tidak mengubah pilihan kotak operator yang sudah dipilih
 window.onPriceSelected = function() {
     const priceSelect = document.getElementById('priceSelect');
     if (!priceSelect) return;
@@ -431,7 +455,7 @@ window.onPriceSelected = function() {
     localStorage.setItem('hero_selected_max_price', selectedMaxPrice);
 };
 
-// Terpisah! Tidak merubah Harga saat ganti operator.
+// Terpisah: Mengklik "Acak" / operator tidak akan membuang pilihan harga yang diatur
 window.toggleRandomOperator = function() {
     const chk = document.getElementById('chkRandomOp');
     if (chk.checked) { 
@@ -459,10 +483,11 @@ async function processOrderFreshNumber(operatorId, serviceIdParam, maxRetries = 
     
     let payload = { operator: apiOperatorId, service: targetSvc };
     
-    // MELEMPARKAN PARAMETER HARGA KE API AGAR SERVER TAHU HARGA YANG ANDA MAU
+    // MELEMPARKAN PARAMETER HARGA KE API AGAR SERVER TAHU HARGA TARGET KITA
     if (selectedMaxPrice) {
         payload.maxPrice = parseFloat(selectedMaxPrice);
-        payload.price = parseFloat(selectedMaxPrice); // Fallback param
+        payload.price = parseFloat(selectedMaxPrice); // Fallback jika proxy jadul
+        payload.fixedPrice = true; // Mengunci agar server memberikan harga fix sesuai yang diklik[span_0](start_span)[span_0](end_span)
     }
     
     const res = await apiCall('/orders/create', 'POST', payload);
@@ -493,7 +518,7 @@ window.onOrderButtonClicked = async function() {
     try {
         const o = await processOrderFreshNumber(selectedProductId, currentServiceId, 5); 
         if (o) {
-            // Kita ambil harga fix dari respons order (jika ada), kalau tidak dari selectedMaxPrice
+            // Ambil harga asli dari response order (jika ada), jika tidak gunakan harga dropdown
             const opPrice = o.price || (selectedMaxPrice ? parseFloat(selectedMaxPrice) : 0);
             
             const svcObj = allServices.find(s => String(s.id) === String(currentServiceId));
@@ -532,7 +557,7 @@ function createOrderCard(order) {
     
     let srvName = order.serviceName ? String(order.serviceName).toUpperCase() : "SHOPEE";
     
-    // Tampilkan harga fix dari pesanan
+    // Tampilkan harga aktual saat pemesanan
     const displayPrice = usdFormatter.format(order.price || 0);
     const wait = order.cancelUnlockTime - now; 
     
