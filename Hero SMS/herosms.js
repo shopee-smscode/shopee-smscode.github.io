@@ -91,7 +91,6 @@ window.saveSettings = function() {
     showToast("Pengaturan disimpan!"); 
     renderMainButtons(); 
     
-    // Ganti Akun & Refresh UI
     if (viewingPresenceRef) { viewingPresenceRef.set(false); viewingPresenceRef.onDisconnect().cancel(); }
     loginAccount(); 
 }
@@ -112,7 +111,7 @@ async function apiCall(endpoint, method = "GET", body = null) {
 }
 
 async function fetchAccounts() { 
-    loginAccount(); // Bypass API fetch karena ganti akun sudah ditangani oleh klien
+    loginAccount(); 
 }
 
 function loginAccount() { 
@@ -126,6 +125,7 @@ function loginAccount() {
     loadHistory(); 
     initMainApp(); 
 }
+
 // ===================================================================
 
 function renderMainButtons() { const extraBtnWrapper = document.getElementById('extraBtnWrapper'); if (!extraBtnWrapper) return; if (appSettings.autoCopy) { extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}')" class="btn-primary" style="background-color: var(--info-color); margin-top: 6px; width: 100%; border-radius: 12px; color: #fff;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
@@ -230,26 +230,43 @@ window.refreshStock = function() {
     }
 };
 
+// ======================= PERUBAHAN UTAMA LOGIKA LAYANAN =======================
 async function loadServices() {
     const btnSvc = document.getElementById('btnServiceSelect');
     if (!btnSvc) return;
     try {
         btnSvc.innerHTML = `<span>Memuat...</span><i class="fas fa-spinner fa-spin"></i>`;
+        
         const servicesRes = await apiCall(`/catalog/services`);
+        
         if (servicesRes.success && servicesRes.data) {
-            allServices = servicesRes.data; 
-            allServices.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-            let savedId = localStorage.getItem('hero_selected_service') || "ka"; 
-            let exists = allServices.find(s => String(s.id) === String(savedId));
-            let selectedSvc = exists ? exists : allServices[0];
+            allServices = servicesRes.data.sort((a, b) => {
+                let priceA = parseFloat(a.price) || 0;
+                let priceB = parseFloat(b.price) || 0;
+                return priceA - priceB;
+            });
+            
+            let savedId = localStorage.getItem('hero_selected_service'); 
+            let selectedSvc;
+            
+            if (savedId) {
+                let exists = allServices.find(s => String(s.id) === String(savedId));
+                selectedSvc = exists ? exists : allServices[0];
+            } else {
+                selectedSvc = allServices[0];
+            }
+            
             currentServiceId = selectedSvc.id; 
             localStorage.setItem('hero_selected_service', currentServiceId); 
-            btnSvc.innerHTML = `<span>${selectedSvc.name.toUpperCase()}</span><i class="fas fa-search" style="font-size: 11px;"></i>`;
+            
+            btnSvc.innerHTML = `<span>${(selectedSvc.name || selectedSvc.id).toUpperCase()}</span><i class="fas fa-search" style="font-size: 11px;"></i>`;
             loadProducts(currentServiceId);
         } else {
             btnSvc.innerHTML = `<span style="color:var(--danger-color);">Error</span><i class="fas fa-exclamation-triangle"></i>`;
         }
-    } catch (e) { btnSvc.innerHTML = `<span style="color:var(--danger-color);">Gagal</span><i class="fas fa-wifi"></i>`; }
+    } catch (e) { 
+        btnSvc.innerHTML = `<span style="color:var(--danger-color);">Gagal</span><i class="fas fa-wifi"></i>`; 
+    }
 }
 
 window.openServiceModal = function() { document.getElementById('serviceModal').classList.remove('hidden'); document.getElementById('searchServiceInput').value = ''; filterServices(); history.pushState(null, null, "#services"); }
@@ -261,16 +278,37 @@ window.filterServices = function() {
     container.innerHTML = '';
     
     const filtered = allServices.filter(s => (s.name || s.id).toLowerCase().includes(query));
-    if(filtered.length === 0) { container.innerHTML = '<div class="status-text-mini" style="margin-top:10px;">Layanan tidak ditemukan.</div>'; return; }
+    
+    if(filtered.length === 0) { 
+        container.innerHTML = '<div class="status-text-mini" style="margin-top:10px;">Layanan tidak ditemukan.</div>'; 
+        return; 
+    }
 
     let favs = []; let others = [];
-    filtered.forEach(svc => { if (favoriteServices.includes(svc.id)) favs.push(svc); else others.push(svc); });
+    filtered.forEach(svc => { 
+        if (favoriteServices.includes(svc.id)) favs.push(svc); 
+        else others.push(svc); 
+    });
 
+    // Modifikasi renderBtn untuk memotong nama layanan dan menaruh harga di sebelahnya
     const renderBtn = (svc, isFav) => {
         const isActive = (String(svc.id) === String(currentServiceId));
         const btn = document.createElement('div');
+        
+        let priceFormat = (svc.price && svc.price > 0) ? usdFormatter.format(svc.price) : "Bervariasi";
+        
         btn.style = `width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 13px; font-weight: bold; text-align: left; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15); margin-bottom: 6px;`;
-        btn.innerHTML = `<div style="display:flex; align-items:center; flex:1;" onclick="selectService('${svc.id}', '${(svc.name||svc.id).replace(/'/g, "\\'")}')"><span>${(svc.name||svc.id).toUpperCase()}</span></div><div style="display:flex; align-items:center; gap:12px;">${isActive ? '<i class="fas fa-check-circle" style="color:var(--primary-color);"></i>' : ''}<i class="fas fa-star" style="font-size:16px; color:${isFav ? 'var(--warning-color)' : 'var(--text-secondary)'}; text-shadow: ${isFav ? '0 0 8px rgba(245, 158, 11, 0.5)' : 'none'}; cursor:pointer; padding:4px;" onclick="toggleFavorite('${svc.id}', event)"></i></div>`;
+        
+        // Membungkus teks harga di sebelah kanan nama dengan struktur sejajar (row)
+        btn.innerHTML = `
+            <div style="display:flex; align-items: center; flex:1; min-width: 0; padding-right: 10px;" onclick="selectService('${svc.id}', '${(svc.name||svc.id).replace(/'/g, "\\'")}')">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; margin-right: 8px;">${(svc.name||svc.id).toUpperCase()}</span>
+                <span style="font-size: 11px; color: ${isActive ? 'var(--primary-color)' : 'var(--warning-color)'}; font-weight: 900; white-space: nowrap; flex-shrink: 0;">💰 ${priceFormat}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px; flex-shrink: 0;">
+                ${isActive ? '<i class="fas fa-check-circle" style="color:var(--primary-color);"></i>' : ''}
+                <i class="fas fa-star" style="font-size:16px; color:${isFav ? 'var(--warning-color)' : 'var(--text-secondary)'}; text-shadow: ${isFav ? '0 0 8px rgba(245, 158, 11, 0.5)' : 'none'}; cursor:pointer; padding:4px;" onclick="toggleFavorite('${svc.id}', event)"></i>
+            </div>`;
         return btn;
     };
 
@@ -280,7 +318,7 @@ window.filterServices = function() {
     }
 
     if (others.length > 0) {
-        const othTitle = document.createElement('div'); othTitle.style = "font-size: 10px; font-weight: 900; color: var(--text-secondary); margin-top: 10px; margin-bottom: 8px; letter-spacing: 1px;"; othTitle.innerText = "SEMUA LAYANAN"; container.appendChild(othTitle);
+        const othTitle = document.createElement('div'); othTitle.style = "font-size: 10px; font-weight: 900; color: var(--text-secondary); margin-top: 10px; margin-bottom: 8px; letter-spacing: 1px;"; othTitle.innerText = "DARI TERMURAH HINGGA TERMAHAL"; container.appendChild(othTitle);
         others.forEach(svc => container.appendChild(renderBtn(svc, false)));
     }
 }
@@ -297,6 +335,7 @@ window.toggleFavorite = function(id, event) {
     if (favoriteServices.includes(id)) { favoriteServices = favoriteServices.filter(f => f !== id); } else { favoriteServices.push(id); }
     localStorage.setItem('hero_favorite_services', JSON.stringify(favoriteServices)); filterServices(); 
 }
+// ==============================================================================
 
 async function loadProducts(serviceId) {
     try {
