@@ -228,7 +228,6 @@ window.refreshStock = function() {
     }
 };
 
-// ======================= LOGIKA LAYANAN (DIKEMBALIKAN NORMAL) =======================
 async function loadServices() {
     const btnSvc = document.getElementById('btnServiceSelect');
     if (!btnSvc) return;
@@ -238,7 +237,6 @@ async function loadServices() {
         const servicesRes = await apiCall(`/catalog/services`);
         
         if (servicesRes.success && servicesRes.data) {
-            // Urutan layanan dikembalikan sesuai abjad seperti aslinya
             allServices = servicesRes.data.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
             
             let savedId = localStorage.getItem('hero_selected_service'); 
@@ -319,7 +317,7 @@ window.toggleFavorite = function(id, event) {
     localStorage.setItem('hero_favorite_services', JSON.stringify(favoriteServices)); filterServices(); 
 }
 
-// ======================== LOGIKA PRODUK & DROPDOWN HARGA ASLI ========================
+// ======================== LOGIKA PRODUK & DROPDOWN HARGA PERBAIKAN ========================
 async function loadProducts(serviceId) {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
@@ -332,30 +330,7 @@ async function loadProducts(serviceId) {
         if (productsRes.success && productsRes.data.length > 0) {
             let opsList = productsRes.data; 
             
-            // --- 1. MENGURUS DROPDOWN HARGA MURNI DARI DATA SERVER ---
-            const priceSelect = document.getElementById('priceSelect');
-            
-            // Hapus yang blank, lalu urutkan dari Termurah ke Termahal
-            let validRawOps = opsList.filter(o => o.id !== '').sort((a,b) => parseFloat(a.price) - parseFloat(b.price));
-            
-            if (priceSelect && validRawOps.length > 0) {
-                priceSelect.innerHTML = '';
-                
-                validRawOps.forEach(p => {
-                    let opName = (p.id === 'any') ? 'Acak' : p.id.toUpperCase();
-                    let opt = document.createElement('option');
-                    opt.value = p.id;
-                    opt.text = `${usdFormatter.format(p.price)} - ${opName}`;
-                    priceSelect.appendChild(opt);
-                });
-                
-                // JADIKAN HARGA TERMURAH SEBAGAI DEFAULT SAAT LAYANAN DIBUKA
-                selectedProductId = validRawOps[0].id;
-                priceSelect.value = selectedProductId;
-                localStorage.setItem('hero_selected_operator', selectedProductId);
-            }
-
-            // --- 2. MENGURUS KOTAK GRID UI (SAMA SEPERTI SEBELUMNYA) ---
+            // --- 1. BANGUN SELURUH DAFTAR OPERATOR (TERMASUK FALLBACK GRID) ---
             let anyOp = opsList.find(o => o.id === 'any') || { id: 'any', price: opsList[0]?.price || 0 };
             
             const standardOps = ['telkomsel', 'indosat', 'xl', 'axis', 'three', 'smartfren'];
@@ -372,6 +347,29 @@ async function loadProducts(serviceId) {
             });
             
             availableProducts = [anyOp, ...specificOps]; 
+            
+            // --- 2. MASUKKAN SELURUH DATA KE DROPDOWN HARGA DAN URUTKAN ---
+            const priceSelect = document.getElementById('priceSelect');
+            let sortedByPrice = availableProducts.slice().sort((a,b) => parseFloat(a.price) - parseFloat(b.price));
+            
+            if (priceSelect && sortedByPrice.length > 0) {
+                priceSelect.innerHTML = '';
+                
+                sortedByPrice.forEach(p => {
+                    let opName = (p.id === 'any') ? 'Acak' : p.id.toUpperCase();
+                    let opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.text = `${usdFormatter.format(p.price)} - ${opName}`;
+                    priceSelect.appendChild(opt);
+                });
+                
+                // JADIKAN HARGA TERMURAH SEBAGAI DEFAULT SAAT LAYANAN DIBUKA
+                selectedProductId = sortedByPrice[0].id;
+                priceSelect.value = selectedProductId;
+                localStorage.setItem('hero_selected_operator', selectedProductId);
+            }
+
+            // --- 3. RENDER KOTAK GRID UI ---
             if (productList) productList.innerHTML = ''; 
 
             const chkRandom = document.getElementById('chkRandomOp'); 
@@ -403,7 +401,6 @@ async function loadProducts(serviceId) {
                         if(matchingOpt) {
                             document.getElementById('priceSelect').value = selectedProductId;
                         } else {
-                            // Fallback ke Acak jika ditekan dari Grid tapi tidak ada harga di server
                             document.getElementById('priceSelect').value = 'any';
                         }
                     }
@@ -446,7 +443,6 @@ window.toggleRandomOperator = function() {
         selectedProductId = 'any'; 
         localStorage.setItem('hero_selected_operator', 'any'); 
     } else { 
-        // Mencari termurah yang BUKAN acak
         const priceSelect = document.getElementById('priceSelect');
         if (priceSelect) {
             let ops = Array.from(priceSelect.options).filter(o => o.value !== 'any');
