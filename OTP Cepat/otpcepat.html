@@ -1,1 +1,124 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTP Cepat ⚡</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="otpcepat.css">
+</head>
+<body class="theme-otp">
+    <div id="appView" class="container">
+        
+        <div class="top-bar-modern">
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button onclick="openSettingsModal()" class="btn-top-action"><i class="fas fa-key"></i></button>
+                <span style="font-size: 12px; font-weight: bold; color: var(--text-secondary);">⚙️ API Key</span>
+            </div>
+            
+            <div>
+                <button class="dropbtn-icon" onclick="openHistoryModal()">
+                    <i class="fas fa-history"></i>
+                </button>
+            </div>
+        </div>
 
+        <div class="app-header-container">
+            <div class="header-titles">
+                <h1>OTP CEPAT ⚡</h1>
+                <p class="subtitle">📧 Akun: <strong id="currentAccountEmail">Belum Login</strong></p>
+            </div>
+            <div class="balance-container">
+                <div class="balance-badge">
+                    <span class="balance-label">Saldo (Rp)</span>
+                    <span id="balanceDisplay" class="balance-value">...</span>
+                </div>
+            </div>
+        </div>
+        
+        <div id="activeOrdersContainer">
+            <div class="status-text-mini">Belum ada pesanan aktif.</div>
+        </div>
+
+        <div style="margin-top: 24px;">
+            <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-bottom: 12px;">
+                
+                <div style="flex: 1; text-align: left; min-width: 0;">
+                    <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; padding-left: 4px;">Pilih Layanan</label>
+                    <button onclick="openServiceModal()" class="form-input" style="text-align: left; font-weight: 800; font-size: 13px; padding: 10px 12px; border-radius: 10px; background-color: var(--bg-card); cursor: pointer; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); color: var(--primary-color); height: 36px; margin: 0;">
+                        <span id="btnServiceSelectText" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Memuat...</span>
+                        <i class="fas fa-search" style="font-size: 11px; flex-shrink: 0; margin-left: 5px;"></i>
+                    </button>
+                </div>
+                
+                <div style="display: flex; gap: 8px; flex-shrink: 0;">
+                    <div>
+                        <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; text-align: center;">Negara</label>
+                        <select id="countrySelect" onchange="onCountryChanged()" class="form-input" style="height: 36px; padding: 0 10px; font-weight: 800; font-size: 11px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--primary-color); background-color: var(--bg-card); cursor: pointer; width: 100px; margin: 0; outline: none;">
+                            <option value="">Memuat...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; padding-left: 4px;">Pilih Operator</label>
+            <div id="productList" class="product-list">
+                <div class="status-text-mini">Memuat operator...</div>
+            </div>
+            
+            <button id="btnOrder" class="btn-primary" onclick="onOrderButtonClicked()" disabled>PESAN NOMOR BARU</button>
+        </div>
+    </div>
+
+    <!-- MODAL PILIH LAYANAN -->
+    <div id="serviceModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title">Pilih Layanan</h3>
+                <button onclick="closeServiceModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: #333;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <input type="text" id="searchServiceInput" class="form-input" placeholder="🔍 Cari layanan..." oninput="filterServices()" style="border-radius: 10px; font-weight: bold;">
+            </div>
+            <div id="serviceListContainer" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column;">
+                <div class="status-text-mini">Memuat layanan...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PENGATURAN API -->
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">⚙️ API Key</h3>
+                <button onclick="closeSettingsModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: #333;"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div style="text-align: left; margin-bottom: 20px;">
+                <label style="font-size: 13px; font-weight: bold; color: var(--text-secondary); margin-bottom: 8px; display: block;">Masukkan API Key OTP Cepat</label>
+                <input type="text" id="settingsApiKey" class="form-input" placeholder="Contoh: 69c532208d65442fadbeb...">
+            </div>
+            
+            <button onclick="saveSettings()" class="btn-success" style="width: 100%; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 900;"><i class="fas fa-save"></i> SIMPAN KUNCI</button>
+        </div>
+    </div>
+
+    <!-- MODAL RIWAYAT -->
+    <div id="historyModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title">Riwayat Pesanan</h3>
+                <button onclick="closeHistoryModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: #333;"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="history-list" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
+                <div class="status-text-mini" style="text-align:center;">Belum ada riwayat lokal.</div>
+            </div>
+            <button onclick="clearHistory()" class="btn-danger" style="margin-top: 15px; width: 100%; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: bold;"><i class="fas fa-trash"></i> Bersihkan Riwayat</button>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">Notifikasi!</div>
+
+    <script src="otpcepat.js"></script>
+</body>
+</html>
