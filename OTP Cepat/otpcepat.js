@@ -1,6 +1,8 @@
-// --- KONFIGURASI API OTP CEPAT DENGAN PROXY ANTI-CORS ---
-// Jika proxy ini dirasa lambat, buat Worker Cloudflare baru dan ganti link di bawah.
-const API_BASE_URL = "https://corsproxy.io/?https://otpcepat.org/api/handler_api.php";
+// --- KONFIGURASI API OTP CEPAT ---
+
+// Ganti tulisan "PUBLIC_PROXY" di bawah dengan link Cloudflare Worker OTP Cepat Anda (JIKA ADA).
+// Contoh: const API_BASE_URL = "https://otp-cepat.masreno6pro.workers.dev";
+const API_BASE_URL = "https://otp-cepat-proxy.masreno6pro.workers.dev/"; 
 
 let apiKey = localStorage.getItem('otp_api_key') || "";
 let activeOrders = JSON.parse(localStorage.getItem('otp_active_orders')) || [];
@@ -8,7 +10,7 @@ let orderHistory = JSON.parse(localStorage.getItem('otp_history')) || [];
 let allServices = [];
 let allOperators = [];
 
-let currentCountryId = ""; // Akan dikunci ke Indonesia / Wakanda (Indo)
+let currentCountryId = ""; 
 let currentCategory = localStorage.getItem('otp_category') || "reguler";
 let currentServiceId = localStorage.getItem('otp_service') || "";
 let currentServiceName = localStorage.getItem('otp_service_name') || "";
@@ -51,19 +53,28 @@ function copyToClipboard(t) {
     }
 }
 
-// ================= API CALLER UTAMA DENGAN ANTI-CACHE =================
+// ================= API CALLER CERDAS =================
 async function apiCall(action, extraParams = "") {
     if (!apiKey) return { status: "false", msg: "API Key Kosong" };
-    // Mencegah browser menyimpan cache respon (agar status OTP & Saldo selalu update)
-    const timeStamp = new Date().getTime(); 
-    const url = `${API_BASE_URL}?api_key=${apiKey}&action=${action}${extraParams}&_t=${timeStamp}`;
+    
+    const timeStamp = new Date().getTime(); // Anti-Cache
+    let url = "";
+
+    if (API_BASE_URL === "PUBLIC_PROXY") {
+        // Enkripsi URL agar proxy publik tidak error saat membaca simbol ? dan &
+        const targetUrl = `https://otpcepat.org/api/handler_api.php?api_key=${apiKey}&action=${action}${extraParams}&_t=${timeStamp}`;
+        url = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+    } else {
+        // Jalur khusus jika Anda menggunakan Cloudflare Worker
+        url = `${API_BASE_URL}?api_key=${apiKey}&action=${action}${extraParams}&_t=${timeStamp}`;
+    }
     
     try {
         const response = await fetch(url);
         const data = await response.json();
         return data;
     } catch (err) {
-        return { status: "false", msg: "Koneksi diblokir atau jaringan terputus." };
+        return { status: "false", msg: "Koneksi diblokir. Pastikan API Key valid atau gunakan Worker." };
     }
 }
 
@@ -281,7 +292,6 @@ window.onOrderButtonClicked = async function() {
     try {
         const res = await apiCall('get_order', `&operator_id=${currentOperator}&service_id=${currentServiceId}&country_id=${currentCountryId}`);
         
-        // Membaca status sukses dengan kebal (boolean, string "true", atau "success")
         if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
             const orderData = res.data || res;
             
@@ -318,7 +328,7 @@ window.onOrderButtonClicked = async function() {
     } catch (e) {
         showToast("Terjadi gangguan sistem/jaringan.", "error");
     } finally {
-        // SISTEM ANTI-MACET: Apapun yang terjadi, tombol pasti kembali aktif!
+        // SISTEM ANTI-MACET: Tombol pasti kembali aktif!
         btn.disabled = false; 
         btn.innerText = "PESAN NOMOR BARU";
     }
