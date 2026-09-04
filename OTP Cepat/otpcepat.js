@@ -1,4 +1,4 @@
-// --- MASUKKAN LINK CLOUDFLARE WORKER ANDA DI BAWAH INI ---
+// --- MENGGUNAKAN CLOUDFLARE WORKER ANDA SECARA PERMANEN ---
 const API_BASE_URL = "https://otp-cepat-proxy.masreno6pro.workers.dev"; 
 
 let apiKey = localStorage.getItem('otp_api_key') || "";
@@ -7,8 +7,9 @@ let orderHistory = JSON.parse(localStorage.getItem('otp_history')) || [];
 let allServices = [];
 let allOperators = [];
 
+// Mengambil memori preferensi terakhir pengguna (Default: Promo)
 let currentCountryId = ""; 
-let currentCategory = localStorage.getItem('otp_category') || "reguler";
+let currentCategory = localStorage.getItem('otp_category') || "promo";
 let currentServiceId = localStorage.getItem('otp_service') || "";
 let currentServiceName = localStorage.getItem('otp_service_name') || "";
 let currentServicePrice = localStorage.getItem('otp_service_price') || "";
@@ -19,7 +20,6 @@ let isDroplistOpen = false;
 
 const rpFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
 
-// FUNGSI FORMAT NOMOR TELEPON YANG SEMPAT HILANG
 function formatPhoneNumber(phone) { 
     if (!phone) return ""; 
     let p = String(phone).replace(/\D/g, "");
@@ -28,6 +28,13 @@ function formatPhoneNumber(phone) {
 }
 
 window.onload = () => {
+    // Tampilkan preferensi memori langsung ke layar sebelum API memuat
+    document.getElementById('categorySelect').value = currentCategory;
+    if (currentServiceName) {
+        document.getElementById('btnServiceSelectText').innerHTML = currentServiceName;
+        if (currentServicePrice) document.getElementById('priceDisplayBox').innerText = rpFormatter.format(currentServicePrice);
+    }
+
     if (!apiKey) {
         openSettingsModal();
     } else {
@@ -94,13 +101,11 @@ async function saveSettings() {
 }
 
 async function initApp() {
-    document.getElementById('categorySelect').value = currentCategory;
     await fetchBalance();
     await lockCountryToIndonesia();
 }
 
 async function fetchBalance() {
-    document.getElementById('balanceDisplay').innerText = "Memuat...";
     const res = await apiCall('getBalance');
     if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
         const dataPayload = res.data || res;
@@ -108,13 +113,11 @@ async function fetchBalance() {
         document.getElementById('balanceDisplay').innerText = rpFormatter.format(dataPayload.saldo || 0);
     } else {
         document.getElementById('balanceDisplay').innerText = "Gagal";
-        showToast(res.msg || "Gagal memuat saldo", "error");
     }
 }
 
 // ================= MENGUNCI NEGARA =================
 async function lockCountryToIndonesia() {
-    document.getElementById('btnServiceSelectText').innerHTML = `Mencari Server...`;
     const res = await apiCall('getCountries');
     
     if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
@@ -130,8 +133,6 @@ async function lockCountryToIndonesia() {
             currentCountryId = dataList.length > 0 ? dataList[0].countryID : "1";
         }
         await fetchServices();
-    } else {
-        document.getElementById('btnServiceSelectText').innerText = "Gagal Kunci Negara";
     }
 }
 
@@ -149,9 +150,8 @@ window.onCategoryChanged = async function() {
 }
 
 async function fetchServices() {
-    document.getElementById('btnServiceSelectText').innerHTML = `Memuat Harga...`;
-    
-    const res = currentCategory === "spesial" 
+    // Prioritas memanggil harga spesial (lebih mahal), Promo memanggil reguler (lebih murah)
+    const res = currentCategory === "prioritas" 
         ? await apiCall('getSpecialServices', `&country_id=${currentCountryId}`) 
         : await apiCall('getServices', `&country_id=${currentCountryId}`);
         
@@ -159,8 +159,10 @@ async function fetchServices() {
         let dataList = res.data || [];
         allServices = dataList.sort((a, b) => String(a.serviceName).localeCompare(String(b.serviceName)));
         
-        let targetSvc = allServices.find(s => s.serviceID === currentServiceId);
+        // 1. Prioritaskan memori terakhir pengguna
+        let targetSvc = allServices.find(s => String(s.serviceID) === String(currentServiceId));
         
+        // 2. Jika tidak ada, baru cari Shopee
         if (!targetSvc) {
             targetSvc = allServices.find(s => String(s.serviceName).toLowerCase().includes("shopee"));
         }
@@ -213,7 +215,7 @@ window.filterServices = function() {
     if(filtered.length === 0) { container.innerHTML = '<div class="status-text-mini">Tidak ditemukan.</div>'; return; }
 
     filtered.forEach(svc => {
-        const isActive = (svc.serviceID === currentServiceId);
+        const isActive = (String(svc.serviceID) === String(currentServiceId));
         const btn = document.createElement('div');
         let formattedPrice = rpFormatter.format(svc.price);
         
@@ -569,7 +571,7 @@ window.cancelAllOldOrders = async function() {
     renderOrders();
 };
 
-// ================= POLLING STATUS =================
+// ================= POLLING STATUS (ANTI-KEDIP) =================
 function startPolling() {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -610,12 +612,24 @@ function startPolling() {
             }
         }
         
+        // PENCEGAH KEDIP
         if (needsRender) {
             saveActiveOrders();
             renderOrders();
             fetchBalance();
         } else if (activeOrders.length > 0) {
-            renderOrders(); 
+            activeOrders.forEach(o => {
+                const left = o.expiresAt - Date.now();
+                const timerEl = document.getElementById(`timer-${o.id}`);
+                if (timerEl && o.status !== "Recieved" && o.status !== "Done") {
+                    let m = Math.floor(left / 60000); 
+                    let s = Math.floor((left % 60000) / 1000);
+                    timerEl.innerText = left > 0 ? `${m}:${s < 10 ? '0' : ''}${s}` : '0:00';
+                    
+                    if (left <= 12 * 60000) { timerEl.style.color = "var(--danger-color)"; } 
+                    else if (left <= 18 * 60000) { timerEl.style.color = "var(--warning-color)"; }
+                }
+            });
         }
     }, 4000); 
 }
