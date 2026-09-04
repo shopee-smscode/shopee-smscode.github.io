@@ -1,5 +1,5 @@
 // --- MASUKKAN LINK CLOUDFLARE WORKER ANDA DI BAWAH INI ---
-const API_BASE_URL = "https://otp-cepat-proxy.masreno6pro.workers.dev/"; 
+const API_BASE_URL = "https://otp-cepat-proxy.masreno6pro.workers.dev"; 
 
 let apiKey = localStorage.getItem('otp_api_key') || "";
 let activeOrders = JSON.parse(localStorage.getItem('otp_active_orders')) || [];
@@ -18,6 +18,14 @@ let pollingInterval = null;
 let isDroplistOpen = false;
 
 const rpFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+
+// FUNGSI FORMAT NOMOR TELEPON YANG SEMPAT HILANG
+function formatPhoneNumber(phone) { 
+    if (!phone) return ""; 
+    let p = String(phone).replace(/\D/g, "");
+    if (p.startsWith("62")) { p = "0" + p.substring(2); } 
+    return p.replace(/(.{4})/g, '$1 ').trim(); 
+}
 
 window.onload = () => {
     if (!apiKey) {
@@ -50,7 +58,7 @@ function copyToClipboard(t) {
     }
 }
 
-// ================= API CALLER (DENGAN PELACAK ERROR) =================
+// ================= API CALLER =================
 async function apiCall(action, extraParams = "") {
     if (!apiKey) return { status: "false", msg: "API Key Kosong" };
     
@@ -423,7 +431,7 @@ function renderOrders() {
     }
 }
 
-// ================= AKSI TOMBOL (BATAL, SELESAI, GANTI, ULANG) =================
+// ================= AKSI TOMBOL =================
 window.setOrderStatus = async function(orderId, statusCode) {
     const btnId = statusCode === 2 ? `btn-cancel-${orderId}` : `btn-finish-${orderId}`;
     const btn = document.getElementById(btnId);
