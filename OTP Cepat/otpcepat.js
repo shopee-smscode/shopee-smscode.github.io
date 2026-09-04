@@ -1,4 +1,21 @@
-// --- MASUKKAN LINK CLOUDFLARE WORKER ANDA DI BAWAH INI ---
+// --- SUNTIKAN CSS TAMBAHAN UNTUK FITUR PESANAN LAMA HERO SMS ---
+const style = document.createElement('style');
+style.innerHTML = `
+    .old-orders-wrapper { margin-top: 10px; }
+    .btn-droplist { width: 100%; background: var(--bg-card); color: var(--text-primary); padding: 12px; border: 1px solid var(--border-color); border-radius: 12px; font-weight: 800; font-size: 13px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; }
+    .btn-droplist.open { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; background: var(--border-color); }
+    .old-orders-content { display: none; background: var(--bg-container); border: 1px solid var(--border-color); border-top: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; padding: 10px; }
+    .old-orders-content.show { display: block; }
+    .btn-cancel-all { width: 100%; background: var(--bg-card); color: var(--danger-color); padding: 10px; border: 1px solid var(--danger-color); border-radius: 8px; font-weight: 800; font-size: 12px; cursor: pointer; margin-bottom: 10px; transition: 0.2s; }
+    .waiting-animation { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 5px; }
+    .dot-pulse { width: 8px; height: 8px; background-color: var(--text-secondary); border-radius: 50%; animation: pulse 1.5s infinite ease-in-out; }
+    .dot-pulse:nth-child(2) { animation-delay: 0.2s; }
+    .dot-pulse:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes pulse { 0%, 100% { transform: scale(0.8); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 1; } }
+`;
+document.head.appendChild(style);
+
+// --- KONFIGURASI LINK WORKER ---
 const API_BASE_URL = "https://otp-cepat-proxy.masreno6pro.workers.dev"; 
 
 let apiKey = localStorage.getItem('otp_api_key') || "";
@@ -7,7 +24,6 @@ let orderHistory = JSON.parse(localStorage.getItem('otp_history')) || [];
 let allServices = [];
 let allOperators = [];
 
-// Mengambil memori preferensi terakhir pengguna (Default: Promo)
 let currentCountryId = ""; 
 let currentCategory = localStorage.getItem('otp_category') || "promo";
 let currentServiceId = localStorage.getItem('otp_service') || "";
@@ -28,7 +44,6 @@ function formatPhoneNumber(phone) {
 }
 
 window.onload = () => {
-    // Tampilkan preferensi memori langsung ke layar sebelum API memuat
     document.getElementById('categorySelect').value = currentCategory;
     if (currentServiceName) {
         document.getElementById('btnServiceSelectText').innerHTML = currentServiceName;
@@ -150,7 +165,6 @@ window.onCategoryChanged = async function() {
 }
 
 async function fetchServices() {
-    // PERBAIKAN: Promo mengambil SpecialServices (murah), Prioritas mengambil Services (mahal)
     const res = currentCategory === "promo" 
         ? await apiCall('getSpecialServices') 
         : await apiCall('getServices', `&country_id=${currentCountryId}`);
@@ -159,10 +173,8 @@ async function fetchServices() {
         let dataList = res.data || [];
         allServices = dataList.sort((a, b) => String(a.serviceName).localeCompare(String(b.serviceName)));
         
-        // 1. Prioritaskan memori terakhir pengguna
         let targetSvc = allServices.find(s => String(s.serviceID) === String(currentServiceId));
         
-        // 2. Jika tidak ada, baru cari Shopee
         if (!targetSvc) {
             targetSvc = allServices.find(s => String(s.serviceName).toLowerCase().includes("shopee"));
         }
@@ -545,28 +557,51 @@ window.replaceSpecificOrder = async function(id) {
     }
 }
 
+// LOGIKA PEMBATALAN MASSAL PARALEL (CEPAT & ANTI MACET)
 window.cancelAllOldOrders = async function() {
     if (activeOrders.length <= 1) return;
     const oldOrders = activeOrders.slice(1);
     
     const btnAll = document.getElementById("btn-cancel-all-old");
-    if(btnAll) { btnAll.disabled = true; btnAll.innerHTML = '<div class="loader" style="border-top-color:var(--danger-color);"></div>'; }
+    if(btnAll) { 
+        btnAll.disabled = true; 
+        btnAll.innerHTML = '<div class="loader" style="border-top-color:var(--danger-color); border-width: 2px; width: 14px; height: 14px;"></div>'; 
+    }
     showToast(`Membatalkan ${oldOrders.length} pesanan lama...`, "warning");
     
     let cancelledCount = 0;
-    for (const order of oldOrders) {
+    let failedCount = 0;
+    
+    // Menjalankan pembatalan secara serentak ke server agar cepat selesai
+    const cancelPromises = oldOrders.map(async (order) => {
         try {
             const res = await apiCall('set_status', `&order_id=${order.id}&status=2`);
             if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success" || (res.msg && String(res.msg).toLowerCase() === "success")) {
                 saveToHistory(order, "BATAL"); 
-                activeOrders = activeOrders.filter(o => String(o.id) !== String(order.id));
-                cancelledCount++;
+                return order.id; // Sukses
             }
         } catch(e) {}
-    }
+        return null; // Gagal
+    });
+    
+    const results = await Promise.all(cancelPromises);
+    
+    // Saring pesanan yang benar-benar berhasil dibatalkan dari antarmuka
+    results.forEach(id => {
+        if (id) {
+            activeOrders = activeOrders.filter(o => String(o.id) !== String(id));
+            cancelledCount++;
+        } else {
+            failedCount++;
+        }
+    });
+    
     saveActiveOrders();
     fetchBalance();
-    if (cancelledCount > 0) showToast(`${cancelledCount} pesanan lama dibatalkan.`, "success");
+    
+    if (cancelledCount > 0) showToast(`${cancelledCount} pesanan dibatalkan.`, "success");
+    if (failedCount > 0) showToast(`${failedCount} gagal dibatalkan.`, "error");
+    
     if (activeOrders.length <= 1) isDroplistOpen = false;
     renderOrders();
 };
