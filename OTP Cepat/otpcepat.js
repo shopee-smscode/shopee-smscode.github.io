@@ -1,4 +1,4 @@
-// --- MENGGUNAKAN CLOUDFLARE WORKER ANDA SECARA PERMANEN ---
+// --- MASUKKAN LINK CLOUDFLARE WORKER ANDA DI BAWAH INI ---
 const API_BASE_URL = "https://otp-cepat-proxy.masreno6pro.workers.dev"; 
 
 let apiKey = localStorage.getItem('otp_api_key') || "";
@@ -150,9 +150,9 @@ window.onCategoryChanged = async function() {
 }
 
 async function fetchServices() {
-    // Prioritas memanggil harga spesial (lebih mahal), Promo memanggil reguler (lebih murah)
-    const res = currentCategory === "prioritas" 
-        ? await apiCall('getSpecialServices', `&country_id=${currentCountryId}`) 
+    // PERBAIKAN: Promo mengambil SpecialServices (murah), Prioritas mengambil Services (mahal)
+    const res = currentCategory === "promo" 
+        ? await apiCall('getSpecialServices') 
         : await apiCall('getServices', `&country_id=${currentCountryId}`);
         
     if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
@@ -571,7 +571,7 @@ window.cancelAllOldOrders = async function() {
     renderOrders();
 };
 
-// ================= POLLING STATUS (ANTI-KEDIP) =================
+// ================= POLLING STATUS =================
 function startPolling() {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
