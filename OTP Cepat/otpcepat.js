@@ -27,6 +27,29 @@ function formatPhoneNumber(phone) {
     return p.replace(/(.{4})/g, '$1 ').trim(); 
 }
 
+// === FITUR BARU: PENDETEKSI KARTU DARI NOMOR HP ===
+function guessOperator(phone) {
+    let p = String(phone).replace(/\D/g, "");
+    if (p.startsWith("62")) p = "0" + p.substring(2);
+    let prefix = p.substring(0, 4);
+    
+    const telkomsel = ["0811","0812","0813","0821","0822","0823","0851","0852","0853"];
+    const indosat = ["0814","0815","0816","0855","0856","0857","0858"];
+    const xl = ["0817","0818","0819","0859","0877","0878"];
+    const axis = ["0831","0832","0833","0838"];
+    const three = ["0895","0896","0897","0898","0899"];
+    const smartfren = ["0881","0882","0883","0884","0885","0886","0887","0888","0889"];
+
+    if (telkomsel.includes(prefix)) return "Telkomsel";
+    if (indosat.includes(prefix)) return "Indosat";
+    if (xl.includes(prefix)) return "XL";
+    if (axis.includes(prefix)) return "Axis";
+    if (three.includes(prefix)) return "Three";
+    if (smartfren.includes(prefix)) return "Smartfren";
+    
+    return "ACAK"; // Fallback jika awalan tidak dikenali
+}
+
 window.onload = () => {
     // Tampilkan preferensi memori langsung ke layar sebelum API memuat
     document.getElementById('categorySelect').value = currentCategory;
@@ -76,7 +99,6 @@ async function apiCall(action, extraParams = "") {
         const response = await fetch(url);
         const text = await response.text();
         
-        // Deteksi paksa jika server memakai format teks mentah (SMSHub/5SIM Style)
         if (text.includes("STATUS_WAIT_CODE")) {
             return { status: "true", data: { status: "Waiting" } };
         }
@@ -312,7 +334,17 @@ window.onOrderButtonClicked = async function() {
             let finalPrice = orderData.price || currentServicePrice;
             
             if (oId && oPhone) {
-                let opNameDisplay = currentOperator === "random" ? "ACAK" : currentOperator;
+                // Deteksi Otomatis Jika Acak
+                let serverOperator = orderData.operator || orderData.operator_name || orderData.operator_id;
+                let opNameDisplay = currentOperator;
+                
+                if (serverOperator && String(serverOperator).toLowerCase() !== "random" && String(serverOperator).toLowerCase() !== "any") {
+                    opNameDisplay = serverOperator;
+                } else if (currentOperator === "random") {
+                    opNameDisplay = guessOperator(oPhone); // Tebak dari Prefix Nomor HP
+                } else {
+                    opNameDisplay = currentOperator;
+                }
                 
                 activeOrders.unshift({ 
                     id: oId, 
@@ -531,11 +563,22 @@ window.replaceSpecificOrder = async function(id) {
             let finalPrice = orderData.price || currentServicePrice;
             
             if (oId && oPhone) {
+                let serverOperator = orderData.operator || orderData.operator_name || orderData.operator_id;
+                let opNameDisplay = oldOrder.operatorName;
+                
+                if (oldOrder.operatorName === "ACAK" || currentOperator === "random") {
+                    if (serverOperator && String(serverOperator).toLowerCase() !== "random" && String(serverOperator).toLowerCase() !== "any") {
+                        opNameDisplay = serverOperator;
+                    } else {
+                        opNameDisplay = guessOperator(oPhone);
+                    }
+                }
+                
                 activeOrders.unshift({ 
                     id: oId, 
                     phone: oPhone, 
                     serviceName: currentServiceName,
-                    operatorName: oldOrder.operatorName,
+                    operatorName: opNameDisplay,
                     price: finalPrice, 
                     otp: null, 
                     status: "Waiting SMS", 
@@ -626,22 +669,18 @@ function startPolling() {
                         const stData = res.data || res;
                         const apiStatus = String(stData.status || "").toLowerCase();
                         
-                        // Cek jika balasan mengandung OTP secara eksplisit
                         const rawSms = stData.sms || stData.otp || stData.code || stData.pesan || "";
                         
-                        // JIKA ADA TEKS SMS ATAU STATUS API BERUBAH JADI SUKSES
                         if (rawSms || apiStatus.includes("recieved") || apiStatus.includes("received") || apiStatus.includes("done") || apiStatus.includes("success") || apiStatus.includes("sukses") || apiStatus === "2" || apiStatus === "4" || apiStatus.includes("ok")) {
                             
                             o.status = "Recieved";
                             let textSms = rawSms || "OTP DITERIMA";
                             
-                            // Ekstrak angka saja jika memungkinkan
                             let extracted = textSms.match(/\b\d{4,8}\b/);
                             o.otp = extracted ? extracted[0] : textSms;
                             
                             needsRender = true;
                             
-                            // Putar suara jika ada fungsi notifSound di browser (aman dari error)
                             try {
                                 if (typeof notifSound !== 'undefined') {
                                     notifSound.play().catch(e=>{});
