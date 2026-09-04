@@ -7,7 +7,7 @@ let orderHistory = JSON.parse(localStorage.getItem('otp_history')) || [];
 let allServices = [];
 let allOperators = [];
 
-let currentCountryId = ""; // Akan diisi otomatis menjadi ID Indonesia
+let currentCountryId = ""; // Akan dikunci ke Indonesia / Wakanda (Indo)
 let currentCategory = localStorage.getItem('otp_category') || "reguler";
 let currentServiceId = localStorage.getItem('otp_service') || "";
 let currentServiceName = localStorage.getItem('otp_service_name') || "";
@@ -92,16 +92,22 @@ async function fetchBalance() {
     }
 }
 
-// ================= MENGUNCI NEGARA KE INDONESIA =================
+// ================= MENGUNCI NEGARA KE INDONESIA / WAKANDA =================
 async function lockCountryToIndonesia() {
     document.getElementById('btnServiceSelectText').innerHTML = `Mencari Server ID... <i class="fas fa-spinner fa-spin"></i>`;
     const res = await apiCall('getCountries');
+    
     if (res.status === "true" || res.status === true) {
-        let indo = res.data.find(c => c.countryName.toLowerCase() === "indonesia");
+        // Cari Indonesia atau Wakanda atau Indo
+        let indo = res.data.find(c => {
+            let name = c.countryName.toLowerCase();
+            return name.includes("indonesia") || name.includes("wakanda") || name.includes("indo");
+        });
+        
         if (indo) {
             currentCountryId = indo.countryID;
         } else {
-            // Fallback: Jika tak ketemu string 'indonesia', ambil index ID pertama
+            // Fallback: Jika tak ketemu, ambil ID pertama yang ada di server
             currentCountryId = res.data.length > 0 ? res.data[0].countryID : "1";
         }
         await fetchServices();
@@ -126,9 +132,9 @@ window.onCategoryChanged = async function() {
 async function fetchServices() {
     document.getElementById('btnServiceSelectText').innerHTML = `Memuat Harga... <i class="fas fa-spinner fa-spin"></i>`;
     
-    // Pilih Endpoint berdasarkan kategori (Reguler vs Promo & Prioritas)
+    // Memaksa menyematkan country_id baik untuk Reguler maupun Spesial (Promo & Prioritas)
     const res = currentCategory === "spesial" 
-        ? await apiCall('getSpecialServices') 
+        ? await apiCall('getSpecialServices', `&country_id=${currentCountryId}`) 
         : await apiCall('getServices', `&country_id=${currentCountryId}`);
         
     if (res.status === "true" || res.status === true) {
@@ -222,6 +228,7 @@ async function fetchOperators() {
     list.innerHTML = '<div class="status-text-mini">Memuat operator...</div>';
     document.getElementById('btnOrder').disabled = true;
 
+    // Pastikan operator diambil dari negara yang terkunci (Indo/Wakanda)
     const res = await apiCall('getOperators', `&country_id=${currentCountryId}`);
     if (res.status === "true" || res.status === true) {
         allOperators = res.data; // Array string: ["random", "telkomsel", ...]
@@ -259,6 +266,7 @@ window.onOrderButtonClicked = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
     
+    // get_order parameter: operator_id, service_id, country_id (Pasti Indo/Wakanda)
     const res = await apiCall('get_order', `&operator_id=${currentOperator}&service_id=${currentServiceId}&country_id=${currentCountryId}`);
     
     if (res.status === "true" || res.status === true) {
