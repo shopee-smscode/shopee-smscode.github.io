@@ -27,47 +27,38 @@
             }
         })();
     </script>
-
-    <style>
-        .app-dropdown-menu { display: none; position: absolute; background-color: var(--bg-card); min-width: 170px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.5); z-index: 999; border-radius: 12px; border: 1px solid var(--border-color); overflow: hidden; top: 44px; left: 0; }
-        .app-dropdown-menu.show { display: block; animation: fadeIn 0.2s ease; }
-        .app-dropdown-item { color: var(--text-primary); padding: 12px 14px; text-decoration: none; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-color); font-size: 13px; font-weight: 700; transition: 0.2s; }
-        .app-dropdown-item:last-child { border-bottom: none; }
-        .app-dropdown-item:hover { background-color: var(--bg-card-hover); color: var(--primary-color); }
-        .app-dropdown-item.active { color: var(--primary-color); background-color: var(--bg-body); }
-        .app-dropdown-item i { width: 16px; text-align: center; }
-    </style>
 </head>
 <body class="theme-otp">
     <div id="appView" class="container">
         
         <div class="top-bar-modern">
-            <div style="display: flex; gap: 8px; align-items: center; position: relative;">
+            <div style="display: flex; gap: 8px; align-items: center;">
                 <!-- TOMBOL MENU DROPDOWN PINDAH APLIKASI -->
-                <div>
+                <div class="dropdown">
                     <button class="dropbtn" onclick="toggleAppDropdown()">
                         <i class="fas fa-rocket"></i> OTP Cepat <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 2px;"></i>
                     </button>
-                    <div id="mainAppDropdown" class="app-dropdown-menu">
-                        <a href="https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html" class="app-dropdown-item" onclick="localStorage.setItem('last_active_app', 'virtualsms.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-globe"></i> SMS Virtual</a>
-                        <a href="https://shopee-smscode.github.io/Hero%20SMS/herosms.html" class="app-dropdown-item" onclick="localStorage.setItem('last_active_app', 'herosms.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-bolt"></i> Hero SMS</a>
-                        <a href="https://shopee-smscode.github.io/SMS%20Code/smscode.html" class="app-dropdown-item" onclick="localStorage.setItem('last_active_app', 'smscode.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-sms"></i> SMS Code</a>
-                        <a href="https://shopee-smscode.github.io/OTP%20Cepat/otpcepat.html" class="app-dropdown-item active" onclick="localStorage.setItem('last_active_app', 'otpcepat.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-rocket"></i> OTP Cepat</a>
+                    <div id="appDropdown" class="dropdown-content">
+                        <a href="https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html" onclick="localStorage.setItem('last_active_app', 'virtualsms.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-globe"></i> SMS Virtual</a>
+                        <a href="https://shopee-smscode.github.io/Hero%20SMS/herosms.html" onclick="localStorage.setItem('last_active_app', 'herosms.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-bolt"></i> Hero SMS</a>
+                        <a href="https://shopee-smscode.github.io/SMS%20Code/smscode.html" onclick="localStorage.setItem('last_active_app', 'smscode.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-sms"></i> SMS Code</a>
+                        <a href="https://shopee-smscode.github.io/OTP%20Cepat/otpcepat.html" class="active" onclick="localStorage.setItem('last_active_app', 'otpcepat.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-rocket"></i> OTP Cepat</a>
                     </div>
                 </div>
 
                 <!-- TOMBOL CATATAN -->
                 <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-sticky-note"></i></button>
-                
-                <!-- TOMBOL API KEY -->
-                <button onclick="openSettingsModal()" class="btn-top-action"><i class="fas fa-key"></i></button>
             </div>
             
-            <div>
-                <!-- TOMBOL RIWAYAT -->
-                <button class="dropbtn-icon" onclick="openHistoryModal()">
-                    <i class="fas fa-history"></i>
+            <div class="dropdown">
+                <!-- TOMBOL MENU HAMBURGER (PENGATURAN) -->
+                <button class="dropbtn-icon" onclick="toggleMenuDropdown()">
+                    <i class="fas fa-bars"></i>
                 </button>
+                <div id="menuDropdown" class="dropdown-content dropdown-right">
+                    <a href="#" onclick="openHistoryModal(); return false;"><i class="fas fa-history"></i> Riwayat</a>
+                    <a href="#" onclick="openSettingsModal(); return false;"><i class="fas fa-cog"></i> Pengaturan</a>
+                </div>
             </div>
         </div>
 
@@ -132,7 +123,7 @@
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
                 <h3 class="modal-title">Pilih Layanan</h3>
-                <button onclick="closeServiceModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+                <button onclick="closeServiceModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: #333;"><i class="fas fa-times"></i></button>
             </div>
             <div style="margin-bottom: 10px;">
                 <input type="text" id="searchServiceInput" class="form-input" placeholder="🔍 Cari layanan... (cth: Shopee)" oninput="filterServices()" style="border-radius: 10px; font-weight: bold;">
@@ -160,8 +151,8 @@
     <div id="settingsModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">⚙️ API Key</h3>
-                <button onclick="closeSettingsModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+                <h3 class="modal-title">⚙️ Pengaturan</h3>
+                <button onclick="closeSettingsModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: #333;"><i class="fas fa-times"></i></button>
             </div>
             
             <div style="text-align: left; margin-bottom: 20px;">
@@ -169,7 +160,7 @@
                 <input type="text" id="settingsApiKey" class="form-input" placeholder="Contoh: 69c532208d65442fadbeb...">
             </div>
             
-            <button onclick="saveSettings()" class="btn-success" style="width: 100%; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 900;"><i class="fas fa-save"></i> SIMPAN KUNCI</button>
+            <button onclick="saveSettings()" class="btn-success" style="width: 100%; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 900;"><i class="fas fa-save"></i> SIMPAN PENGATURAN</button>
         </div>
     </div>
 
@@ -178,7 +169,7 @@
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
                 <h3 class="modal-title">Riwayat Pesanan</h3>
-                <button onclick="closeHistoryModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+                <button onclick="closeHistoryModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: #333;"><i class="fas fa-times"></i></button>
             </div>
             <div id="history-list" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
                 <div class="status-text-mini" style="text-align:center;">Belum ada riwayat lokal.</div>
@@ -192,11 +183,21 @@
     <!-- SCRIPT KONTROL DROPDOWN & MODAL -->
     <script>
         function toggleAppDropdown() {
-            document.getElementById("mainAppDropdown").classList.toggle("show");
+            var menu = document.getElementById("menuDropdown");
+            if (menu && menu.classList.contains('show')) menu.classList.remove('show');
+            document.getElementById("appDropdown").classList.toggle("show");
         }
+        
+        function toggleMenuDropdown() {
+            var app = document.getElementById("appDropdown");
+            if (app && app.classList.contains('show')) app.classList.remove('show');
+            document.getElementById("menuDropdown").classList.toggle("show");
+        }
+
         window.onclick = function(event) {
-            if (!event.target.matches('.dropbtn') && !event.target.closest('.dropbtn')) {
-                var dropdowns = document.getElementsByClassName("app-dropdown-menu");
+            if (!event.target.matches('.dropbtn') && !event.target.closest('.dropbtn') && 
+                !event.target.matches('.dropbtn-icon') && !event.target.closest('.dropbtn-icon')) {
+                var dropdowns = document.getElementsByClassName("dropdown-content");
                 for (var i = 0; i < dropdowns.length; i++) {
                     var openDropdown = dropdowns[i];
                     if (openDropdown.classList.contains('show')) {
