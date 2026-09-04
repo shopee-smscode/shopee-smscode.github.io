@@ -6,39 +6,64 @@
     <title>OTP Cepat ⚡</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="otpcepat.css">
-
-    <script>
-    (function() {
-        var lastApp = localStorage.getItem('last_active_app');
-        var currentHref = window.location.href;
-        if (!lastApp) {
-            if (currentHref.includes('virtualsms.html')) localStorage.setItem('last_active_app', 'virtualsms.html');
-            else if (currentHref.includes('herosms.html')) localStorage.setItem('last_active_app', 'herosms.html');
-            else if (currentHref.includes('smscode.html')) localStorage.setItem('last_active_app', 'smscode.html');
-            else if (currentHref.includes('otpcepat.html')) localStorage.setItem('last_active_app', 'otpcepat.html');
-            return;
-        }
-        if (lastApp && !currentHref.includes(lastApp) && !sessionStorage.getItem('just_switched')) {
-            sessionStorage.setItem('just_switched', 'true');
-            if (lastApp === 'virtualsms.html') window.location.replace("https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html");
-            else if (lastApp === 'herosms.html') window.location.replace("https://shopee-smscode.github.io/Hero%20SMS/herosms.html");
-            else if (lastApp === 'smscode.html') window.location.replace("https://shopee-smscode.github.io/SMS%20Code/smscode.html");
-            else if (lastApp === 'otpcepat.html') window.location.replace("https://shopee-smscode.github.io/OTP%20Cepat/otpcepat.html");
-        }
-    })();
-</script>
     
+    <!-- SCRIPT PELACAK APLIKASI OTOMATIS -->
+    <script>
+        (function() {
+            var lastApp = localStorage.getItem('last_active_app');
+            var currentHref = window.location.href;
+            if (!lastApp) {
+                if (currentHref.includes('virtualsms.html')) localStorage.setItem('last_active_app', 'virtualsms.html');
+                else if (currentHref.includes('herosms.html')) localStorage.setItem('last_active_app', 'herosms.html');
+                else if (currentHref.includes('smscode.html')) localStorage.setItem('last_active_app', 'smscode.html');
+                else if (currentHref.includes('otpcepat.html')) localStorage.setItem('last_active_app', 'otpcepat.html');
+                return;
+            }
+            if (lastApp && !currentHref.includes(lastApp) && !sessionStorage.getItem('just_switched')) {
+                sessionStorage.setItem('just_switched', 'true');
+                if (lastApp === 'virtualsms.html') window.location.replace("https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html");
+                else if (lastApp === 'herosms.html') window.location.replace("https://shopee-smscode.github.io/Hero%20SMS/herosms.html");
+                else if (lastApp === 'smscode.html') window.location.replace("https://shopee-smscode.github.io/SMS%20Code/smscode.html");
+                else if (lastApp === 'otpcepat.html') window.location.replace("https://shopee-smscode.github.io/OTP%20Cepat/otpcepat.html");
+            }
+        })();
+    </script>
+
+    <!-- CSS TAMBAHAN UNTUK DROPDOWN MENU -->
+    <style>
+        .app-dropdown-menu { display: none; position: absolute; background-color: var(--bg-container); min-width: 170px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.5); z-index: 999; border-radius: 12px; border: 1px solid var(--border-color); overflow: hidden; margin-top: 8px; left: 0; }
+        .app-dropdown-menu.show { display: block; }
+        .app-dropdown-item { color: var(--text-primary); padding: 12px 16px; text-decoration: none; display: block; border-bottom: 1px solid var(--border-color); font-size: 13px; font-weight: bold; transition: 0.2s; }
+        .app-dropdown-item:hover { background-color: var(--bg-card); }
+        .app-dropdown-item i { width: 20px; text-align: center; margin-right: 6px; }
+        .app-dropdown-item.active { color: var(--primary-color); background-color: var(--bg-card); border-left: 3px solid var(--primary-color); }
+    </style>
 </head>
 <body class="theme-otp">
     <div id="appView" class="container">
         
         <div class="top-bar-modern">
-            <div style="display: flex; gap: 8px; align-items: center;">
+            <div style="display: flex; gap: 8px; align-items: center; position: relative;">
+                
+                <!-- TOMBOL MENU DROPDOWN PINDAH APLIKASI -->
+                <div>
+                    <button class="dropbtn-icon" onclick="toggleAppDropdown()" style="width: auto; padding: 0 12px; gap: 6px; font-weight: 800; font-size: 13px; color: var(--primary-color);">
+                        <i class="fas fa-rocket"></i> OTP Cepat <i class="fas fa-caret-down"></i>
+                    </button>
+                    <div id="mainAppDropdown" class="app-dropdown-menu">
+                        <a href="https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html" class="app-dropdown-item" onclick="localStorage.setItem('last_active_app', 'virtualsms.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-globe"></i> SMS Virtual</a>
+                        <a href="https://shopee-smscode.github.io/Hero%20SMS/herosms.html" class="app-dropdown-item" onclick="localStorage.setItem('last_active_app', 'herosms.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-bolt"></i> Hero SMS</a>
+                        <a href="https://shopee-smscode.github.io/SMS%20Code/smscode.html" class="app-dropdown-item" onclick="localStorage.setItem('last_active_app', 'smscode.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-sms"></i> SMS Code</a>
+                        <a href="https://shopee-smscode.github.io/OTP%20Cepat/otpcepat.html" class="app-dropdown-item active" onclick="localStorage.setItem('last_active_app', 'otpcepat.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-rocket"></i> OTP Cepat</a>
+                    </div>
+                </div>
+
+                <!-- TOMBOL API KEY -->
                 <button onclick="openSettingsModal()" class="btn-top-action"><i class="fas fa-key"></i></button>
-                <span style="font-size: 12px; font-weight: bold; color: var(--text-secondary);">⚙️ API Key</span>
             </div>
             
             <div>
+                <!-- TOMBOL RIWAYAT -->
                 <button class="dropbtn-icon" onclick="openHistoryModal()">
                     <i class="fas fa-history"></i>
                 </button>
@@ -82,7 +107,7 @@
                     </div>
                 </div>
                 
-                <!-- DROPDOWN KATEGORI -->
+                <!-- DROPDOWN KATEGORI (PROMO & PRIORITAS) -->
                 <div style="flex-shrink: 0;">
                     <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; text-align: center;">Kategori</label>
                     <select id="categorySelect" onchange="onCategoryChanged()" class="form-input" style="height: 36px; padding: 0 5px; font-weight: 900; font-size: 12px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--primary-color); background-color: var(--bg-card); cursor: pointer; width: 125px; margin: 0; outline: none; text-align: center; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -150,6 +175,23 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
+    <!-- SCRIPT UNTUK MENGONTROL DROPDOWN AGAR BISA DITUTUP SAAT DIKLIK DI LUAR -->
+    <script>
+        function toggleAppDropdown() {
+            document.getElementById("mainAppDropdown").classList.toggle("show");
+        }
+        window.onclick = function(event) {
+            if (!event.target.matches('.dropbtn-icon') && !event.target.closest('.dropbtn-icon')) {
+                var dropdowns = document.getElementsByClassName("app-dropdown-menu");
+                for (var i = 0; i < dropdowns.length; i++) {
+                    var openDropdown = dropdowns[i];
+                    if (openDropdown.classList.contains('show')) {
+                        openDropdown.classList.remove('show');
+                    }
+                }
+            }
+        }
+    </script>
     <script src="otpcepat.js"></script>
 </body>
 </html>
