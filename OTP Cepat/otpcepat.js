@@ -1,21 +1,4 @@
-// --- SUNTIKAN CSS TAMBAHAN UNTUK FITUR PESANAN LAMA HERO SMS ---
-const style = document.createElement('style');
-style.innerHTML = `
-    .old-orders-wrapper { margin-top: 10px; }
-    .btn-droplist { width: 100%; background: var(--bg-card); color: var(--text-primary); padding: 12px; border: 1px solid var(--border-color); border-radius: 12px; font-weight: 800; font-size: 13px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; }
-    .btn-droplist.open { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; background: var(--border-color); }
-    .old-orders-content { display: none; background: var(--bg-container); border: 1px solid var(--border-color); border-top: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; padding: 10px; }
-    .old-orders-content.show { display: block; }
-    .btn-cancel-all { width: 100%; background: var(--bg-card); color: var(--danger-color); padding: 10px; border: 1px solid var(--danger-color); border-radius: 8px; font-weight: 800; font-size: 12px; cursor: pointer; margin-bottom: 10px; transition: 0.2s; }
-    .waiting-animation { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 5px; }
-    .dot-pulse { width: 8px; height: 8px; background-color: var(--text-secondary); border-radius: 50%; animation: pulse 1.5s infinite ease-in-out; }
-    .dot-pulse:nth-child(2) { animation-delay: 0.2s; }
-    .dot-pulse:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes pulse { 0%, 100% { transform: scale(0.8); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 1; } }
-`;
-document.head.appendChild(style);
-
-// --- KONFIGURASI LINK WORKER ---
+// --- MENGGUNAKAN CLOUDFLARE WORKER ANDA SECARA PERMANEN ---
 const API_BASE_URL = "https://otp-cepat-proxy.masreno6pro.workers.dev"; 
 
 let apiKey = localStorage.getItem('otp_api_key') || "";
@@ -24,6 +7,7 @@ let orderHistory = JSON.parse(localStorage.getItem('otp_history')) || [];
 let allServices = [];
 let allOperators = [];
 
+// Mengambil memori preferensi terakhir pengguna (Default: Promo)
 let currentCountryId = ""; 
 let currentCategory = localStorage.getItem('otp_category') || "promo";
 let currentServiceId = localStorage.getItem('otp_service') || "";
@@ -44,6 +28,7 @@ function formatPhoneNumber(phone) {
 }
 
 window.onload = () => {
+    // Tampilkan preferensi memori langsung ke layar sebelum API memuat
     document.getElementById('categorySelect').value = currentCategory;
     if (currentServiceName) {
         document.getElementById('btnServiceSelectText').innerHTML = currentServiceName;
@@ -80,7 +65,7 @@ function copyToClipboard(t) {
     }
 }
 
-// ================= API CALLER =================
+// ================= API CALLER (AGRESIF DETEKSI TEKS MENTAH) =================
 async function apiCall(action, extraParams = "") {
     if (!apiKey) return { status: "false", msg: "API Key Kosong" };
     
@@ -90,6 +75,20 @@ async function apiCall(action, extraParams = "") {
     try {
         const response = await fetch(url);
         const text = await response.text();
+        
+        // Deteksi paksa jika server memakai format teks mentah (SMSHub/5SIM Style)
+        if (text.includes("STATUS_WAIT_CODE")) {
+            return { status: "true", data: { status: "Waiting" } };
+        }
+        if (text.includes("STATUS_OK")) {
+            let codeParts = text.split(":");
+            let code = codeParts.length > 1 ? codeParts[1] : "OTP DITERIMA";
+            return { status: "true", data: { status: "Done", otp: code, sms: code } };
+        }
+        if (text.includes("STATUS_CANCEL")) {
+            return { status: "true", data: { status: "Cancel" } };
+        }
+
         try {
             return JSON.parse(text);
         } catch (jsonErr) {
@@ -557,7 +556,6 @@ window.replaceSpecificOrder = async function(id) {
     }
 }
 
-// LOGIKA PEMBATALAN MASSAL PARALEL (CEPAT & ANTI MACET)
 window.cancelAllOldOrders = async function() {
     if (activeOrders.length <= 1) return;
     const oldOrders = activeOrders.slice(1);
@@ -572,21 +570,19 @@ window.cancelAllOldOrders = async function() {
     let cancelledCount = 0;
     let failedCount = 0;
     
-    // Menjalankan pembatalan secara serentak ke server agar cepat selesai
     const cancelPromises = oldOrders.map(async (order) => {
         try {
             const res = await apiCall('set_status', `&order_id=${order.id}&status=2`);
             if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success" || (res.msg && String(res.msg).toLowerCase() === "success")) {
                 saveToHistory(order, "BATAL"); 
-                return order.id; // Sukses
+                return order.id; 
             }
         } catch(e) {}
-        return null; // Gagal
+        return null; 
     });
     
     const results = await Promise.all(cancelPromises);
     
-    // Saring pesanan yang benar-benar berhasil dibatalkan dari antarmuka
     results.forEach(id => {
         if (id) {
             activeOrders = activeOrders.filter(o => String(o.id) !== String(id));
@@ -606,7 +602,7 @@ window.cancelAllOldOrders = async function() {
     renderOrders();
 };
 
-// ================= POLLING STATUS =================
+// ================= POLLING STATUS (ANTI-ERROR & AGRESIF) =================
 function startPolling() {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
@@ -628,26 +624,41 @@ function startPolling() {
                     
                     if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
                         const stData = res.data || res;
-                        const apiStatus = stData.status || "";
-                        const sLower = String(apiStatus).toLowerCase();
+                        const apiStatus = String(stData.status || "").toLowerCase();
                         
-                        if (sLower.includes("recieved") || sLower.includes("received") || sLower.includes("done")) {
-                            notifSound.play().catch(e=>{});
+                        // Cek jika balasan mengandung OTP secara eksplisit
+                        const rawSms = stData.sms || stData.otp || stData.code || stData.pesan || "";
+                        
+                        // JIKA ADA TEKS SMS ATAU STATUS API BERUBAH JADI SUKSES
+                        if (rawSms || apiStatus.includes("recieved") || apiStatus.includes("received") || apiStatus.includes("done") || apiStatus.includes("success") || apiStatus.includes("sukses") || apiStatus === "2" || apiStatus === "4" || apiStatus.includes("ok")) {
+                            
                             o.status = "Recieved";
-                            let textSms = stData.sms || "OTP DITERIMA";
+                            let textSms = rawSms || "OTP DITERIMA";
+                            
+                            // Ekstrak angka saja jika memungkinkan
                             let extracted = textSms.match(/\b\d{4,8}\b/);
                             o.otp = extracted ? extracted[0] : textSms;
+                            
                             needsRender = true;
-                        } else if (sLower.includes("cancel") || sLower.includes("failed")) {
+                            
+                            // Putar suara jika ada fungsi notifSound di browser (aman dari error)
+                            try {
+                                if (typeof notifSound !== 'undefined') {
+                                    notifSound.play().catch(e=>{});
+                                }
+                            } catch (sndErr) {}
+                            
+                        } else if (apiStatus.includes("cancel") || apiStatus.includes("failed") || apiStatus.includes("batal") || apiStatus === "3") {
                             activeOrders.splice(i, 1);
                             needsRender = true;
                         }
                     }
-                } catch (e) {}
+                } catch (e) {
+                    console.error("Polling Error:", e);
+                }
             }
         }
         
-        // PENCEGAH KEDIP
         if (needsRender) {
             saveActiveOrders();
             renderOrders();
