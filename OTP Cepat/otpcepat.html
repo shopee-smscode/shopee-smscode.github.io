@@ -53,9 +53,10 @@
                 
                 <div style="display: flex; gap: 8px; flex-shrink: 0;">
                     <div>
-                        <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; text-align: center;">Negara</label>
-                        <select id="countrySelect" onchange="onCountryChanged()" class="form-input" style="height: 36px; padding: 0 10px; font-weight: 800; font-size: 11px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--primary-color); background-color: var(--bg-card); cursor: pointer; width: 100px; margin: 0; outline: none;">
-                            <option value="">Memuat...</option>
+                        <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; text-align: center;">Kategori</label>
+                        <select id="categorySelect" onchange="onCategoryChanged()" class="form-input" style="height: 36px; padding: 0 10px; font-weight: 800; font-size: 11px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--warning-color); background-color: var(--bg-card); cursor: pointer; width: 140px; margin: 0; outline: none;">
+                            <option value="reguler">Reguler</option>
+                            <option value="spesial">Promo & Prioritas</option>
                         </select>
                     </div>
                 </div>
@@ -78,7 +79,7 @@
                 <button onclick="closeServiceModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: #333;"><i class="fas fa-times"></i></button>
             </div>
             <div style="margin-bottom: 10px;">
-                <input type="text" id="searchServiceInput" class="form-input" placeholder="🔍 Cari layanan..." oninput="filterServices()" style="border-radius: 10px; font-weight: bold;">
+                <input type="text" id="searchServiceInput" class="form-input" placeholder="🔍 Cari layanan... (cth: Shopee)" oninput="filterServices()" style="border-radius: 10px; font-weight: bold;">
             </div>
             <div id="serviceListContainer" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column;">
                 <div class="status-text-mini">Memuat layanan...</div>

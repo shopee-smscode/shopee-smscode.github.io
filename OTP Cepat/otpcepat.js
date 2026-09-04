@@ -4,11 +4,11 @@ const API_BASE_URL = "https://otpcepat.org/api/handler_api.php";
 let apiKey = localStorage.getItem('otp_api_key') || "";
 let activeOrders = JSON.parse(localStorage.getItem('otp_active_orders')) || [];
 let orderHistory = JSON.parse(localStorage.getItem('otp_history')) || [];
-let allCountries = [];
 let allServices = [];
 let allOperators = [];
 
-let currentCountryId = localStorage.getItem('otp_country') || "";
+let currentCountryId = ""; // Akan diisi otomatis menjadi ID Indonesia
+let currentCategory = localStorage.getItem('otp_category') || "reguler";
 let currentServiceId = localStorage.getItem('otp_service') || "";
 let currentServiceName = localStorage.getItem('otp_service_name') || "";
 let currentServicePrice = localStorage.getItem('otp_service_price') || "";
@@ -75,8 +75,9 @@ async function saveSettings() {
 }
 
 async function initApp() {
+    document.getElementById('categorySelect').value = currentCategory;
     await fetchBalance();
-    await fetchCountries();
+    await lockCountryToIndonesia();
 }
 
 async function fetchBalance() {
@@ -91,54 +92,66 @@ async function fetchBalance() {
     }
 }
 
-// ================= LAYANAN & NEGARA =================
-async function fetchCountries() {
+// ================= MENGUNCI NEGARA KE INDONESIA =================
+async function lockCountryToIndonesia() {
+    document.getElementById('btnServiceSelectText').innerHTML = `Mencari Server ID... <i class="fas fa-spinner fa-spin"></i>`;
     const res = await apiCall('getCountries');
     if (res.status === "true" || res.status === true) {
-        allCountries = res.data;
-        const cSelect = document.getElementById('countrySelect');
-        cSelect.innerHTML = '';
-        
-        let hasIndonesia = false;
-        allCountries.forEach(c => {
-            let opt = document.createElement('option');
-            opt.value = c.countryID;
-            opt.text = c.countryName;
-            cSelect.appendChild(opt);
-            if (c.countryName.toLowerCase() === "indonesia") hasIndonesia = true;
-        });
-
-        // Set Default ke Indonesia jika belum ada pilihan
-        if (!currentCountryId) {
-            let indo = allCountries.find(c => c.countryName.toLowerCase() === "indonesia");
-            currentCountryId = indo ? indo.countryID : allCountries[0].countryID;
+        let indo = res.data.find(c => c.countryName.toLowerCase() === "indonesia");
+        if (indo) {
+            currentCountryId = indo.countryID;
+        } else {
+            // Fallback: Jika tak ketemu string 'indonesia', ambil index ID pertama
+            currentCountryId = res.data.length > 0 ? res.data[0].countryID : "1";
         }
-        cSelect.value = currentCountryId;
-        localStorage.setItem('otp_country', currentCountryId);
-        
         await fetchServices();
+    } else {
+        document.getElementById('btnServiceSelectText').innerText = "Gagal Kunci Negara";
     }
 }
 
-window.onCountryChanged = async function() {
-    currentCountryId = document.getElementById('countrySelect').value;
-    localStorage.setItem('otp_country', currentCountryId);
+// ================= KATEGORI & LAYANAN =================
+window.onCategoryChanged = async function() {
+    currentCategory = document.getElementById('categorySelect').value;
+    localStorage.setItem('otp_category', currentCategory);
     
-    document.getElementById('btnServiceSelectText').innerText = "Memuat Ulang...";
+    document.getElementById('btnServiceSelectText').innerText = "Beralih Kategori...";
+    
+    // Hapus sesi layanan agar sistem memancing Shopee di kategori baru
     currentServiceId = ""; currentServiceName = ""; currentServicePrice = "";
     
     await fetchServices();
 }
 
 async function fetchServices() {
-    const res = await apiCall('getServices', `&country_id=${currentCountryId}`);
+    document.getElementById('btnServiceSelectText').innerHTML = `Memuat Harga... <i class="fas fa-spinner fa-spin"></i>`;
+    
+    // Pilih Endpoint berdasarkan kategori (Reguler vs Promo & Prioritas)
+    const res = currentCategory === "spesial" 
+        ? await apiCall('getSpecialServices') 
+        : await apiCall('getServices', `&country_id=${currentCountryId}`);
+        
     if (res.status === "true" || res.status === true) {
+        // Urutkan sesuai Abjad
         allServices = res.data.sort((a, b) => a.serviceName.localeCompare(b.serviceName));
         
-        if (!currentServiceId || !allServices.find(s => s.serviceID === currentServiceId)) {
-            currentServiceId = allServices[0].serviceID;
-            currentServiceName = allServices[0].serviceName;
-            currentServicePrice = allServices[0].price;
+        // 1. Jika pengguna sudah punya memori layanan sebelumnya (dan layanannya ada di kategori ini)
+        let targetSvc = allServices.find(s => s.serviceID === currentServiceId);
+        
+        // 2. Jika gagal, JADIKAN SHOPEE SEBAGAI DEFAULT
+        if (!targetSvc) {
+            targetSvc = allServices.find(s => s.serviceName.toLowerCase().includes("shopee"));
+        }
+        
+        // 3. Fallback terakhir jika Shopee tidak ada di server ini
+        if (!targetSvc && allServices.length > 0) {
+            targetSvc = allServices[0];
+        }
+        
+        if (targetSvc) {
+            currentServiceId = targetSvc.serviceID;
+            currentServiceName = targetSvc.serviceName;
+            currentServicePrice = targetSvc.price;
         }
         
         updateServiceButtonUI();
@@ -150,7 +163,8 @@ async function fetchServices() {
 
 function updateServiceButtonUI() {
     let btnText = document.getElementById('btnServiceSelectText');
-    btnText.innerHTML = `${currentServiceName} <span style="color: var(--text-primary); font-size: 11px;">(Rp ${currentServicePrice})</span>`;
+    let displayPrice = rpFormatter.format(currentServicePrice);
+    btnText.innerHTML = `${currentServiceName} <span style="color: var(--text-primary); font-size: 11px;">(${displayPrice})</span>`;
     localStorage.setItem('otp_service', currentServiceId);
     localStorage.setItem('otp_service_name', currentServiceName);
     localStorage.setItem('otp_service_price', currentServicePrice);
@@ -175,9 +189,11 @@ window.filterServices = function() {
     filtered.forEach(svc => {
         const isActive = (svc.serviceID === currentServiceId);
         const btn = document.createElement('div');
-        btn.style = `width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 13px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; margin-bottom: 6px;`;
+        let formattedPrice = rpFormatter.format(svc.price);
         
-        btn.innerHTML = `<div style="flex:1;">${svc.serviceName}</div><div style="font-size:11px; color: ${isActive ? 'var(--primary-color)' : 'var(--success-color)'};">Rp ${svc.price}</div>`;
+        btn.style = `width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 13px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);`;
+        
+        btn.innerHTML = `<div style="flex:1;">${svc.serviceName}</div><div style="font-size:11px; color: ${isActive ? 'var(--primary-color)' : 'var(--success-color)'}; font-weight: 900;">${formattedPrice}</div>`;
         btn.onclick = () => {
             currentServiceId = svc.serviceID;
             currentServiceName = svc.serviceName;
@@ -208,7 +224,7 @@ async function fetchOperators() {
 
     const res = await apiCall('getOperators', `&country_id=${currentCountryId}`);
     if (res.status === "true" || res.status === true) {
-        allOperators = res.data; // Array of strings: ["random", "telkomsel", ...]
+        allOperators = res.data; // Array string: ["random", "telkomsel", ...]
         list.innerHTML = '';
         
         if (!allOperators.includes(currentOperator)) currentOperator = allOperators[0] || "random";
@@ -243,17 +259,19 @@ window.onOrderButtonClicked = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
     
-    // get_order parameter: operator_id, service_id, country_id
     const res = await apiCall('get_order', `&operator_id=${currentOperator}&service_id=${currentServiceId}&country_id=${currentCountryId}`);
     
     if (res.status === "true" || res.status === true) {
         const orderData = res.data;
+        let finalPrice = orderData.price || currentServicePrice;
+        let opNameDisplay = currentOperator === "random" ? "ACAK" : currentOperator;
+        
         activeOrders.unshift({ 
             id: orderData.order_id, 
             phone: orderData.number, 
             serviceName: currentServiceName,
-            operatorName: currentOperator,
-            price: orderData.price, 
+            operatorName: opNameDisplay,
+            price: finalPrice, 
             otp: null, 
             status: "Waiting SMS", 
             expiresAt: Date.now() + (20 * 60 * 1000)
@@ -286,10 +304,7 @@ function renderOrders() {
     activeOrders.forEach(order => {
         const now = Date.now();
         const left = order.expiresAt - now;
-        if (left <= 0 && order.status !== "Recieved") {
-            // Waktu habis, abaikan atau batal otomatis di frontend
-            return;
-        }
+        if (left <= 0 && order.status !== "Recieved") return;
 
         const isSuccess = (order.status === "Recieved" || order.otp);
         const card = document.createElement("div"); 
@@ -312,7 +327,7 @@ function renderOrders() {
                     <img src="${logoUrl}" style="width: 24px; height: 24px; border-radius: 4px; background:#fff; padding:2px;">
                     <div>
                         <div class="order-id-label">#${order.id} (${order.serviceName})</div>
-                        <div class="order-price">Rp ${order.price}</div>
+                        <div class="order-price">${rpFormatter.format(order.price)}</div>
                     </div>
                 </div>
                 <span class="timer" style="color: ${timerColor};">${isSuccess ? 'SELESAI' : timeStr}</span>
@@ -340,7 +355,6 @@ function startPolling() {
         for (let i = 0; i < activeOrders.length; i++) {
             let o = activeOrders[i];
             
-            // Hapus jika waktu habis
             if (Date.now() > o.expiresAt && o.status !== "Recieved") {
                 activeOrders.splice(i, 1);
                 saveActiveOrders();
@@ -348,14 +362,12 @@ function startPolling() {
                 continue;
             }
 
-            // Polling hanya jika belum sukses
             if (o.status !== "Recieved") {
                 const res = await apiCall('get_status', `&order_id=${o.id}`);
                 if (res.status === "true" || res.status === true) {
                     if (res.data.status === "Recieved" && res.data.sms) {
                         notifSound.play().catch(e=>{});
                         o.status = "Recieved";
-                        // Ekstrak angka dari text_sms jika memungkinkan, atau tampilkan utuh
                         let textSms = res.data.sms;
                         let extracted = textSms.match(/\b\d{4,8}\b/);
                         o.otp = extracted ? extracted[0] : textSms;
@@ -373,14 +385,12 @@ function startPolling() {
             renderOrders();
             fetchBalance();
         } else if (activeOrders.length > 0) {
-            // Update timer display saja
             renderOrders();
         }
-    }, 4000); // Polling setiap 4 detik
+    }, 4000); 
 }
 
 // ================= SET STATUS API (BATAL/SELESAI) =================
-// 2 (Cancel), 3 (Resend SMS), 4 (Finish)
 window.setOrderStatus = async function(orderId, statusCode) {
     const btnId = statusCode === 2 ? `btn-cancel-${orderId}` : `btn-finish-${orderId}`;
     const btn = document.getElementById(btnId);
@@ -389,14 +399,12 @@ window.setOrderStatus = async function(orderId, statusCode) {
     const res = await apiCall('set_status', `&order_id=${orderId}&status=${statusCode}`);
     
     if (res.status === "true" || res.status === true || (res.msg && res.msg.toLowerCase() === "success")) {
-        // Cari order
         let oIdx = activeOrders.findIndex(x => x.id === orderId);
         if (oIdx !== -1) {
             let orderToSave = activeOrders[oIdx];
             if (statusCode === 2) saveToHistory(orderToSave, "BATAL");
             if (statusCode === 4) saveToHistory(orderToSave, "SELESAI");
             
-            // Hapus dari list aktif
             activeOrders.splice(oIdx, 1);
             saveActiveOrders();
             
@@ -408,7 +416,7 @@ window.setOrderStatus = async function(orderId, statusCode) {
         }
     } else {
         showToast(res.msg, "error");
-        renderOrders(); // kembalikan tombol
+        renderOrders(); 
     }
 }
 
