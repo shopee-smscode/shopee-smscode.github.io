@@ -9,24 +9,26 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="virtualsms.css?v=20"> 
     
-    <script>
-        (function() {
-            var lastApp = localStorage.getItem('last_active_app');
-            var currentHref = window.location.href;
-            if (!lastApp) {
-                if (currentHref.includes('virtualsms.html')) localStorage.setItem('last_active_app', 'virtualsms.html');
-                else if (currentHref.includes('herosms.html')) localStorage.setItem('last_active_app', 'herosms.html');
-                else if (currentHref.includes('smscode.html')) localStorage.setItem('last_active_app', 'smscode.html');
-                return;
-            }
-            if (lastApp && !currentHref.includes(lastApp) && !sessionStorage.getItem('just_switched')) {
-                sessionStorage.setItem('just_switched', 'true');
-                if (lastApp === 'virtualsms.html') window.location.replace("https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html");
-                else if (lastApp === 'herosms.html') window.location.replace("https://shopee-smscode.github.io/Hero%20SMS/herosms.html");
-                else if (lastApp === 'smscode.html') window.location.replace("https://shopee-smscode.github.io/SMS%20Code/smscode.html");
-            }
-        })();
-    </script>
+   <script>
+    (function() {
+        var lastApp = localStorage.getItem('last_active_app');
+        var currentHref = window.location.href;
+        if (!lastApp) {
+            if (currentHref.includes('virtualsms.html')) localStorage.setItem('last_active_app', 'virtualsms.html');
+            else if (currentHref.includes('herosms.html')) localStorage.setItem('last_active_app', 'herosms.html');
+            else if (currentHref.includes('smscode.html')) localStorage.setItem('last_active_app', 'smscode.html');
+            else if (currentHref.includes('otpcepat.html')) localStorage.setItem('last_active_app', 'otpcepat.html');
+            return;
+        }
+        if (lastApp && !currentHref.includes(lastApp) && !sessionStorage.getItem('just_switched')) {
+            sessionStorage.setItem('just_switched', 'true');
+            if (lastApp === 'virtualsms.html') window.location.replace("https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html");
+            else if (lastApp === 'herosms.html') window.location.replace("https://shopee-smscode.github.io/Hero%20SMS/herosms.html");
+            else if (lastApp === 'smscode.html') window.location.replace("https://shopee-smscode.github.io/SMS%20Code/smscode.html");
+            else if (lastApp === 'otpcepat.html') window.location.replace("https://shopee-smscode.github.io/OTP%20Cepat/otpcepat.html");
+        }
+    })();
+</script>
 </head>
 <body class="theme-virtual">
     <div id="appView" class="container">
