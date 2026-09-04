@@ -7,7 +7,7 @@ let orderHistory = JSON.parse(localStorage.getItem('otp_history')) || [];
 let allServices = [];
 let allOperators = [];
 
-let currentCountryId = ""; // Akan dikunci ke Indonesia / Wakanda (Indo)
+let currentCountryId = ""; 
 let currentCategory = localStorage.getItem('otp_category') || "reguler";
 let currentServiceId = localStorage.getItem('otp_service') || "";
 let currentServiceName = localStorage.getItem('otp_service_name') || "";
@@ -92,13 +92,12 @@ async function fetchBalance() {
     }
 }
 
-// ================= MENGUNCI NEGARA KE INDONESIA / WAKANDA =================
+// ================= MENGUNCI NEGARA KE INDONESIA =================
 async function lockCountryToIndonesia() {
-    document.getElementById('btnServiceSelectText').innerHTML = `Mencari Server ID... <i class="fas fa-spinner fa-spin"></i>`;
+    document.getElementById('btnServiceSelectText').innerHTML = `Mencari Server...`;
     const res = await apiCall('getCountries');
     
     if (res.status === "true" || res.status === true) {
-        // Cari Indonesia atau Wakanda atau Indo
         let indo = res.data.find(c => {
             let name = c.countryName.toLowerCase();
             return name.includes("indonesia") || name.includes("wakanda") || name.includes("indo");
@@ -107,7 +106,6 @@ async function lockCountryToIndonesia() {
         if (indo) {
             currentCountryId = indo.countryID;
         } else {
-            // Fallback: Jika tak ketemu, ambil ID pertama yang ada di server
             currentCountryId = res.data.length > 0 ? res.data[0].countryID : "1";
         }
         await fetchServices();
@@ -122,34 +120,28 @@ window.onCategoryChanged = async function() {
     localStorage.setItem('otp_category', currentCategory);
     
     document.getElementById('btnServiceSelectText').innerText = "Beralih Kategori...";
+    document.getElementById('priceDisplayBox').innerText = "...";
     
-    // Hapus sesi layanan agar sistem memancing Shopee di kategori baru
     currentServiceId = ""; currentServiceName = ""; currentServicePrice = "";
     
     await fetchServices();
 }
 
 async function fetchServices() {
-    document.getElementById('btnServiceSelectText').innerHTML = `Memuat Harga... <i class="fas fa-spinner fa-spin"></i>`;
+    document.getElementById('btnServiceSelectText').innerHTML = `Memuat Harga...`;
     
-    // Memaksa menyematkan country_id baik untuk Reguler maupun Spesial (Promo & Prioritas)
     const res = currentCategory === "spesial" 
         ? await apiCall('getSpecialServices', `&country_id=${currentCountryId}`) 
         : await apiCall('getServices', `&country_id=${currentCountryId}`);
         
     if (res.status === "true" || res.status === true) {
-        // Urutkan sesuai Abjad
         allServices = res.data.sort((a, b) => a.serviceName.localeCompare(b.serviceName));
         
-        // 1. Jika pengguna sudah punya memori layanan sebelumnya (dan layanannya ada di kategori ini)
         let targetSvc = allServices.find(s => s.serviceID === currentServiceId);
         
-        // 2. Jika gagal, JADIKAN SHOPEE SEBAGAI DEFAULT
         if (!targetSvc) {
             targetSvc = allServices.find(s => s.serviceName.toLowerCase().includes("shopee"));
         }
-        
-        // 3. Fallback terakhir jika Shopee tidak ada di server ini
         if (!targetSvc && allServices.length > 0) {
             targetSvc = allServices[0];
         }
@@ -164,13 +156,20 @@ async function fetchServices() {
         await fetchOperators();
     } else {
         document.getElementById('btnServiceSelectText').innerText = "Gagal Memuat Layanan";
+        document.getElementById('priceDisplayBox').innerText = "Error";
     }
 }
 
+// MEMISAHKAN HARGA KE BOX TERSENDIRI
 function updateServiceButtonUI() {
     let btnText = document.getElementById('btnServiceSelectText');
-    let displayPrice = rpFormatter.format(currentServicePrice);
-    btnText.innerHTML = `${currentServiceName} <span style="color: var(--text-primary); font-size: 11px;">(${displayPrice})</span>`;
+    let priceBox = document.getElementById('priceDisplayBox');
+    
+    let displayPrice = rpFormatter.format(currentServicePrice || 0);
+    
+    btnText.innerHTML = currentServiceName;
+    if (priceBox) priceBox.innerText = displayPrice;
+    
     localStorage.setItem('otp_service', currentServiceId);
     localStorage.setItem('otp_service_name', currentServiceName);
     localStorage.setItem('otp_service_price', currentServicePrice);
@@ -228,10 +227,9 @@ async function fetchOperators() {
     list.innerHTML = '<div class="status-text-mini">Memuat operator...</div>';
     document.getElementById('btnOrder').disabled = true;
 
-    // Pastikan operator diambil dari negara yang terkunci (Indo/Wakanda)
     const res = await apiCall('getOperators', `&country_id=${currentCountryId}`);
     if (res.status === "true" || res.status === true) {
-        allOperators = res.data; // Array string: ["random", "telkomsel", ...]
+        allOperators = res.data; 
         list.innerHTML = '';
         
         if (!allOperators.includes(currentOperator)) currentOperator = allOperators[0] || "random";
@@ -266,7 +264,6 @@ window.onOrderButtonClicked = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
     
-    // get_order parameter: operator_id, service_id, country_id (Pasti Indo/Wakanda)
     const res = await apiCall('get_order', `&operator_id=${currentOperator}&service_id=${currentServiceId}&country_id=${currentCountryId}`);
     
     if (res.status === "true" || res.status === true) {

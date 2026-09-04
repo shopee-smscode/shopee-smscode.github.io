@@ -43,22 +43,30 @@
         <div style="margin-top: 24px;">
             <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-bottom: 12px;">
                 
+                <!-- TOMBOL PILIH LAYANAN -->
                 <div style="flex: 1; text-align: left; min-width: 0;">
-                    <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; padding-left: 4px;">Pilih Layanan</label>
+                    <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; padding-left: 4px;">Layanan</label>
                     <button onclick="openServiceModal()" class="form-input" style="text-align: left; font-weight: 800; font-size: 13px; padding: 10px 12px; border-radius: 10px; background-color: var(--bg-card); cursor: pointer; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); color: var(--primary-color); height: 36px; margin: 0;">
                         <span id="btnServiceSelectText" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Memuat...</span>
                         <i class="fas fa-search" style="font-size: 11px; flex-shrink: 0; margin-left: 5px;"></i>
                     </button>
                 </div>
-                
-                <div style="display: flex; gap: 8px; flex-shrink: 0;">
-                    <div>
-                        <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; text-align: center;">Kategori</label>
-                        <select id="categorySelect" onchange="onCategoryChanged()" class="form-input" style="height: 36px; padding: 0 10px; font-weight: 800; font-size: 11px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--warning-color); background-color: var(--bg-card); cursor: pointer; width: 140px; margin: 0; outline: none;">
-                            <option value="reguler">Reguler</option>
-                            <option value="spesial">Promo & Prioritas</option>
-                        </select>
+
+                <!-- BOX HARGA KHUSUS -->
+                <div style="flex-shrink: 0; text-align: left;">
+                    <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; padding-left: 4px; text-align: center;">Harga</label>
+                    <div id="priceDisplayBox" style="display: flex; align-items: center; justify-content: center; height: 36px; padding: 0 10px; font-weight: 900; font-size: 13px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--success-color); background-color: var(--bg-card); margin: 0; white-space: nowrap;">
+                        ...
                     </div>
+                </div>
+                
+                <!-- DROPDOWN KATEGORI -->
+                <div style="flex-shrink: 0;">
+                    <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block; text-align: center;">Kategori</label>
+                    <select id="categorySelect" onchange="onCategoryChanged()" class="form-input" style="height: 36px; padding: 0 10px; font-weight: 800; font-size: 11px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--warning-color); background-color: var(--bg-card); cursor: pointer; width: 125px; margin: 0; outline: none;">
+                        <option value="reguler">Reguler</option>
+                        <option value="spesial">Promo & Prioritas</option>
+                    </select>
                 </div>
             </div>
             
