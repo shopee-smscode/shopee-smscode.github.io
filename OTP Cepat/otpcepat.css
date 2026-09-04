@@ -1,10 +1,10 @@
-/* --- SISTEM TEMA OTP CEPAT (BLACK & YELLOW) --- */
+/* --- SISTEM TEMA OTP CEPAT (KEMBARAN HERO SMS GEOMETRI) --- */
 :root {
     --success-color: #FFD700;   
     --danger-color: #ef4444;
     --warning-color: #f59e0b;
     --info-color: #3b82f6;
-    --base-font-size: clamp(14px, 4vw, 18px); 
+    --base-font-size: clamp(14px, 4vw, 15px); 
     --safe-gap: 12px; 
 }
 
@@ -30,14 +30,16 @@ body.theme-otp {
 
 * { box-sizing: border-box; }
 body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-body); padding: 8px; margin: 0; color: var(--text-primary); font-size: var(--base-font-size); line-height: 1.5; }
-.container { width: 100%; max-width: 600px; margin: 0 auto; background: var(--bg-container); padding: 12px; border-radius: 16px; box-shadow: 0 8px 32px var(--shadow-color); border: 1px solid var(--border-color); }
+.container { width: 100%; max-width: 600px; margin: 0 auto; background: var(--bg-container); padding: 16px; border-radius: 20px; box-shadow: 0 8px 32px var(--shadow-color); border: 1px solid var(--border-color); }
 
-.top-bar-modern { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 4px; }
+/* TOP BAR & DROPDOWN */
+.top-bar-modern { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 .dropbtn-icon, .btn-top-action { background-color: var(--bg-card); color: var(--primary-color); width: 36px; height: 36px; border: 1px solid var(--border-color); border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); transition: 0.2s; text-decoration: none;}
 .dropbtn-icon:active, .btn-top-action:active { transform: scale(0.95); border-color: var(--primary-color); }
 
-.app-header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; padding-bottom: 4px; border-bottom: 2px solid var(--border-color); gap: 8px; }
-.header-titles h1 { font-size: clamp(20px, 5vw, 24px); font-weight: 900; color: var(--primary-color); margin: 0 0 2px 0; letter-spacing: -0.5px; white-space: nowrap; text-shadow: 0 0 10px var(--shadow-color); }
+/* HEADER & SALDO */
+.app-header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 2px solid var(--border-color); gap: 8px; }
+.header-titles h1 { font-size: clamp(20px, 5vw, 24px); font-weight: 900; color: var(--primary-color); margin: 0 0 4px 0; letter-spacing: -0.5px; white-space: nowrap; text-shadow: 0 0 10px var(--shadow-color); }
 .header-titles .subtitle { font-size: 12px; color: var(--text-secondary); margin: 0; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 
 .balance-container { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
@@ -45,25 +47,26 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .balance-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; }
 .balance-value { font-size: 16px; font-weight: 900; color: var(--primary-color); }
 
-#activeOrdersContainer { margin-bottom: 2px; min-height: 10px; }
+#activeOrdersContainer { margin-bottom: 12px; min-height: 10px; }
 .status-text-mini { font-size: 12px; padding: 4px; font-weight: 600; color: var(--text-secondary); text-align: center;}
 
-.order-card { background: var(--bg-body); border: 2px solid var(--primary-color); border-radius: 14px; padding: 10px; margin-bottom: 8px; box-shadow: inset 0 0 15px rgba(0,0,0,0.4); transition: all 0.3s ease-in-out; animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+/* ORDER CARD SAMA PERSIS HERO SMS */
+.order-card { background: var(--bg-body); border: 2px solid var(--primary-color); border-radius: 14px; padding: 12px; margin-bottom: 12px; box-shadow: inset 0 0 15px rgba(0,0,0,0.4); transition: all 0.3s ease-in-out; animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
 .order-card.removing { opacity: 0 !important; transform: scale(0.85) translateY(-20px) !important; margin-bottom: -50px; }
 @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
-.order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .order-id-label { color: var(--text-secondary); font-size: 11px; font-weight: 700; background: var(--bg-card); padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border-color); }
-.order-price { color: var(--primary-color); font-weight: 800; font-size: 13px; }
+.order-price { color: var(--primary-color); font-weight: 800; font-size: 13px; margin-top: 2px;}
 .timer { color: var(--danger-color); font-weight: 900; font-size: 15px; background: var(--bg-card); padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border-color); }
 
-.phone-row { display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 8px 10px !important; border-radius: 10px; margin-bottom: 8px !important; border: 1px solid var(--border-color); }
+.phone-row { display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 10px 12px !important; border-radius: 12px; margin-bottom: 10px !important; border: 1px solid var(--border-color); }
 .phone-number { font-size: clamp(18px, 5vw, 22px) !important; font-weight: 900; color: var(--text-primary); letter-spacing: 1px; }
 
-.btn-copy { height: 34px !important; width: 44px !important; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center; font-size: 14px !important; font-weight: 800; background: var(--primary-color); color: #000; border: none; border-radius: 8px !important; cursor: pointer; transition: 0.2s; }
+.btn-copy { height: 36px !important; width: 44px !important; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center; font-size: 14px !important; font-weight: 800; background: var(--primary-color); color: #000; border: none; border-radius: 10px !important; cursor: pointer; transition: 0.2s; }
 .btn-copy:active { transform: scale(0.95); }
 
-.otp-display { background: var(--otp-bg); padding: 12px 10px !important; border-radius: 10px !important; border: 2px solid var(--otp-border); margin: 8px 0 !important; text-align: center; position: relative; overflow: hidden; }
+.otp-display { background: var(--otp-bg); padding: 14px 10px !important; border-radius: 12px !important; border: 2px solid var(--otp-border); margin: 10px 0 !important; text-align: center; position: relative; overflow: hidden; }
 .otp-title { font-size: 11px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px; margin-bottom: 4px; }
 .otp-code { font-size: clamp(24px, 7vw, 36px) !important; font-weight: 900; color: var(--otp-text); text-shadow: 0 0 10px var(--shadow-color); }
 
@@ -71,30 +74,37 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .success-glow .otp-title { color: #000000 !important; font-weight: 900; opacity: 0.6; }
 .success-glow .otp-code { color: #000000 !important; text-shadow: none !important; }
 
-.action-buttons-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-.btn-replace, .btn-resend, .btn-danger, .btn-success { height: 42px !important; font-size: 13px !important; font-weight: 800; border-radius: 10px !important; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 6px; border: none; cursor: pointer; transition: 0.2s; }
+/* TOMBOL AKSI KARTU PESANAN (GANTI, ULANG, BATAL, SELESAI) */
+.action-buttons-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-top: 10px; }
+.btn-replace, .btn-resend, .btn-danger, .btn-success { height: 40px !important; font-size: 12px !important; font-weight: 800; border-radius: 10px !important; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; justify-content: center; gap: 4px; border: none; cursor: pointer; transition: 0.2s; padding: 0;}
 .btn-replace:active:not(:disabled), .btn-resend:active:not(:disabled), .btn-danger:active:not(:disabled), .btn-success:active:not(:disabled) { transform: scale(0.96); }
 .btn-replace:disabled, .btn-resend:disabled, .btn-danger:disabled, .btn-success:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(1); }
-.btn-resend { background-color: var(--info-color); color: #fff; }
+.btn-replace { background-color: var(--info-color); color: #fff; }
+.btn-resend { background-color: var(--warning-color); color: #000; }
 .btn-danger { background-color: var(--danger-color); color: #fff; }
 .btn-success { background-color: var(--success-color); color: #000; }
-.btn-primary { width: 100%; background: var(--primary-color); color: #000; height: 48px !important; font-size: 15px !important; margin-top: 2px; border-radius: 12px !important; font-weight: 900; text-transform: uppercase; border: none; cursor: pointer; transition: 0.2s;}
+
+/* TOMBOL PESAN NOMOR BARU */
+.btn-primary { width: 100%; background: var(--primary-color); color: #000; height: 48px !important; font-size: 15px !important; margin-top: 12px; border-radius: 12px !important; font-weight: 900; text-transform: uppercase; border: none; cursor: pointer; transition: 0.2s;}
 .btn-primary:active:not(:disabled) { transform: scale(0.98); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.product-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; max-height: 220px; overflow-y: auto; padding: 4px 0; }
-.product-card { padding: 8px 4px; border-width: 2px; border-style: solid; border-color: var(--border-color); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background-color: var(--bg-card); cursor: pointer; transition: all 0.2s; text-align: center; }
+/* DAFTAR OPERATOR */
+.product-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; max-height: 240px; overflow-y: auto; padding: 4px 0; }
+.product-card { padding: 10px 6px; border-width: 2px; border-style: solid; border-color: var(--border-color); border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background-color: var(--bg-card); cursor: pointer; transition: all 0.2s; text-align: center; }
 .product-card:hover { border-color: var(--primary-color); }
 .product-card.selected { border-color: var(--primary-color); background-color: var(--otp-bg); box-shadow: 0 4px 12px var(--shadow-color); }
-.op-logo-container { width: 28px; height: 28px; border-radius: 6px; background: #ffffff; display: flex; align-items: center; justify-content: center; padding: 2px; border: 1px solid var(--border-color); }
+.op-logo-container { width: 32px; height: 32px; border-radius: 8px; background: #ffffff; display: flex; align-items: center; justify-content: center; padding: 2px; border: 1px solid var(--border-color); }
 .op-logo { width: 100%; height: 100%; object-fit: contain; }
 .product-info h4 { font-size: 11px; font-weight: 800; margin: 0; color: var(--text-primary); text-transform: uppercase;}
 
+/* INPUT FORM UMUM */
 .form-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 10px; font-size: 13px; box-sizing: border-box; font-family: inherit; background: var(--bg-card); color: var(--text-primary); transition: 0.2s;}
 .form-input:focus { outline: none; border-color: var(--primary-color); }
 
+/* MODAL / POPUP */
 .modal { position: fixed; inset: 0; background: var(--modal-overlay); z-index: 99999; display: flex; justify-content: center; align-items: center; opacity: 1; transition: opacity 0.2s; backdrop-filter: blur(5px); }
-.modal-content { background: var(--bg-container); padding: 20px 15px; border-radius: 16px; width: 92%; max-width: 340px; border: 1px solid var(--border-color); display: flex; flex-direction: column; }
+.modal-content { background: var(--bg-container); padding: 20px 16px; border-radius: 20px; width: 92%; max-width: 400px; border: 1px solid var(--border-color); display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
 .modal-title { margin: 0; color: var(--primary-color); font-size: 16px; font-weight: 900; text-transform: uppercase; }
 
@@ -102,5 +112,5 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-b
 .loader { border: 3px solid var(--border-color); border-top: 3px solid var(--primary-color); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; margin: 0 auto; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-.toast { visibility: hidden; min-width: 250px; background-color: var(--primary-color); color: #000; text-align: center; border-radius: 30px; padding: 10px 16px; position: fixed; z-index: 99999; left: 50%; transform: translateX(-50%); bottom: 20px; font-size: 14px; font-weight: 800; opacity: 0; transition: opacity 0.3s, bottom 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+.toast { visibility: hidden; min-width: 250px; background-color: var(--primary-color); color: #000; text-align: center; border-radius: 30px; padding: 12px 20px; position: fixed; z-index: 99999; left: 50%; transform: translateX(-50%); bottom: 20px; font-size: 14px; font-weight: 800; opacity: 0; transition: opacity 0.3s, bottom 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
 .toast.show { visibility: visible; opacity: 1; bottom: 40px; }
