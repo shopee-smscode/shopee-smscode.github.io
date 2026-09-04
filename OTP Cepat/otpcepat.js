@@ -1,7 +1,4 @@
-// --- KONFIGURASI API OTP CEPAT ---
-
-// Ganti tulisan "PUBLIC_PROXY" di bawah dengan link Cloudflare Worker OTP Cepat Anda (JIKA ADA).
-// Contoh: const API_BASE_URL = "https://otp-cepat.masreno6pro.workers.dev";
+// --- MASUKKAN LINK CLOUDFLARE WORKER ANDA DI BAWAH INI ---
 const API_BASE_URL = "https://otp-cepat-proxy.masreno6pro.workers.dev/"; 
 
 let apiKey = localStorage.getItem('otp_api_key') || "";
@@ -53,28 +50,23 @@ function copyToClipboard(t) {
     }
 }
 
-// ================= API CALLER CERDAS =================
+// ================= API CALLER (DENGAN PELACAK ERROR) =================
 async function apiCall(action, extraParams = "") {
     if (!apiKey) return { status: "false", msg: "API Key Kosong" };
     
-    const timeStamp = new Date().getTime(); // Anti-Cache
-    let url = "";
-
-    if (API_BASE_URL === "PUBLIC_PROXY") {
-        // Enkripsi URL agar proxy publik tidak error saat membaca simbol ? dan &
-        const targetUrl = `https://otpcepat.org/api/handler_api.php?api_key=${apiKey}&action=${action}${extraParams}&_t=${timeStamp}`;
-        url = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-    } else {
-        // Jalur khusus jika Anda menggunakan Cloudflare Worker
-        url = `${API_BASE_URL}?api_key=${apiKey}&action=${action}${extraParams}&_t=${timeStamp}`;
-    }
+    const timeStamp = new Date().getTime(); 
+    const url = `${API_BASE_URL}?api_key=${apiKey}&action=${action}${extraParams}&_t=${timeStamp}`;
     
     try {
         const response = await fetch(url);
-        const data = await response.json();
-        return data;
+        const text = await response.text();
+        try {
+            return JSON.parse(text);
+        } catch (jsonErr) {
+            return { status: "false", msg: "Respons API cacat: " + text.substring(0, 30) };
+        }
     } catch (err) {
-        return { status: "false", msg: "Koneksi diblokir. Pastikan API Key valid atau gunakan Worker." };
+        return { status: "false", msg: "Koneksi terputus: " + err.message };
     }
 }
 
@@ -285,7 +277,6 @@ window.onOrderButtonClicked = async function() {
     const btn = document.getElementById('btnOrder');
     if (!btn) return;
     
-    // Matikan tombol agar tidak di-spam
     btn.disabled = true; 
     btn.innerText = "MEMPROSES...";
     
@@ -320,15 +311,14 @@ window.onOrderButtonClicked = async function() {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 showToast("Pesanan Berhasil!");
             } else {
-                showToast("Data dari server tidak valid. Saldo mungkin terpotong.", "error");
+                showToast("Format respons server tidak lengkap.", "error");
             }
         } else {
-            showToast(res.msg || "Gagal memesan nomor. Coba lagi.", "error");
+            showToast(res.msg || "Gagal memesan nomor.", "error");
         }
     } catch (e) {
-        showToast("Terjadi gangguan sistem/jaringan.", "error");
+        showToast("Error Eksekusi: " + e.message, "error");
     } finally {
-        // SISTEM ANTI-MACET: Tombol pasti kembali aktif!
         btn.disabled = false; 
         btn.innerText = "PESAN NOMOR BARU";
     }
@@ -338,7 +328,7 @@ function saveActiveOrders() {
     localStorage.setItem('otp_active_orders', JSON.stringify(activeOrders));
 }
 
-// ================= KARTU PESANAN (GAYA HERO SMS) =================
+// ================= KARTU PESANAN =================
 function createOrderCard(order) {
     const now = Date.now(); 
     const card = document.createElement("div"); 
@@ -465,7 +455,7 @@ window.setOrderStatus = async function(orderId, statusCode) {
             showToast(res.msg || "Gagal mengubah status", "error");
         }
     } catch (e) {
-        showToast("Terjadi gangguan", "error");
+        showToast("Error sistem: " + e.message, "error");
     } finally {
         renderOrders(); 
     }
@@ -490,7 +480,7 @@ window.resendSpecificOrder = async function(id) {
             showToast("Gagal resend: " + (res.msg || "Error"), "error");
         }
     } catch (e) {
-        showToast("Terjadi gangguan", "error");
+        showToast("Error sistem: " + e.message, "error");
     } finally {
         renderOrders();
     }
@@ -537,7 +527,7 @@ window.replaceSpecificOrder = async function(id) {
             showToast("Gagal mencari ganti: " + (res.msg || "Stok Kosong"), "error");
         }
     } catch (e) {
-        showToast("Terjadi gangguan", "error");
+        showToast("Error sistem: " + e.message, "error");
     } finally {
         saveActiveOrders();
         fetchBalance();
