@@ -50,14 +50,21 @@
                 <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-sticky-note"></i></button>
             </div>
             
-            <div class="dropdown">
-                <!-- TOMBOL MENU HAMBURGER (PENGATURAN) -->
-                <button class="dropbtn-icon" onclick="toggleMenuDropdown()">
-                    <i class="fas fa-bars"></i>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <!-- TOMBOL TOPUP -->
+                <button onclick="window.open('https://otpcepat.org/topup', '_blank')" class="dropbtn-icon" style="color: var(--success-color); border-color: var(--success-color);" title="Top Up Saldo">
+                    <i class="fas fa-plus-circle"></i>
                 </button>
-                <div id="menuDropdown" class="dropdown-content dropdown-right">
-                    <a href="#" onclick="openHistoryModal(); return false;"><i class="fas fa-history"></i> Riwayat</a>
-                    <a href="#" onclick="openSettingsModal(); return false;"><i class="fas fa-cog"></i> Pengaturan</a>
+                
+                <!-- TOMBOL MENU HAMBURGER (PENGATURAN) -->
+                <div class="dropdown">
+                    <button class="dropbtn-icon" onclick="toggleMenuDropdown()">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div id="menuDropdown" class="dropdown-content dropdown-right">
+                        <a href="#" onclick="openHistoryModal(); return false;"><i class="fas fa-history"></i> Riwayat</a>
+                        <a href="#" onclick="openSettingsModal(); return false;"><i class="fas fa-cog"></i> Pengaturan</a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -207,7 +214,6 @@
             }
         }
         
-        // FUNGSI MODAL CATATAN
         function openIframeNoteModal() { document.getElementById('iframeNoteModal').classList.remove('hidden'); }
         function closeIframeNoteModal() { document.getElementById('iframeNoteModal').classList.add('hidden'); }
     </script>

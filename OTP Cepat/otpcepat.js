@@ -7,7 +7,6 @@ let orderHistory = JSON.parse(localStorage.getItem('otp_history')) || [];
 let allServices = [];
 let allOperators = [];
 
-// Mengambil memori preferensi terakhir pengguna
 let currentCountryId = ""; 
 let currentCategory = localStorage.getItem('otp_category') || "promo";
 let currentServiceId = localStorage.getItem('otp_service') || "";
@@ -16,7 +15,7 @@ let currentServicePrice = localStorage.getItem('otp_service_price') || "";
 let currentOperator = localStorage.getItem('otp_operator') || "random";
 
 let pollingInterval = null;
-let timerInterval = null; // Mesin waktu mandiri
+let timerInterval = null; 
 let isDroplistOpen = false;
 
 const rpFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
@@ -65,7 +64,7 @@ window.onload = () => {
     }
     renderOrders();
     startPolling();
-    startTimerTick(); // Mulai mesin waktu 1 detik
+    startTimerTick(); 
 };
 
 function showToast(pesan, type = "success") { 
@@ -149,7 +148,8 @@ window.onCategoryChanged = async function() {
     localStorage.setItem('otp_category', currentCategory);
     document.getElementById('btnServiceSelectText').innerText = "Beralih Kategori...";
     document.getElementById('priceDisplayBox').innerText = "...";
-    currentServiceId = ""; currentServiceName = ""; currentServicePrice = "";
+    
+    // Jangan hapus memori layanan agar bisa dipertahankan di kategori baru
     await fetchServices();
 }
 
@@ -158,11 +158,39 @@ async function fetchServices() {
     if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
         let dataList = res.data || [];
         allServices = dataList.sort((a, b) => String(a.serviceName).localeCompare(String(b.serviceName)));
-        let targetSvc = allServices.find(s => String(s.serviceID) === String(currentServiceId)) || allServices.find(s => String(s.serviceName).toLowerCase().includes("shopee")) || allServices[0];
+        
+        let targetSvc = null;
+
+        // 1. CARI BERDASARKAN NAMA (Agar saat pindah Promo/Prioritas tidak lompat layanan)
+        if (currentServiceName) {
+            targetSvc = allServices.find(s => String(s.serviceName).toLowerCase() === String(currentServiceName).toLowerCase());
+        }
+        
+        // 2. Jika tidak ketemu nama, coba ID
+        if (!targetSvc && currentServiceId) {
+            targetSvc = allServices.find(s => String(s.serviceID) === String(currentServiceId));
+        }
+        
+        // 3. PENGECUALIAN: Jika layanan tidak ada di kategori baru, tahan dan gunakan memori (harga) sebelumnya
+        if (!targetSvc && currentServiceName) {
+            targetSvc = {
+                serviceID: currentServiceId,
+                serviceName: currentServiceName,
+                price: currentServicePrice
+            };
+        }
+        
+        // 4. Fallback Default jika benar-benar kosong (pertama kali buka)
+        if (!targetSvc) {
+            targetSvc = allServices.find(s => String(s.serviceName).toLowerCase().includes("shopee")) || allServices[0];
+        }
         
         if (targetSvc) {
-            currentServiceId = targetSvc.serviceID; currentServiceName = targetSvc.serviceName; currentServicePrice = targetSvc.price;
+            currentServiceId = targetSvc.serviceID; 
+            currentServiceName = targetSvc.serviceName; 
+            currentServicePrice = targetSvc.price;
         }
+        
         updateServiceButtonUI();
         await fetchOperators();
     } else {
@@ -279,7 +307,7 @@ window.onOrderButtonClicked = async function() {
                     price: finalPrice, 
                     otp: null, 
                     status: "Waiting SMS", 
-                    expiresAt: Date.now() + (20 * 60 * 1000), // 20 Menit Bawaan
+                    expiresAt: Date.now() + (20 * 60 * 1000), 
                     hasReceivedOTP: false
                 });
                 
@@ -335,7 +363,6 @@ function createOrderCard(order) {
                     <div class="order-price" style="display:block;">${displayPrice}</div>
                 </div>
             </div>
-            <!-- TIMER TETAP JALAN MESKIPUN OTP SUDAH MASUK -->
             <span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">${timeStr}</span>
         </div>
         <div class="phone-row">
@@ -383,7 +410,7 @@ function renderOrders() {
     }
 }
 
-// ================= MESIN WAKTU 1 DETIK (TIDAK DELAY) =================
+// ================= MESIN WAKTU 1 DETIK =================
 function startTimerTick() {
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
@@ -394,14 +421,12 @@ function startTimerTick() {
             let o = activeOrders[i];
             const left = o.expiresAt - now;
             
-            // JIKA WAKTU HABIS, BATALKAN OTOMATIS
             if (left <= 0) {
-                apiCall('set_status', `&order_id=${o.id}&status=2`); // Tembak server
+                apiCall('set_status', `&order_id=${o.id}&status=2`); 
                 saveToHistory(o, "BATAL");
-                activeOrders.splice(i, 1); // Hapus lokal
+                activeOrders.splice(i, 1); 
                 needsRender = true;
             } else {
-                // UPDATE TEKS TIMER TANPA RENDER SELURUH KOTAK
                 const timerEl = document.getElementById(`timer-${o.id}`);
                 if (timerEl) {
                     let m = Math.floor(left / 60000); 
@@ -419,7 +444,7 @@ function startTimerTick() {
             saveActiveOrders();
             renderOrders();
         }
-    }, 1000); // Akurasi tinggi 1 detik
+    }, 1000); 
 }
 
 // ================= AKSI TOMBOL (FORCE LOCAL CLOSE) =================
@@ -435,14 +460,11 @@ window.setOrderStatus = async function(orderId, statusCode) {
     try {
         const res = await apiCall('set_status', `&order_id=${orderId}&status=${statusCode}`);
         if (res.status !== "true" && res.status !== true && res.status != 1 && String(res.status).toLowerCase() !== "success") {
-            // Server error/menolak (karena baru di-resend), JANGAN TAMPILKAN ERROR PANJANG, tetap tutup secara paksa!
             console.warn("API Menolak Status " + statusCode, res);
         }
     } catch (e) {
         console.error("Gagal menjangkau server", e);
     } finally {
-        // === PAKSA TUTUP LOKAL (ANTI NYANGKUT) ===
-        // Apapun balasan dari server, sistem lokal akan menuruti kemauan Anda untuk menghapusnya.
         if (statusCode === 2) saveToHistory(orderToSave, "BATAL");
         if (statusCode === 4) saveToHistory(orderToSave, "SELESAI");
         
@@ -473,8 +495,8 @@ window.resendSpecificOrder = async function(id) {
                 saveToHistory(activeOrders[idx], "MINTA ULANG");
                 activeOrders[idx].status = "Waiting SMS";
                 activeOrders[idx].otp = null;
-                activeOrders[idx].hasReceivedOTP = false; // Reset status OTP
-                activeOrders[idx].expiresAt = Date.now() + (20 * 60 * 1000); // KEMBALI KE 20 MENIT
+                activeOrders[idx].hasReceivedOTP = false; 
+                activeOrders[idx].expiresAt = Date.now() + (20 * 60 * 1000); 
                 saveActiveOrders();
             }
         } else {
@@ -535,11 +557,10 @@ window.cancelAllOldOrders = async function() {
     if(btnAll) { btnAll.disabled = true; btnAll.innerHTML = '<div class="loader" style="border-top-color:var(--danger-color); border-width: 2px; width: 14px; height: 14px;"></div>'; }
     showToast(`Membatalkan ${oldOrders.length} pesanan lama...`, "warning");
     
-    // PEMBATALAN MASSAL DENGAN PAKSA TUTUP LOKAL
     const cancelPromises = oldOrders.map(async (order) => {
         try { await apiCall('set_status', `&order_id=${order.id}&status=2`); } catch(e) {}
         saveToHistory(order, "BATAL"); 
-        return order.id; // Selalu anggap berhasil di sisi UI
+        return order.id; 
     });
     
     const results = await Promise.all(cancelPromises);
@@ -571,7 +592,6 @@ function startPolling() {
                             
                             o.status = "Recieved";
                             
-                            // JIKA BARU PERTAMA KALI DAPAT OTP -> SET TIMER JADI 10 MENIT
                             if (!o.hasReceivedOTP) {
                                 o.hasReceivedOTP = true;
                                 o.expiresAt = Date.now() + (10 * 60 * 1000); 
