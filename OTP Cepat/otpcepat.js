@@ -7,7 +7,7 @@ let orderHistory = JSON.parse(localStorage.getItem('otp_history')) || [];
 let allServices = [];
 let allOperators = [];
 
-// Mengambil memori preferensi terakhir pengguna (Default: Promo)
+// Mengambil memori preferensi terakhir pengguna
 let currentCountryId = ""; 
 let currentCategory = localStorage.getItem('otp_category') || "promo";
 let currentServiceId = localStorage.getItem('otp_service') || "";
@@ -16,6 +16,7 @@ let currentServicePrice = localStorage.getItem('otp_service_price') || "";
 let currentOperator = localStorage.getItem('otp_operator') || "random";
 
 let pollingInterval = null;
+let timerInterval = null; // Mesin waktu mandiri
 let isDroplistOpen = false;
 
 const rpFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
@@ -27,7 +28,7 @@ function formatPhoneNumber(phone) {
     return p.replace(/(.{4})/g, '$1 ').trim(); 
 }
 
-// === FITUR BARU: PENDETEKSI KARTU DARI NOMOR HP ===
+// === PENDETEKSI KARTU DARI NOMOR HP ===
 function guessOperator(phone) {
     let p = String(phone).replace(/\D/g, "");
     if (p.startsWith("62")) p = "0" + p.substring(2);
@@ -47,11 +48,10 @@ function guessOperator(phone) {
     if (three.includes(prefix)) return "Three";
     if (smartfren.includes(prefix)) return "Smartfren";
     
-    return "ACAK"; // Fallback jika awalan tidak dikenali
+    return "ACAK"; 
 }
 
 window.onload = () => {
-    // Tampilkan preferensi memori langsung ke layar sebelum API memuat
     document.getElementById('categorySelect').value = currentCategory;
     if (currentServiceName) {
         document.getElementById('btnServiceSelectText').innerHTML = currentServiceName;
@@ -65,6 +65,7 @@ window.onload = () => {
     }
     renderOrders();
     startPolling();
+    startTimerTick(); // Mulai mesin waktu 1 detik
 };
 
 function showToast(pesan, type = "success") { 
@@ -88,37 +89,23 @@ function copyToClipboard(t) {
     }
 }
 
-// ================= API CALLER (AGRESIF DETEKSI TEKS MENTAH) =================
+// ================= API CALLER =================
 async function apiCall(action, extraParams = "") {
     if (!apiKey) return { status: "false", msg: "API Key Kosong" };
-    
     const timeStamp = new Date().getTime(); 
     const url = `${API_BASE_URL}?api_key=${apiKey}&action=${action}${extraParams}&_t=${timeStamp}`;
-    
     try {
         const response = await fetch(url);
         const text = await response.text();
-        
-        if (text.includes("STATUS_WAIT_CODE")) {
-            return { status: "true", data: { status: "Waiting" } };
-        }
+        if (text.includes("STATUS_WAIT_CODE")) return { status: "true", data: { status: "Waiting" } };
         if (text.includes("STATUS_OK")) {
             let codeParts = text.split(":");
             let code = codeParts.length > 1 ? codeParts[1] : "OTP DITERIMA";
             return { status: "true", data: { status: "Done", otp: code, sms: code } };
         }
-        if (text.includes("STATUS_CANCEL")) {
-            return { status: "true", data: { status: "Cancel" } };
-        }
-
-        try {
-            return JSON.parse(text);
-        } catch (jsonErr) {
-            return { status: "false", msg: "Respons API cacat: " + text.substring(0, 30) };
-        }
-    } catch (err) {
-        return { status: "false", msg: "Koneksi terputus: " + err.message };
-    }
+        if (text.includes("STATUS_CANCEL")) return { status: "true", data: { status: "Cancel" } };
+        try { return JSON.parse(text); } catch (jsonErr) { return { status: "false", msg: "Respons API cacat" }; }
+    } catch (err) { return { status: "false", msg: "Koneksi terputus: " + err.message }; }
 }
 
 // ================= INIT & SETTINGS =================
@@ -127,7 +114,6 @@ function openSettingsModal() {
     document.getElementById('settingsModal').classList.remove('hidden'); 
 }
 function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
-
 async function saveSettings() {
     apiKey = document.getElementById('settingsApiKey').value.trim();
     localStorage.setItem('otp_api_key', apiKey);
@@ -136,10 +122,7 @@ async function saveSettings() {
     initApp();
 }
 
-async function initApp() {
-    await fetchBalance();
-    await lockCountryToIndonesia();
-}
+async function initApp() { await fetchBalance(); await lockCountryToIndonesia(); }
 
 async function fetchBalance() {
     const res = await apiCall('getBalance');
@@ -147,27 +130,15 @@ async function fetchBalance() {
         const dataPayload = res.data || res;
         document.getElementById('currentAccountEmail').innerText = dataPayload.email || "Akun Terhubung";
         document.getElementById('balanceDisplay').innerText = rpFormatter.format(dataPayload.saldo || 0);
-    } else {
-        document.getElementById('balanceDisplay').innerText = "Gagal";
-    }
+    } else { document.getElementById('balanceDisplay').innerText = "Gagal"; }
 }
 
-// ================= MENGUNCI NEGARA =================
 async function lockCountryToIndonesia() {
     const res = await apiCall('getCountries');
-    
     if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
         const dataList = res.data || [];
-        let indo = dataList.find(c => {
-            let name = String(c.countryName).toLowerCase();
-            return name.includes("indonesia") || name.includes("wakanda") || name.includes("indo");
-        });
-        
-        if (indo) {
-            currentCountryId = indo.countryID;
-        } else {
-            currentCountryId = dataList.length > 0 ? dataList[0].countryID : "1";
-        }
+        let indo = dataList.find(c => String(c.countryName).toLowerCase().includes("indonesia") || String(c.countryName).toLowerCase().includes("indo"));
+        currentCountryId = indo ? indo.countryID : (dataList.length > 0 ? dataList[0].countryID : "1");
         await fetchServices();
     }
 }
@@ -176,39 +147,22 @@ async function lockCountryToIndonesia() {
 window.onCategoryChanged = async function() {
     currentCategory = document.getElementById('categorySelect').value;
     localStorage.setItem('otp_category', currentCategory);
-    
     document.getElementById('btnServiceSelectText').innerText = "Beralih Kategori...";
     document.getElementById('priceDisplayBox').innerText = "...";
-    
     currentServiceId = ""; currentServiceName = ""; currentServicePrice = "";
-    
     await fetchServices();
 }
 
 async function fetchServices() {
-    const res = currentCategory === "promo" 
-        ? await apiCall('getSpecialServices') 
-        : await apiCall('getServices', `&country_id=${currentCountryId}`);
-        
+    const res = currentCategory === "promo" ? await apiCall('getSpecialServices') : await apiCall('getServices', `&country_id=${currentCountryId}`);
     if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
         let dataList = res.data || [];
         allServices = dataList.sort((a, b) => String(a.serviceName).localeCompare(String(b.serviceName)));
-        
-        let targetSvc = allServices.find(s => String(s.serviceID) === String(currentServiceId));
-        
-        if (!targetSvc) {
-            targetSvc = allServices.find(s => String(s.serviceName).toLowerCase().includes("shopee"));
-        }
-        if (!targetSvc && allServices.length > 0) {
-            targetSvc = allServices[0];
-        }
+        let targetSvc = allServices.find(s => String(s.serviceID) === String(currentServiceId)) || allServices.find(s => String(s.serviceName).toLowerCase().includes("shopee")) || allServices[0];
         
         if (targetSvc) {
-            currentServiceId = targetSvc.serviceID;
-            currentServiceName = targetSvc.serviceName;
-            currentServicePrice = targetSvc.price;
+            currentServiceId = targetSvc.serviceID; currentServiceName = targetSvc.serviceName; currentServicePrice = targetSvc.price;
         }
-        
         updateServiceButtonUI();
         await fetchOperators();
     } else {
@@ -218,32 +172,21 @@ async function fetchServices() {
 }
 
 function updateServiceButtonUI() {
-    let btnText = document.getElementById('btnServiceSelectText');
-    let priceBox = document.getElementById('priceDisplayBox');
-    
-    let displayPrice = rpFormatter.format(currentServicePrice || 0);
-    
-    btnText.innerHTML = currentServiceName;
-    if (priceBox) priceBox.innerText = displayPrice;
-    
+    document.getElementById('btnServiceSelectText').innerHTML = currentServiceName;
+    document.getElementById('priceDisplayBox').innerText = rpFormatter.format(currentServicePrice || 0);
     localStorage.setItem('otp_service', currentServiceId);
     localStorage.setItem('otp_service_name', currentServiceName);
     localStorage.setItem('otp_service_price', currentServicePrice);
 }
 
 // --- MODAL LAYANAN ---
-window.openServiceModal = function() { 
-    document.getElementById('serviceModal').classList.remove('hidden'); 
-    document.getElementById('searchServiceInput').value = ''; 
-    filterServices(); 
-}
+window.openServiceModal = function() { document.getElementById('serviceModal').classList.remove('hidden'); document.getElementById('searchServiceInput').value = ''; filterServices(); }
 window.closeServiceModal = function() { document.getElementById('serviceModal').classList.add('hidden'); }
 
 window.filterServices = function() {
     const query = document.getElementById('searchServiceInput').value.toLowerCase();
     const container = document.getElementById('serviceListContainer');
     container.innerHTML = '';
-    
     const filtered = allServices.filter(s => String(s.serviceName).toLowerCase().includes(query));
     if(filtered.length === 0) { container.innerHTML = '<div class="status-text-mini">Tidak ditemukan.</div>'; return; }
 
@@ -251,16 +194,11 @@ window.filterServices = function() {
         const isActive = (String(svc.serviceID) === String(currentServiceId));
         const btn = document.createElement('div');
         let formattedPrice = rpFormatter.format(svc.price);
-        
         btn.style = `width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 13px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);`;
-        
         btn.innerHTML = `<div style="flex:1;">${svc.serviceName}</div><div style="font-size:11px; color: ${isActive ? 'var(--primary-color)' : 'var(--success-color)'}; font-weight: 900;">${formattedPrice}</div>`;
         btn.onclick = () => {
-            currentServiceId = svc.serviceID;
-            currentServiceName = svc.serviceName;
-            currentServicePrice = svc.price;
-            updateServiceButtonUI();
-            closeServiceModal();
+            currentServiceId = svc.serviceID; currentServiceName = svc.serviceName; currentServicePrice = svc.price;
+            updateServiceButtonUI(); closeServiceModal();
         };
         container.appendChild(btn);
     });
@@ -287,7 +225,6 @@ async function fetchOperators() {
     if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
         allOperators = res.data || []; 
         list.innerHTML = '';
-        
         if (!allOperators.includes(currentOperator)) currentOperator = allOperators[0] || "random";
         
         allOperators.forEach(op => {
@@ -299,20 +236,15 @@ async function fetchOperators() {
             let logoImg = getOperatorLogo(op);
             
             card.innerHTML = `<div class="op-logo-container"><img src="${logoImg}" onerror="this.src='https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';" class="op-logo"></div><div class="product-info"><h4>${displayName}</h4></div>`;
-            
             card.onclick = () => { 
                 document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
                 card.classList.add('selected'); 
-                currentOperator = op;
-                localStorage.setItem('otp_operator', currentOperator);
+                currentOperator = op; localStorage.setItem('otp_operator', currentOperator);
             };
             list.appendChild(card);
         });
-        
         document.getElementById('btnOrder').disabled = false;
-    } else {
-        list.innerHTML = '<div class="status-text-mini" style="color:var(--danger-color);">Gagal memuat operator.</div>';
-    }
+    } else { list.innerHTML = '<div class="status-text-mini" style="color:var(--danger-color);">Gagal memuat operator.</div>'; }
 }
 
 // ================= PESANAN (ORDER) BARU =================
@@ -320,30 +252,23 @@ window.onOrderButtonClicked = async function() {
     const btn = document.getElementById('btnOrder');
     if (!btn) return;
     
-    btn.disabled = true; 
-    btn.innerText = "MEMPROSES...";
-    
+    btn.disabled = true; btn.innerText = "MEMPROSES...";
     try {
         const res = await apiCall('get_order', `&operator_id=${currentOperator}&service_id=${currentServiceId}&country_id=${currentCountryId}`);
-        
         if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
             const orderData = res.data || res;
-            
             let oId = orderData.order_id || orderData.id;
             let oPhone = orderData.number || orderData.phone || orderData.phone_number;
             let finalPrice = orderData.price || currentServicePrice;
             
             if (oId && oPhone) {
-                // Deteksi Otomatis Jika Acak
                 let serverOperator = orderData.operator || orderData.operator_name || orderData.operator_id;
                 let opNameDisplay = currentOperator;
                 
                 if (serverOperator && String(serverOperator).toLowerCase() !== "random" && String(serverOperator).toLowerCase() !== "any") {
                     opNameDisplay = serverOperator;
                 } else if (currentOperator === "random") {
-                    opNameDisplay = guessOperator(oPhone); // Tebak dari Prefix Nomor HP
-                } else {
-                    opNameDisplay = currentOperator;
+                    opNameDisplay = guessOperator(oPhone);
                 }
                 
                 activeOrders.unshift({ 
@@ -354,32 +279,20 @@ window.onOrderButtonClicked = async function() {
                     price: finalPrice, 
                     otp: null, 
                     status: "Waiting SMS", 
-                    expiresAt: Date.now() + (20 * 60 * 1000)
+                    expiresAt: Date.now() + (20 * 60 * 1000), // 20 Menit Bawaan
+                    hasReceivedOTP: false
                 });
                 
-                saveActiveOrders();
-                renderOrders();
-                fetchBalance();
-                copyToClipboard(oPhone);
+                saveActiveOrders(); renderOrders(); fetchBalance(); copyToClipboard(oPhone);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 showToast("Pesanan Berhasil!");
-            } else {
-                showToast("Format respons server tidak lengkap.", "error");
-            }
-        } else {
-            showToast(res.msg || "Gagal memesan nomor.", "error");
-        }
-    } catch (e) {
-        showToast("Error Eksekusi: " + e.message, "error");
-    } finally {
-        btn.disabled = false; 
-        btn.innerText = "PESAN NOMOR BARU";
-    }
+            } else { showToast("Format respons server tidak lengkap.", "error"); }
+        } else { showToast(res.msg || "Gagal memesan nomor.", "error"); }
+    } catch (e) { showToast("Error Eksekusi: " + e.message, "error");
+    } finally { btn.disabled = false; btn.innerText = "PESAN NOMOR BARU"; }
 }
 
-function saveActiveOrders() {
-    localStorage.setItem('otp_active_orders', JSON.stringify(activeOrders));
-}
+function saveActiveOrders() { localStorage.setItem('otp_active_orders', JSON.stringify(activeOrders)); }
 
 // ================= KARTU PESANAN =================
 function createOrderCard(order) {
@@ -389,7 +302,6 @@ function createOrderCard(order) {
     card.id = `order-card-${order.id}`;
     
     const isSuccess = (order.status === "Recieved" || order.status === "Done" || order.otp);
-    
     let opTag = String(order.operatorName).toUpperCase();
     let srvName = String(order.serviceName).toUpperCase();
     const displayPrice = rpFormatter.format(order.price || 0);
@@ -405,9 +317,9 @@ function createOrderCard(order) {
     let headerLogoUrl = getOperatorLogo(order.operatorName); 
     let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
     const left = order.expiresAt - now; 
-    let timerColor = "#ffffff"; 
-    if (left <= 12 * 60000) { timerColor = "var(--danger-color)"; } 
-    else if (left <= 18 * 60000) { timerColor = "var(--warning-color)"; }
+    let timerColor = "var(--text-primary)"; 
+    if (left <= 3 * 60000) { timerColor = "var(--danger-color)"; } 
+    else if (left <= 5 * 60000) { timerColor = "var(--warning-color)"; }
     
     let m = Math.floor(left/60000); let s = Math.floor((left%60000)/1000);
     let timeStr = left > 0 ? `${m}:${s<10?'0':''}${s}` : '0:00';
@@ -423,7 +335,8 @@ function createOrderCard(order) {
                     <div class="order-price" style="display:block;">${displayPrice}</div>
                 </div>
             </div>
-            <span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">${isSuccess ? 'SELESAI' : timeStr}</span>
+            <!-- TIMER TETAP JALAN MESKIPUN OTP SUDAH MASUK -->
+            <span class="timer" id="timer-${order.id}" style="color: ${timerColor}; font-weight: 900;">${timeStr}</span>
         </div>
         <div class="phone-row">
             <span class="phone-number">${formatPhoneNumber(order.phone)}</span>
@@ -443,11 +356,9 @@ function createOrderCard(order) {
 function renderOrders() {
     const container = document.getElementById('activeOrdersContainer');
     if (!container) return;
-    
     if (activeOrders.length === 0) { 
         container.innerHTML = '<div class="status-text-mini">Belum ada pesanan aktif.</div>'; 
-        isDroplistOpen = false; 
-        return; 
+        isDroplistOpen = false; return; 
     }
     
     container.innerHTML = "";
@@ -462,55 +373,90 @@ function renderOrders() {
         wrapper.appendChild(btnToggle);
         
         const content = document.createElement("div"); content.className = `old-orders-content ${isDroplistOpen ? 'show' : ''}`;
-        
         const btnCancelAll = document.createElement("button"); btnCancelAll.className = "btn-cancel-all"; btnCancelAll.id = "btn-cancel-all-old";
         btnCancelAll.innerHTML = `<i class="fas fa-trash-alt"></i> Batalkan Semua Pesanan Lama`; 
         btnCancelAll.onclick = cancelAllOldOrders;
         content.appendChild(btnCancelAll);
 
-        for (let i = 1; i < activeOrders.length; i++) { 
-            content.appendChild(createOrderCard(activeOrders[i])); 
-        }
-        wrapper.appendChild(content); 
-        container.appendChild(wrapper);
+        for (let i = 1; i < activeOrders.length; i++) { content.appendChild(createOrderCard(activeOrders[i])); }
+        wrapper.appendChild(content); container.appendChild(wrapper);
     }
 }
 
-// ================= AKSI TOMBOL =================
+// ================= MESIN WAKTU 1 DETIK (TIDAK DELAY) =================
+function startTimerTick() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        let needsRender = false;
+        const now = Date.now();
+        
+        for (let i = activeOrders.length - 1; i >= 0; i--) {
+            let o = activeOrders[i];
+            const left = o.expiresAt - now;
+            
+            // JIKA WAKTU HABIS, BATALKAN OTOMATIS
+            if (left <= 0) {
+                apiCall('set_status', `&order_id=${o.id}&status=2`); // Tembak server
+                saveToHistory(o, "BATAL");
+                activeOrders.splice(i, 1); // Hapus lokal
+                needsRender = true;
+            } else {
+                // UPDATE TEKS TIMER TANPA RENDER SELURUH KOTAK
+                const timerEl = document.getElementById(`timer-${o.id}`);
+                if (timerEl) {
+                    let m = Math.floor(left / 60000); 
+                    let s = Math.floor((left % 60000) / 1000);
+                    timerEl.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+                    
+                    if (left <= 3 * 60000) { timerEl.style.color = "var(--danger-color)"; } 
+                    else if (left <= 5 * 60000) { timerEl.style.color = "var(--warning-color)"; }
+                    else { timerEl.style.color = "var(--text-primary)"; }
+                }
+            }
+        }
+        
+        if (needsRender) {
+            saveActiveOrders();
+            renderOrders();
+        }
+    }, 1000); // Akurasi tinggi 1 detik
+}
+
+// ================= AKSI TOMBOL (FORCE LOCAL CLOSE) =================
 window.setOrderStatus = async function(orderId, statusCode) {
     const btnId = statusCode === 2 ? `btn-cancel-${orderId}` : `btn-finish-${orderId}`;
     const btn = document.getElementById(btnId);
     if(btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
 
+    let oIdx = activeOrders.findIndex(x => String(x.id) === String(orderId));
+    if (oIdx === -1) return;
+    let orderToSave = activeOrders[oIdx];
+
     try {
         const res = await apiCall('set_status', `&order_id=${orderId}&status=${statusCode}`);
-        
-        if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success" || (res.msg && String(res.msg).toLowerCase() === "success")) {
-            let oIdx = activeOrders.findIndex(x => String(x.id) === String(orderId));
-            if (oIdx !== -1) {
-                let orderToSave = activeOrders[oIdx];
-                if (statusCode === 2) saveToHistory(orderToSave, "BATAL");
-                if (statusCode === 4) saveToHistory(orderToSave, "SELESAI");
-                
-                const card = document.getElementById(`order-card-${orderId}`);
-                if (card) card.classList.add('removing');
-                
-                setTimeout(() => {
-                    activeOrders.splice(oIdx, 1);
-                    saveActiveOrders();
-                    fetchBalance();
-                    if (statusCode === 2) showToast("Pesanan Dibatalkan");
-                    if (statusCode === 4) showToast("Pesanan Selesai");
-                    renderOrders();
-                }, 300);
-            }
-        } else {
-            showToast(res.msg || "Gagal mengubah status", "error");
+        if (res.status !== "true" && res.status !== true && res.status != 1 && String(res.status).toLowerCase() !== "success") {
+            // Server error/menolak (karena baru di-resend), JANGAN TAMPILKAN ERROR PANJANG, tetap tutup secara paksa!
+            console.warn("API Menolak Status " + statusCode, res);
         }
     } catch (e) {
-        showToast("Error sistem: " + e.message, "error");
+        console.error("Gagal menjangkau server", e);
     } finally {
-        renderOrders(); 
+        // === PAKSA TUTUP LOKAL (ANTI NYANGKUT) ===
+        // Apapun balasan dari server, sistem lokal akan menuruti kemauan Anda untuk menghapusnya.
+        if (statusCode === 2) saveToHistory(orderToSave, "BATAL");
+        if (statusCode === 4) saveToHistory(orderToSave, "SELESAI");
+        
+        const card = document.getElementById(`order-card-${orderId}`);
+        if (card) card.classList.add('removing');
+        
+        setTimeout(() => {
+            activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId));
+            saveActiveOrders();
+            fetchBalance();
+            if (statusCode === 2) showToast("Pesanan Dibatalkan");
+            if (statusCode === 4) showToast("Pesanan Selesai");
+            renderOrders();
+        }, 300);
     }
 }
 
@@ -527,6 +473,8 @@ window.resendSpecificOrder = async function(id) {
                 saveToHistory(activeOrders[idx], "MINTA ULANG");
                 activeOrders[idx].status = "Waiting SMS";
                 activeOrders[idx].otp = null;
+                activeOrders[idx].hasReceivedOTP = false; // Reset status OTP
+                activeOrders[idx].expiresAt = Date.now() + (20 * 60 * 1000); // KEMBALI KE 20 MENIT
                 saveActiveOrders();
             }
         } else {
@@ -550,7 +498,6 @@ window.replaceSpecificOrder = async function(id) {
         await apiCall('set_status', `&order_id=${id}&status=2`);
         saveToHistory(oldOrder, "GANTI");
         activeOrders = activeOrders.filter(o => String(o.id) !== String(id));
-        
         showToast("Mencari nomor pengganti...");
         
         let opCode = oldOrder.operatorName === "ACAK" ? "random" : String(oldOrder.operatorName).toLowerCase();
@@ -565,136 +512,84 @@ window.replaceSpecificOrder = async function(id) {
             if (oId && oPhone) {
                 let serverOperator = orderData.operator || orderData.operator_name || orderData.operator_id;
                 let opNameDisplay = oldOrder.operatorName;
-                
                 if (oldOrder.operatorName === "ACAK" || currentOperator === "random") {
-                    if (serverOperator && String(serverOperator).toLowerCase() !== "random" && String(serverOperator).toLowerCase() !== "any") {
-                        opNameDisplay = serverOperator;
-                    } else {
-                        opNameDisplay = guessOperator(oPhone);
-                    }
+                    if (serverOperator && String(serverOperator).toLowerCase() !== "random" && String(serverOperator).toLowerCase() !== "any") { opNameDisplay = serverOperator; } 
+                    else { opNameDisplay = guessOperator(oPhone); }
                 }
                 
                 activeOrders.unshift({ 
-                    id: oId, 
-                    phone: oPhone, 
-                    serviceName: currentServiceName,
-                    operatorName: opNameDisplay,
-                    price: finalPrice, 
-                    otp: null, 
-                    status: "Waiting SMS", 
-                    expiresAt: Date.now() + (20 * 60 * 1000)
+                    id: oId, phone: oPhone, serviceName: currentServiceName, operatorName: opNameDisplay, price: finalPrice, 
+                    otp: null, status: "Waiting SMS", expiresAt: Date.now() + (20 * 60 * 1000), hasReceivedOTP: false
                 });
-                copyToClipboard(oPhone);
-                showToast("Berhasil mendapat nomor baru!");
+                copyToClipboard(oPhone); showToast("Berhasil mendapat nomor baru!");
             }
-        } else {
-            showToast("Gagal mencari ganti: " + (res.msg || "Stok Kosong"), "error");
-        }
-    } catch (e) {
-        showToast("Error sistem: " + e.message, "error");
-    } finally {
-        saveActiveOrders();
-        fetchBalance();
-        renderOrders();
-    }
+        } else { showToast("Gagal mencari ganti: " + (res.msg || "Stok Kosong"), "error"); }
+    } catch (e) { showToast("Error sistem: " + e.message, "error");
+    } finally { saveActiveOrders(); fetchBalance(); renderOrders(); }
 }
 
 window.cancelAllOldOrders = async function() {
     if (activeOrders.length <= 1) return;
     const oldOrders = activeOrders.slice(1);
-    
     const btnAll = document.getElementById("btn-cancel-all-old");
-    if(btnAll) { 
-        btnAll.disabled = true; 
-        btnAll.innerHTML = '<div class="loader" style="border-top-color:var(--danger-color); border-width: 2px; width: 14px; height: 14px;"></div>'; 
-    }
+    if(btnAll) { btnAll.disabled = true; btnAll.innerHTML = '<div class="loader" style="border-top-color:var(--danger-color); border-width: 2px; width: 14px; height: 14px;"></div>'; }
     showToast(`Membatalkan ${oldOrders.length} pesanan lama...`, "warning");
     
-    let cancelledCount = 0;
-    let failedCount = 0;
-    
+    // PEMBATALAN MASSAL DENGAN PAKSA TUTUP LOKAL
     const cancelPromises = oldOrders.map(async (order) => {
-        try {
-            const res = await apiCall('set_status', `&order_id=${order.id}&status=2`);
-            if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success" || (res.msg && String(res.msg).toLowerCase() === "success")) {
-                saveToHistory(order, "BATAL"); 
-                return order.id; 
-            }
-        } catch(e) {}
-        return null; 
+        try { await apiCall('set_status', `&order_id=${order.id}&status=2`); } catch(e) {}
+        saveToHistory(order, "BATAL"); 
+        return order.id; // Selalu anggap berhasil di sisi UI
     });
     
     const results = await Promise.all(cancelPromises);
+    results.forEach(id => { activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); });
     
-    results.forEach(id => {
-        if (id) {
-            activeOrders = activeOrders.filter(o => String(o.id) !== String(id));
-            cancelledCount++;
-        } else {
-            failedCount++;
-        }
-    });
-    
-    saveActiveOrders();
-    fetchBalance();
-    
-    if (cancelledCount > 0) showToast(`${cancelledCount} pesanan dibatalkan.`, "success");
-    if (failedCount > 0) showToast(`${failedCount} gagal dibatalkan.`, "error");
-    
+    saveActiveOrders(); fetchBalance();
+    showToast(`${results.length} pesanan lama dibersihkan.`, "success");
     if (activeOrders.length <= 1) isDroplistOpen = false;
     renderOrders();
 };
 
-// ================= POLLING STATUS (ANTI-ERROR & AGRESIF) =================
+// ================= POLLING STATUS =================
 function startPolling() {
     if (pollingInterval) clearInterval(pollingInterval);
     pollingInterval = setInterval(async () => {
         let needsRender = false;
-        const now = Date.now();
         
         for (let i = activeOrders.length - 1; i >= 0; i--) {
             let o = activeOrders[i];
-            
-            if (now > o.expiresAt && o.status !== "Recieved" && o.status !== "Done") {
-                activeOrders.splice(i, 1);
-                needsRender = true;
-                continue;
-            }
-
             if (o.status !== "Recieved" && o.status !== "Done") {
                 try {
                     const res = await apiCall('get_status', `&order_id=${o.id}`);
-                    
                     if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
                         const stData = res.data || res;
                         const apiStatus = String(stData.status || "").toLowerCase();
-                        
                         const rawSms = stData.sms || stData.otp || stData.code || stData.pesan || "";
                         
                         if (rawSms || apiStatus.includes("recieved") || apiStatus.includes("received") || apiStatus.includes("done") || apiStatus.includes("success") || apiStatus.includes("sukses") || apiStatus === "2" || apiStatus === "4" || apiStatus.includes("ok")) {
                             
                             o.status = "Recieved";
-                            let textSms = rawSms || "OTP DITERIMA";
                             
+                            // JIKA BARU PERTAMA KALI DAPAT OTP -> SET TIMER JADI 10 MENIT
+                            if (!o.hasReceivedOTP) {
+                                o.hasReceivedOTP = true;
+                                o.expiresAt = Date.now() + (10 * 60 * 1000); 
+                            }
+                            
+                            let textSms = rawSms || "OTP DITERIMA";
                             let extracted = textSms.match(/\b\d{4,8}\b/);
                             o.otp = extracted ? extracted[0] : textSms;
                             
                             needsRender = true;
-                            
-                            try {
-                                if (typeof notifSound !== 'undefined') {
-                                    notifSound.play().catch(e=>{});
-                                }
-                            } catch (sndErr) {}
+                            try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
                             
                         } else if (apiStatus.includes("cancel") || apiStatus.includes("failed") || apiStatus.includes("batal") || apiStatus === "3") {
                             activeOrders.splice(i, 1);
                             needsRender = true;
                         }
                     }
-                } catch (e) {
-                    console.error("Polling Error:", e);
-                }
+                } catch (e) { console.error("Polling Error"); }
             }
         }
         
@@ -702,19 +597,6 @@ function startPolling() {
             saveActiveOrders();
             renderOrders();
             fetchBalance();
-        } else if (activeOrders.length > 0) {
-            activeOrders.forEach(o => {
-                const left = o.expiresAt - Date.now();
-                const timerEl = document.getElementById(`timer-${o.id}`);
-                if (timerEl && o.status !== "Recieved" && o.status !== "Done") {
-                    let m = Math.floor(left / 60000); 
-                    let s = Math.floor((left % 60000) / 1000);
-                    timerEl.innerText = left > 0 ? `${m}:${s < 10 ? '0' : ''}${s}` : '0:00';
-                    
-                    if (left <= 12 * 60000) { timerEl.style.color = "var(--danger-color)"; } 
-                    else if (left <= 18 * 60000) { timerEl.style.color = "var(--warning-color)"; }
-                }
-            });
         }
     }, 4000); 
 }
@@ -722,16 +604,7 @@ function startPolling() {
 // ================= HISTORY LOKAL =================
 function saveToHistory(order, finalStatus) { 
     if (!order) return; 
-    const historyItem = { 
-        id: order.id, 
-        phone: order.phone, 
-        serviceName: order.serviceName,
-        operatorName: order.operatorName,
-        price: order.price, 
-        otp: order.otp || "-", 
-        status: finalStatus, 
-        date: Date.now() 
-    }; 
+    const historyItem = { id: order.id, phone: order.phone, serviceName: order.serviceName, operatorName: order.operatorName, price: order.price, otp: order.otp || "-", status: finalStatus, date: Date.now() }; 
     orderHistory.unshift(historyItem); 
     if (orderHistory.length > 50) orderHistory.pop(); 
     localStorage.setItem('otp_history', JSON.stringify(orderHistory)); 
@@ -746,15 +619,12 @@ function renderHistory() {
     const list = document.getElementById('history-list'); if (!list) return;
     if (orderHistory.length === 0) { list.innerHTML = '<div class="status-text-mini">Belum ada riwayat lokal.</div>'; return; } 
     list.innerHTML = "";
-    
     orderHistory.forEach(item => {
         const card = document.createElement('div'); 
         card.style = "background: var(--bg-card); padding: 10px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 11px;";
-        
         let statusColor = "var(--text-secondary)"; 
         if (item.status === "SELESAI") statusColor = "var(--success-color)"; 
         if (item.status === "BATAL") statusColor = "var(--danger-color)";
-        
         const dt = new Date(item.date); 
         const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
         
