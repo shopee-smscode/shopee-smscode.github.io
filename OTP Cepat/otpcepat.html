@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="otpcepat.css">
     
-    <!-- SCRIPT PELACAK MEMORI YANG SUDAH DIPERBAIKI (ANTI-LONCAT APLIKASI) -->
     <script>
         (function() {
             var currentHref = window.location.href;
@@ -15,7 +14,6 @@
             else if (currentHref.includes('herosms.html')) localStorage.setItem('last_active_app', 'herosms.html');
             else if (currentHref.includes('smscode.html')) localStorage.setItem('last_active_app', 'smscode.html');
             else if (currentHref.includes('otpcepat.html')) localStorage.setItem('last_active_app', 'otpcepat.html');
-            // Logika auto-redirect sudah dihapus sepenuhnya agar tab tidak memuat ulang ke aplikasi lain saat bangun dari background.
         })();
     </script>
 
@@ -27,6 +25,8 @@
         .app-dropdown-item:hover { background-color: var(--bg-card-hover); color: var(--primary-color); }
         .app-dropdown-item.active { color: var(--primary-color); background-color: var(--bg-body); }
         .app-dropdown-item i { width: 16px; text-align: center; }
+        /* Style untuk opsi select yang didisable */
+        select option:disabled { color: var(--text-secondary); background: #333; font-style: italic; }
     </style>
 </head>
 <body class="theme-otp">
@@ -38,7 +38,7 @@
                     <button class="dropbtn" onclick="toggleAppDropdown()">
                         <i class="fas fa-rocket"></i> OTP Cepat <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 2px;"></i>
                     </button>
-                    <div id="appDropdown" class="dropdown-content">
+                    <div id="appDropdown" class="app-dropdown-menu">
                         <a href="https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html" class="app-dropdown-item" onclick="localStorage.setItem('last_active_app', 'virtualsms.html');"><i class="fas fa-globe"></i> SMS Virtual</a>
                         <a href="https://shopee-smscode.github.io/Hero%20SMS/herosms.html" class="app-dropdown-item" onclick="localStorage.setItem('last_active_app', 'herosms.html');"><i class="fas fa-bolt"></i> Hero SMS</a>
                         <a href="https://shopee-smscode.github.io/SMS%20Code/smscode.html" class="app-dropdown-item" onclick="localStorage.setItem('last_active_app', 'smscode.html');"><i class="fas fa-sms"></i> SMS Code</a>
@@ -49,6 +49,7 @@
             </div>
             
             <div style="display: flex; gap: 8px; align-items: center;">
+                <!-- TOMBOL TOPUP -->
                 <button onclick="window.open('https://otpcepat.org/topup', '_blank')" class="dropbtn-icon" style="color: var(--success-color); border-color: var(--success-color);" title="Top Up Saldo">
                     <i class="fas fa-plus-circle"></i>
                 </button>
@@ -119,7 +120,7 @@
                 <button onclick="closeServiceModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: #333;"><i class="fas fa-times"></i></button>
             </div>
             <div style="margin-bottom: 10px;">
-                <input type="text" id="searchServiceInput" class="form-input" placeholder="🔍 Cari layanan... (cth: Shopee)" oninput="filterServices()" style="border-radius: 10px; font-weight: bold;">
+                <input type="text" id="searchServiceInput" class="form-input" placeholder="🔍 Cari layanan..." oninput="filterServices()" style="border-radius: 10px; font-weight: bold;">
             </div>
             <div id="serviceListContainer" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column;">
                 <div class="status-text-mini">Memuat layanan...</div>

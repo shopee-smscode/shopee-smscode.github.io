@@ -3,6 +3,10 @@ const API_BASE_URL = "https://otp-cepat-proxy.masreno6pro.workers.dev";
 let apiKey = localStorage.getItem('otp_api_key') || "";
 let activeOrders = JSON.parse(localStorage.getItem('otp_active_orders')) || [];
 let orderHistory = JSON.parse(localStorage.getItem('otp_history')) || [];
+
+// Variabel untuk menyimpan KEDUA daftar (Promo & Prioritas) agar bisa dicek ketersediaannya
+let promoServices = [];
+let prioritasServices = [];
 let allServices = [];
 let allOperators = [];
 
@@ -15,7 +19,7 @@ let currentOperator = localStorage.getItem('otp_operator') || "random";
 
 let pollingInterval = null;
 let timerInterval = null; 
-let isPolling = false; // Mencegah server ditabrak request bersamaan
+let isPolling = false; 
 let isDroplistOpen = false;
 
 const rpFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
@@ -27,26 +31,22 @@ function formatPhoneNumber(phone) {
     return p.replace(/(.{4})/g, '$1 ').trim(); 
 }
 
-// === PENDETEKSI KARTU DARI NOMOR HP ===
 function guessOperator(phone) {
     let p = String(phone).replace(/\D/g, "");
     if (p.startsWith("62")) p = "0" + p.substring(2);
     let prefix = p.substring(0, 4);
-    
     const telkomsel = ["0811","0812","0813","0821","0822","0823","0851","0852","0853"];
     const indosat = ["0814","0815","0816","0855","0856","0857","0858"];
     const xl = ["0817","0818","0819","0859","0877","0878"];
     const axis = ["0831","0832","0833","0838"];
     const three = ["0895","0896","0897","0898","0899"];
     const smartfren = ["0881","0882","0883","0884","0885","0886","0887","0888","0889"];
-
     if (telkomsel.includes(prefix)) return "Telkomsel";
     if (indosat.includes(prefix)) return "Indosat";
     if (xl.includes(prefix)) return "XL";
     if (axis.includes(prefix)) return "Axis";
     if (three.includes(prefix)) return "Three";
     if (smartfren.includes(prefix)) return "Smartfren";
-    
     return "ACAK"; 
 }
 
@@ -56,34 +56,15 @@ window.onload = () => {
         document.getElementById('btnServiceSelectText').innerHTML = currentServiceName;
         if (currentServicePrice) document.getElementById('priceDisplayBox').innerText = rpFormatter.format(currentServicePrice);
     }
-
-    if (!apiKey) {
-        openSettingsModal();
-    } else {
-        initApp();
-    }
-    renderOrders();
-    startPolling();
-    startTimerTick(); 
+    if (!apiKey) { openSettingsModal(); } else { initApp(); }
+    renderOrders(); startPolling(); startTimerTick(); 
 };
 
-// ================= FITUR RECOVERY BACKGROUND & OFFLINE =================
 document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-        // Jika kembali dari background, paksa refresh server saat itu juga
-        startPolling();
-        startTimerTick();
-    }
+    if (document.visibilityState === "visible") { startPolling(); startTimerTick(); }
 });
-
-window.addEventListener('online', () => {
-    showToast("🌐 Koneksi Internet Kembali", "success");
-    startPolling(); // Tembak server langsung
-});
-
-window.addEventListener('offline', () => {
-    showToast("⚠️ Tidak ada koneksi internet", "warning");
-});
+window.addEventListener('online', () => { showToast("🌐 Koneksi Internet Kembali", "success"); startPolling(); });
+window.addEventListener('offline', () => { showToast("⚠️ Tidak ada koneksi internet", "warning"); });
 
 function showToast(pesan, type = "success") { 
     const t = document.getElementById("toast"); 
@@ -91,8 +72,7 @@ function showToast(pesan, type = "success") {
     if (type === "error") { t.style.backgroundColor = "var(--danger-color)"; t.style.color = "#ffffff"; } 
     else if (type === "warning") { t.style.backgroundColor = "var(--warning-color)"; t.style.color = "#000000"; } 
     else { t.style.backgroundColor = "var(--success-color)"; t.style.color = "#000"; } 
-    t.classList.add("show"); 
-    setTimeout(() => t.classList.remove("show"), 3000); 
+    t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 3000); 
 }
 
 function copyToClipboard(t) { 
@@ -101,12 +81,9 @@ function copyToClipboard(t) {
         ta.style.position = "absolute"; ta.style.left = "-9999px"; 
         document.body.appendChild(ta); ta.select(); document.execCommand('copy'); 
         showToast("Berhasil disalin!"); document.body.removeChild(ta); 
-    } catch(e) {
-        showToast("Gagal menyalin.", "error");
-    }
+    } catch(e) { showToast("Gagal menyalin.", "error"); }
 }
 
-// ================= API CALLER =================
 async function apiCall(action, extraParams = "") {
     if (!apiKey) return { status: "false", msg: "API Key Kosong" };
     const timeStamp = new Date().getTime(); 
@@ -125,17 +102,11 @@ async function apiCall(action, extraParams = "") {
     } catch (err) { return { status: "false", msg: "Koneksi terputus: " + err.message }; }
 }
 
-function openSettingsModal() { 
-    document.getElementById('settingsApiKey').value = apiKey;
-    document.getElementById('settingsModal').classList.remove('hidden'); 
-}
+function openSettingsModal() { document.getElementById('settingsApiKey').value = apiKey; document.getElementById('settingsModal').classList.remove('hidden'); }
 function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
 async function saveSettings() {
     apiKey = document.getElementById('settingsApiKey').value.trim();
-    localStorage.setItem('otp_api_key', apiKey);
-    closeSettingsModal();
-    showToast("API Key Disimpan!");
-    initApp();
+    localStorage.setItem('otp_api_key', apiKey); closeSettingsModal(); showToast("API Key Disimpan!"); initApp();
 }
 
 async function initApp() { await fetchBalance(); await lockCountryToIndonesia(); }
@@ -159,35 +130,102 @@ async function lockCountryToIndonesia() {
     }
 }
 
+// === PENCARI NAMA CERDAS (Mencegah tereset jika ID berbeda di Promo/Prioritas) ===
+function findServiceMatch(list, name) {
+    if (!name || list.length === 0) return null;
+    let n = String(name).toLowerCase().trim();
+    
+    let exact = list.find(s => String(s.serviceName).toLowerCase().trim() === n);
+    if (exact) return exact;
+    let inc1 = list.find(s => String(s.serviceName).toLowerCase().includes(n));
+    if (inc1) return inc1;
+    let inc2 = list.find(s => n.includes(String(s.serviceName).toLowerCase()));
+    if (inc2) return inc2;
+    
+    let firstWord = n.split(/[\s\/\-]+/)[0];
+    if (firstWord.length > 2) {
+        let inc3 = list.find(s => String(s.serviceName).toLowerCase().includes(firstWord));
+        if (inc3) return inc3;
+    }
+    return null;
+}
+
 window.onCategoryChanged = async function() {
     currentCategory = document.getElementById('categorySelect').value;
     localStorage.setItem('otp_category', currentCategory);
-    document.getElementById('btnServiceSelectText').innerText = "Beralih Kategori...";
-    document.getElementById('priceDisplayBox').innerText = "...";
-    await fetchServices();
+    document.getElementById('btnServiceSelectText').innerText = "Memperbarui...";
+    
+    // Langsung cari berdasarkan nama yang sama di kategori baru tanpa tembak API lagi
+    let listToSearch = currentCategory === "promo" ? promoServices : prioritasServices;
+    let matched = findServiceMatch(listToSearch, currentServiceName);
+    if (matched) {
+        currentServiceId = matched.serviceID;
+        currentServiceName = matched.serviceName;
+        currentServicePrice = matched.price;
+    }
+    
+    allServices = listToSearch.sort((a, b) => String(a.serviceName).localeCompare(String(b.serviceName)));
+    updateServiceButtonUI();
+    checkCategoryAvailability();
+    await fetchOperators();
 }
 
 async function fetchServices() {
-    const res = currentCategory === "promo" ? await apiCall('getSpecialServices') : await apiCall('getServices', `&country_id=${currentCountryId}`);
-    if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
-        let dataList = res.data || [];
-        allServices = dataList.sort((a, b) => String(a.serviceName).localeCompare(String(b.serviceName)));
-        
-        let targetSvc = null;
-        if (currentServiceName) targetSvc = allServices.find(s => String(s.serviceName).toLowerCase() === String(currentServiceName).toLowerCase());
-        if (!targetSvc && currentServiceId) targetSvc = allServices.find(s => String(s.serviceID) === String(currentServiceId));
-        if (!targetSvc && currentServiceName) targetSvc = { serviceID: currentServiceId, serviceName: currentServiceName, price: currentServicePrice };
-        if (!targetSvc) targetSvc = allServices.find(s => String(s.serviceName).toLowerCase().includes("shopee")) || allServices[0];
-        
-        if (targetSvc) {
-            currentServiceId = targetSvc.serviceID; currentServiceName = targetSvc.serviceName; currentServicePrice = targetSvc.price;
-        }
-        
-        updateServiceButtonUI();
-        await fetchOperators();
-    } else {
-        document.getElementById('btnServiceSelectText').innerText = "Gagal Memuat Layanan";
-        document.getElementById('priceDisplayBox').innerText = "Error";
+    document.getElementById('btnServiceSelectText').innerText = "Memuat...";
+    
+    // TARIK KEDUANYA SEKALIGUS (PROMO & PRIORITAS)
+    const [resPromo, resPrio] = await Promise.all([
+        apiCall('getSpecialServices'),
+        apiCall('getServices', `&country_id=${currentCountryId}`)
+    ]);
+
+    if (resPromo.status === "true" || resPromo.status === true || resPromo.status == 1 || String(resPromo.status).toLowerCase() === "success") promoServices = resPromo.data || [];
+    if (resPrio.status === "true" || resPrio.status === true || resPrio.status == 1 || String(resPrio.status).toLowerCase() === "success") prioritasServices = resPrio.data || [];
+
+    let listToSearch = currentCategory === "promo" ? promoServices : prioritasServices;
+    
+    // Antisipasi jika API error di satu kategori
+    if (listToSearch.length === 0) {
+        currentCategory = currentCategory === "promo" ? "prioritas" : "promo";
+        listToSearch = currentCategory === "promo" ? promoServices : prioritasServices;
+        document.getElementById('categorySelect').value = currentCategory;
+        localStorage.setItem('otp_category', currentCategory);
+    }
+
+    allServices = listToSearch.sort((a, b) => String(a.serviceName).localeCompare(String(b.serviceName)));
+    
+    // Cari layanan terakhir yang dipilih (Utamakan kecocokan nama, lalu fallback ke Shopee)
+    let matched = findServiceMatch(listToSearch, currentServiceName) || findServiceMatch(listToSearch, "shopee") || listToSearch[0];
+    
+    if (matched) {
+        currentServiceId = matched.serviceID;
+        currentServiceName = matched.serviceName;
+        currentServicePrice = matched.price;
+    }
+
+    updateServiceButtonUI();
+    checkCategoryAvailability();
+    await fetchOperators();
+}
+
+// === MEMATIKAN KATEGORI JIKA TIDAK ADA HARGA DI SERVER ===
+function checkCategoryAvailability() {
+    if (!currentServiceName) return;
+    
+    let hasPromo = findServiceMatch(promoServices, currentServiceName) !== null;
+    let hasPrioritas = findServiceMatch(prioritasServices, currentServiceName) !== null;
+    
+    const sel = document.getElementById('categorySelect');
+    sel.options[0].disabled = !hasPromo; 
+    sel.options[1].disabled = !hasPrioritas; 
+    
+    // Paksa pindah kategori jika kategori yang sedang aktif ternyata mati/tidak ada di server
+    if (currentCategory === "promo" && !hasPromo && hasPrioritas) {
+        sel.value = "prioritas";
+        window.onCategoryChanged();
+    } else if (currentCategory === "prioritas" && !hasPrioritas && hasPromo) {
+        sel.value = "promo";
+        window.onCategoryChanged();
     }
 }
 
@@ -216,8 +254,13 @@ window.filterServices = function() {
         btn.style = `width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 13px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);`;
         btn.innerHTML = `<div style="flex:1;">${svc.serviceName}</div><div style="font-size:11px; color: ${isActive ? 'var(--primary-color)' : 'var(--success-color)'}; font-weight: 900;">${formattedPrice}</div>`;
         btn.onclick = () => {
-            currentServiceId = svc.serviceID; currentServiceName = svc.serviceName; currentServicePrice = svc.price;
-            updateServiceButtonUI(); closeServiceModal();
+            currentServiceId = svc.serviceID; 
+            currentServiceName = svc.serviceName; 
+            currentServicePrice = svc.price;
+            updateServiceButtonUI(); 
+            closeServiceModal();
+            checkCategoryAvailability(); // Cek ulang tombol promo/prioritas
+            fetchOperators();
         };
         container.appendChild(btn);
     });
@@ -391,7 +434,6 @@ function renderOrders() {
     }
 }
 
-// ================= MESIN WAKTU 1 DETIK (ANTI DELAY) =================
 function startTimerTick() {
     if (timerInterval) clearInterval(timerInterval);
     
@@ -424,11 +466,10 @@ function startTimerTick() {
         if (needsRender) { saveActiveOrders(); renderOrders(); }
     };
     
-    runTick(); // Panggil seketika
+    runTick(); 
     timerInterval = setInterval(runTick, 1000); 
 }
 
-// ================= AKSI TOMBOL (FORCE LOCAL CLOSE) =================
 window.setOrderStatus = async function(orderId, statusCode) {
     const btnId = statusCode === 2 ? `btn-cancel-${orderId}` : `btn-finish-${orderId}`;
     const btn = document.getElementById(btnId);
@@ -443,9 +484,8 @@ window.setOrderStatus = async function(orderId, statusCode) {
         if (res.status !== "true" && res.status !== true && res.status != 1 && String(res.status).toLowerCase() !== "success") {
             console.warn("API Menolak Status " + statusCode, res);
         }
-    } catch (e) {
-        console.error("Gagal menjangkau server", e);
-    } finally {
+    } catch (e) { console.error("Gagal", e); } 
+    finally {
         if (statusCode === 2) saveToHistory(orderToSave, "BATAL");
         if (statusCode === 4) saveToHistory(orderToSave, "SELESAI");
         
@@ -480,14 +520,9 @@ window.resendSpecificOrder = async function(id) {
                 activeOrders[idx].expiresAt = Date.now() + (20 * 60 * 1000); 
                 saveActiveOrders();
             }
-        } else {
-            showToast("Gagal resend: " + (res.msg || "Error"), "error");
-        }
-    } catch (e) {
-        showToast("Error sistem: " + e.message, "error");
-    } finally {
-        renderOrders();
-    }
+        } else { showToast("Gagal resend: " + (res.msg || "Error"), "error"); }
+    } catch (e) { showToast("Error sistem: " + e.message, "error"); } 
+    finally { renderOrders(); }
 }
 
 window.replaceSpecificOrder = async function(id) {
@@ -527,8 +562,8 @@ window.replaceSpecificOrder = async function(id) {
                 copyToClipboard(oPhone); showToast("Berhasil mendapat nomor baru!");
             }
         } else { showToast("Gagal mencari ganti: " + (res.msg || "Stok Kosong"), "error"); }
-    } catch (e) { showToast("Error sistem: " + e.message, "error");
-    } finally { saveActiveOrders(); fetchBalance(); renderOrders(); }
+    } catch (e) { showToast("Error sistem: " + e.message, "error"); } 
+    finally { saveActiveOrders(); fetchBalance(); renderOrders(); }
 }
 
 window.cancelAllOldOrders = async function() {
@@ -553,7 +588,6 @@ window.cancelAllOldOrders = async function() {
     renderOrders();
 };
 
-// ================= POLLING STATUS (EKSEKUSI SEKETIKA) =================
 function startPolling() {
     if (pollingInterval) clearInterval(pollingInterval);
     
@@ -605,7 +639,7 @@ function startPolling() {
         isPolling = false;
     };
     
-    runPoll(); // Panggil seketika tanpa delay
+    runPoll(); 
     pollingInterval = setInterval(runPoll, 4000); 
 }
 
