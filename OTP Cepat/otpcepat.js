@@ -1,4 +1,3 @@
-// --- MENGGUNAKAN CLOUDFLARE WORKER ANDA SECARA PERMANEN ---
 const API_BASE_URL = "https://otp-cepat-proxy.masreno6pro.workers.dev"; 
 
 let apiKey = localStorage.getItem('otp_api_key') || "";
@@ -16,6 +15,7 @@ let currentOperator = localStorage.getItem('otp_operator') || "random";
 
 let pollingInterval = null;
 let timerInterval = null; 
+let isPolling = false; // Mencegah server ditabrak request bersamaan
 let isDroplistOpen = false;
 
 const rpFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
@@ -67,6 +67,24 @@ window.onload = () => {
     startTimerTick(); 
 };
 
+// ================= FITUR RECOVERY BACKGROUND & OFFLINE =================
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+        // Jika kembali dari background, paksa refresh server saat itu juga
+        startPolling();
+        startTimerTick();
+    }
+});
+
+window.addEventListener('online', () => {
+    showToast("🌐 Koneksi Internet Kembali", "success");
+    startPolling(); // Tembak server langsung
+});
+
+window.addEventListener('offline', () => {
+    showToast("⚠️ Tidak ada koneksi internet", "warning");
+});
+
 function showToast(pesan, type = "success") { 
     const t = document.getElementById("toast"); 
     t.innerHTML = pesan; 
@@ -107,7 +125,6 @@ async function apiCall(action, extraParams = "") {
     } catch (err) { return { status: "false", msg: "Koneksi terputus: " + err.message }; }
 }
 
-// ================= INIT & SETTINGS =================
 function openSettingsModal() { 
     document.getElementById('settingsApiKey').value = apiKey;
     document.getElementById('settingsModal').classList.remove('hidden'); 
@@ -142,14 +159,11 @@ async function lockCountryToIndonesia() {
     }
 }
 
-// ================= KATEGORI & LAYANAN =================
 window.onCategoryChanged = async function() {
     currentCategory = document.getElementById('categorySelect').value;
     localStorage.setItem('otp_category', currentCategory);
     document.getElementById('btnServiceSelectText').innerText = "Beralih Kategori...";
     document.getElementById('priceDisplayBox').innerText = "...";
-    
-    // Jangan hapus memori layanan agar bisa dipertahankan di kategori baru
     await fetchServices();
 }
 
@@ -160,35 +174,13 @@ async function fetchServices() {
         allServices = dataList.sort((a, b) => String(a.serviceName).localeCompare(String(b.serviceName)));
         
         let targetSvc = null;
-
-        // 1. CARI BERDASARKAN NAMA (Agar saat pindah Promo/Prioritas tidak lompat layanan)
-        if (currentServiceName) {
-            targetSvc = allServices.find(s => String(s.serviceName).toLowerCase() === String(currentServiceName).toLowerCase());
-        }
-        
-        // 2. Jika tidak ketemu nama, coba ID
-        if (!targetSvc && currentServiceId) {
-            targetSvc = allServices.find(s => String(s.serviceID) === String(currentServiceId));
-        }
-        
-        // 3. PENGECUALIAN: Jika layanan tidak ada di kategori baru, tahan dan gunakan memori (harga) sebelumnya
-        if (!targetSvc && currentServiceName) {
-            targetSvc = {
-                serviceID: currentServiceId,
-                serviceName: currentServiceName,
-                price: currentServicePrice
-            };
-        }
-        
-        // 4. Fallback Default jika benar-benar kosong (pertama kali buka)
-        if (!targetSvc) {
-            targetSvc = allServices.find(s => String(s.serviceName).toLowerCase().includes("shopee")) || allServices[0];
-        }
+        if (currentServiceName) targetSvc = allServices.find(s => String(s.serviceName).toLowerCase() === String(currentServiceName).toLowerCase());
+        if (!targetSvc && currentServiceId) targetSvc = allServices.find(s => String(s.serviceID) === String(currentServiceId));
+        if (!targetSvc && currentServiceName) targetSvc = { serviceID: currentServiceId, serviceName: currentServiceName, price: currentServicePrice };
+        if (!targetSvc) targetSvc = allServices.find(s => String(s.serviceName).toLowerCase().includes("shopee")) || allServices[0];
         
         if (targetSvc) {
-            currentServiceId = targetSvc.serviceID; 
-            currentServiceName = targetSvc.serviceName; 
-            currentServicePrice = targetSvc.price;
+            currentServiceId = targetSvc.serviceID; currentServiceName = targetSvc.serviceName; currentServicePrice = targetSvc.price;
         }
         
         updateServiceButtonUI();
@@ -207,7 +199,6 @@ function updateServiceButtonUI() {
     localStorage.setItem('otp_service_price', currentServicePrice);
 }
 
-// --- MODAL LAYANAN ---
 window.openServiceModal = function() { document.getElementById('serviceModal').classList.remove('hidden'); document.getElementById('searchServiceInput').value = ''; filterServices(); }
 window.closeServiceModal = function() { document.getElementById('serviceModal').classList.add('hidden'); }
 
@@ -232,7 +223,6 @@ window.filterServices = function() {
     });
 }
 
-// ================= OPERATOR =================
 function getOperatorLogo(opName) { 
     const i = String(opName).toLowerCase(); 
     if (i.includes('telkomsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; 
@@ -275,7 +265,6 @@ async function fetchOperators() {
     } else { list.innerHTML = '<div class="status-text-mini" style="color:var(--danger-color);">Gagal memuat operator.</div>'; }
 }
 
-// ================= PESANAN (ORDER) BARU =================
 window.onOrderButtonClicked = async function() {
     const btn = document.getElementById('btnOrder');
     if (!btn) return;
@@ -300,15 +289,8 @@ window.onOrderButtonClicked = async function() {
                 }
                 
                 activeOrders.unshift({ 
-                    id: oId, 
-                    phone: oPhone, 
-                    serviceName: currentServiceName,
-                    operatorName: opNameDisplay,
-                    price: finalPrice, 
-                    otp: null, 
-                    status: "Waiting SMS", 
-                    expiresAt: Date.now() + (20 * 60 * 1000), 
-                    hasReceivedOTP: false
+                    id: oId, phone: oPhone, serviceName: currentServiceName, operatorName: opNameDisplay, price: finalPrice, 
+                    otp: null, status: "Waiting SMS", expiresAt: Date.now() + (20 * 60 * 1000), hasReceivedOTP: false
                 });
                 
                 saveActiveOrders(); renderOrders(); fetchBalance(); copyToClipboard(oPhone);
@@ -322,7 +304,6 @@ window.onOrderButtonClicked = async function() {
 
 function saveActiveOrders() { localStorage.setItem('otp_active_orders', JSON.stringify(activeOrders)); }
 
-// ================= KARTU PESANAN =================
 function createOrderCard(order) {
     const now = Date.now(); 
     const card = document.createElement("div"); 
@@ -410,10 +391,11 @@ function renderOrders() {
     }
 }
 
-// ================= MESIN WAKTU 1 DETIK =================
+// ================= MESIN WAKTU 1 DETIK (ANTI DELAY) =================
 function startTimerTick() {
     if (timerInterval) clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
+    
+    const runTick = () => {
         let needsRender = false;
         const now = Date.now();
         
@@ -439,12 +421,11 @@ function startTimerTick() {
                 }
             }
         }
-        
-        if (needsRender) {
-            saveActiveOrders();
-            renderOrders();
-        }
-    }, 1000); 
+        if (needsRender) { saveActiveOrders(); renderOrders(); }
+    };
+    
+    runTick(); // Panggil seketika
+    timerInterval = setInterval(runTick, 1000); 
 }
 
 // ================= AKSI TOMBOL (FORCE LOCAL CLOSE) =================
@@ -572,10 +553,13 @@ window.cancelAllOldOrders = async function() {
     renderOrders();
 };
 
-// ================= POLLING STATUS =================
+// ================= POLLING STATUS (EKSEKUSI SEKETIKA) =================
 function startPolling() {
     if (pollingInterval) clearInterval(pollingInterval);
-    pollingInterval = setInterval(async () => {
+    
+    const runPoll = async () => {
+        if (isPolling) return;
+        isPolling = true;
         let needsRender = false;
         
         for (let i = activeOrders.length - 1; i >= 0; i--) {
@@ -618,10 +602,13 @@ function startPolling() {
             renderOrders();
             fetchBalance();
         }
-    }, 4000); 
+        isPolling = false;
+    };
+    
+    runPoll(); // Panggil seketika tanpa delay
+    pollingInterval = setInterval(runPoll, 4000); 
 }
 
-// ================= HISTORY LOKAL =================
 function saveToHistory(order, finalStatus) { 
     if (!order) return; 
     const historyItem = { id: order.id, phone: order.phone, serviceName: order.serviceName, operatorName: order.operatorName, price: order.price, otp: order.otp || "-", status: finalStatus, date: Date.now() }; 
