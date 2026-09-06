@@ -17,7 +17,7 @@ let currentServicePrice = localStorage.getItem('otp_service_price') || "";
 let currentOperator = localStorage.getItem('otp_operator') || "random";
 
 let pollingInterval = null;
-let timerInterval = null; 
+let timerWorker = null; // Menggantikan timer biasa dengan Web Worker
 let isPolling = false; 
 let isDroplistOpen = false;
 
@@ -59,10 +59,16 @@ window.onload = () => {
     renderOrders(); startPolling(); startTimerTick(); 
 };
 
+// Pembersihan ekstra cepat jika browser benar-benar menidurkan aplikasi (iOS/Safari)
 document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") { startPolling(); startTimerTick(); }
+    if (document.visibilityState === "visible") {
+        forceCheckOverdueOrders();
+        startPolling(); 
+        startTimerTick(); 
+    }
 });
-window.addEventListener('online', () => { showToast("🌐 Koneksi Internet Kembali", "success"); startPolling(); });
+
+window.addEventListener('online', () => { showToast("🌐 Koneksi Internet Kembali", "success"); forceCheckOverdueOrders(); startPolling(); });
 window.addEventListener('offline', () => { showToast("⚠️ Tidak ada koneksi internet", "warning"); });
 
 function showToast(pesan, type = "success") { 
@@ -204,7 +210,6 @@ async function fetchServices() {
 
 function checkCategoryAvailability() {
     if (!currentServiceName) return;
-    
     let hasPromo = findServiceMatch(promoServices, currentServiceName) !== null;
     let hasPrioritas = findServiceMatch(prioritasServices, currentServiceName) !== null;
     
@@ -213,11 +218,9 @@ function checkCategoryAvailability() {
     sel.options[1].disabled = !hasPrioritas; 
     
     if (currentCategory === "promo" && !hasPromo && hasPrioritas) {
-        sel.value = "prioritas";
-        window.onCategoryChanged();
+        sel.value = "prioritas"; window.onCategoryChanged();
     } else if (currentCategory === "prioritas" && !hasPrioritas && hasPromo) {
-        sel.value = "promo";
-        window.onCategoryChanged();
+        sel.value = "promo"; window.onCategoryChanged();
     }
 }
 
@@ -325,14 +328,9 @@ window.onOrderButtonClicked = async function() {
                 
                 const nowStamp = Date.now();
                 activeOrders.unshift({ 
-                    id: oId, 
-                    phone: oPhone, 
-                    serviceName: currentServiceName, 
-                    operatorName: opNameDisplay, 
-                    price: finalPrice, 
-                    otp: null, 
-                    status: "Waiting SMS", 
-                    createdAt: nowStamp, // Titik lahir 20 menit absolut
+                    id: oId, phone: oPhone, serviceName: currentServiceName, operatorName: opNameDisplay, price: finalPrice, 
+                    otp: null, status: "Waiting SMS", 
+                    createdAt: nowStamp, 
                     expiresAt: nowStamp + (20 * 60 * 1000), 
                     hasReceivedOTP: false,
                     isResent: false
@@ -436,37 +434,53 @@ function renderOrders() {
     }
 }
 
-// ================= MESIN WAKTU 1 DETIK DENGAN LOGIKA SELESAI OTOMATIS =================
+// ================= FUNGSI EKSEKUSI WAKTU =================
+function forceCheckOverdueOrders() {
+    let needsRender = false;
+    const now = Date.now();
+    for (let i = activeOrders.length - 1; i >= 0; i--) {
+        let o = activeOrders[i];
+        if (!o.createdAt) o.createdAt = o.expiresAt - (20 * 60 * 1000);
+        
+        const left = o.expiresAt - now;
+        if (left <= 0) {
+            if (o.isResent) {
+                apiCall('set_status', `&order_id=${o.id}&status=4`); 
+                saveToHistory(o, "SELESAI");
+            } else {
+                apiCall('set_status', `&order_id=${o.id}&status=2`); 
+                saveToHistory(o, "BATAL");
+            }
+            activeOrders.splice(i, 1); 
+            needsRender = true;
+        }
+    }
+    if (needsRender) { saveActiveOrders(); renderOrders(); }
+}
+
+// ================= MESIN WAKTU WEB WORKER (ANTI LATAR BELAKANG) =================
 function startTimerTick() {
-    if (timerInterval) clearInterval(timerInterval);
-    
     const runTick = () => {
         let needsRender = false;
         const now = Date.now();
         
         for (let i = activeOrders.length - 1; i >= 0; i--) {
             let o = activeOrders[i];
-            
-            // Kompatibilitas mundur jika tidak ada memori createdAt
             if (!o.createdAt) o.createdAt = o.expiresAt - (20 * 60 * 1000); 
             
             const left = o.expiresAt - now;
             
             if (left <= 0) {
-                // JIKA SISA WAKTU HABIS (Mencapai 0:00)
                 if (o.isResent) {
-                    // Jika sedang mode "Ulang", otomatis SELESAI
                     apiCall('set_status', `&order_id=${o.id}&status=4`); 
                     saveToHistory(o, "SELESAI");
                 } else {
-                    // Jika mode normal/batas 10 menit awal, otomatis BATAL
                     apiCall('set_status', `&order_id=${o.id}&status=2`); 
                     saveToHistory(o, "BATAL");
                 }
                 activeOrders.splice(i, 1); 
                 needsRender = true;
             } else {
-                // PEMBARUAN VISUAL TIMER
                 const timerEl = document.getElementById(`timer-${o.id}`);
                 if (timerEl) {
                     let m = Math.floor(left / 60000); 
@@ -483,7 +497,20 @@ function startTimerTick() {
     };
     
     runTick(); 
-    timerInterval = setInterval(runTick, 1000); 
+    
+    // Injeksi Web Worker agar terpisah dari thread memori utama
+    if (timerWorker) timerWorker.terminate();
+    const workerCode = `
+        let interval;
+        self.onmessage = function(e) {
+            if (e.data === 'start') { interval = setInterval(() => { postMessage('tick'); }, 1000); }
+            else if (e.data === 'stop') { clearInterval(interval); }
+        };
+    `;
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    timerWorker = new Worker(URL.createObjectURL(blob));
+    timerWorker.onmessage = function() { runTick(); };
+    timerWorker.postMessage('start');
 }
 
 window.setOrderStatus = async function(orderId, statusCode) {
@@ -519,7 +546,6 @@ window.setOrderStatus = async function(orderId, statusCode) {
     }
 }
 
-// === LOGIKA TOMBOL ULANG: Meneruskan Sisa 20 Menit Asli ===
 window.resendSpecificOrder = async function(id) {
     const btnResend = document.getElementById(`btn-resend-${id}`);
     if(btnResend) { btnResend.disabled = true; btnResend.innerHTML = '<div class="loader"></div>'; }
@@ -530,14 +556,19 @@ window.resendSpecificOrder = async function(id) {
             showToast("Meminta kode SMS baru...");
             let idx = activeOrders.findIndex(o => String(o.id) === String(id));
             if (idx !== -1) {
-                saveToHistory(activeOrders[idx], "MINTA ULANG"); // Simpan riwayat OTP lama
+                saveToHistory(activeOrders[idx], "MINTA ULANG");
                 
                 activeOrders[idx].status = "Waiting SMS";
                 activeOrders[idx].otp = null;
-                activeOrders[idx].isResent = true; // Tandai bahwa ini adalah proses ulang
+                activeOrders[idx].hasReceivedOTP = false; 
+                activeOrders[idx].isResent = true; 
                 
-                // Menghapus logika 10 menit, memanggil kembali SISA WAKTU dari 20 menit asli
-                activeOrders[idx].expiresAt = activeOrders[idx].createdAt + (20 * 60 * 1000); 
+                // Panggil kembali sisa durasi asli dari createdAt
+                if (activeOrders[idx].originalExpiresAt) {
+                    activeOrders[idx].expiresAt = activeOrders[idx].originalExpiresAt; 
+                } else if (activeOrders[idx].createdAt) {
+                    activeOrders[idx].expiresAt = activeOrders[idx].createdAt + (20 * 60 * 1000);
+                }
                 
                 saveActiveOrders();
             }
@@ -582,6 +613,7 @@ window.replaceSpecificOrder = async function(id) {
                     otp: null, status: "Waiting SMS", 
                     createdAt: nowStamp, 
                     expiresAt: nowStamp + (20 * 60 * 1000), 
+                    originalExpiresAt: nowStamp + (20 * 60 * 1000),
                     hasReceivedOTP: false,
                     isResent: false
                 });
@@ -638,7 +670,7 @@ function startPolling() {
                             
                             if (!o.hasReceivedOTP) {
                                 o.hasReceivedOTP = true;
-                                // Terapkan logika batal 10 menit saat pertama kali OTP masuk
+                                o.originalExpiresAt = o.expiresAt; // Kunci batas asli sebelum dipotong
                                 o.expiresAt = Date.now() + (10 * 60 * 1000); 
                             }
                             
