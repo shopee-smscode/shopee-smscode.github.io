@@ -4,7 +4,6 @@ let apiKey = localStorage.getItem('otp_api_key') || "";
 let activeOrders = JSON.parse(localStorage.getItem('otp_active_orders')) || [];
 let orderHistory = JSON.parse(localStorage.getItem('otp_history')) || [];
 
-// Variabel untuk menyimpan KEDUA daftar (Promo & Prioritas) agar bisa dicek ketersediaannya
 let promoServices = [];
 let prioritasServices = [];
 let allServices = [];
@@ -130,7 +129,6 @@ async function lockCountryToIndonesia() {
     }
 }
 
-// === PENCARI NAMA CERDAS (Mencegah tereset jika ID berbeda di Promo/Prioritas) ===
 function findServiceMatch(list, name) {
     if (!name || list.length === 0) return null;
     let n = String(name).toLowerCase().trim();
@@ -155,7 +153,6 @@ window.onCategoryChanged = async function() {
     localStorage.setItem('otp_category', currentCategory);
     document.getElementById('btnServiceSelectText').innerText = "Memperbarui...";
     
-    // Langsung cari berdasarkan nama yang sama di kategori baru tanpa tembak API lagi
     let listToSearch = currentCategory === "promo" ? promoServices : prioritasServices;
     let matched = findServiceMatch(listToSearch, currentServiceName);
     if (matched) {
@@ -173,7 +170,6 @@ window.onCategoryChanged = async function() {
 async function fetchServices() {
     document.getElementById('btnServiceSelectText').innerText = "Memuat...";
     
-    // TARIK KEDUANYA SEKALIGUS (PROMO & PRIORITAS)
     const [resPromo, resPrio] = await Promise.all([
         apiCall('getSpecialServices'),
         apiCall('getServices', `&country_id=${currentCountryId}`)
@@ -184,7 +180,6 @@ async function fetchServices() {
 
     let listToSearch = currentCategory === "promo" ? promoServices : prioritasServices;
     
-    // Antisipasi jika API error di satu kategori
     if (listToSearch.length === 0) {
         currentCategory = currentCategory === "promo" ? "prioritas" : "promo";
         listToSearch = currentCategory === "promo" ? promoServices : prioritasServices;
@@ -194,7 +189,6 @@ async function fetchServices() {
 
     allServices = listToSearch.sort((a, b) => String(a.serviceName).localeCompare(String(b.serviceName)));
     
-    // Cari layanan terakhir yang dipilih (Utamakan kecocokan nama, lalu fallback ke Shopee)
     let matched = findServiceMatch(listToSearch, currentServiceName) || findServiceMatch(listToSearch, "shopee") || listToSearch[0];
     
     if (matched) {
@@ -208,7 +202,6 @@ async function fetchServices() {
     await fetchOperators();
 }
 
-// === MEMATIKAN KATEGORI JIKA TIDAK ADA HARGA DI SERVER ===
 function checkCategoryAvailability() {
     if (!currentServiceName) return;
     
@@ -219,7 +212,6 @@ function checkCategoryAvailability() {
     sel.options[0].disabled = !hasPromo; 
     sel.options[1].disabled = !hasPrioritas; 
     
-    // Paksa pindah kategori jika kategori yang sedang aktif ternyata mati/tidak ada di server
     if (currentCategory === "promo" && !hasPromo && hasPrioritas) {
         sel.value = "prioritas";
         window.onCategoryChanged();
@@ -259,7 +251,7 @@ window.filterServices = function() {
             currentServicePrice = svc.price;
             updateServiceButtonUI(); 
             closeServiceModal();
-            checkCategoryAvailability(); // Cek ulang tombol promo/prioritas
+            checkCategoryAvailability(); 
             fetchOperators();
         };
         container.appendChild(btn);
@@ -331,9 +323,19 @@ window.onOrderButtonClicked = async function() {
                     opNameDisplay = guessOperator(oPhone);
                 }
                 
+                const nowStamp = Date.now();
                 activeOrders.unshift({ 
-                    id: oId, phone: oPhone, serviceName: currentServiceName, operatorName: opNameDisplay, price: finalPrice, 
-                    otp: null, status: "Waiting SMS", expiresAt: Date.now() + (20 * 60 * 1000), hasReceivedOTP: false
+                    id: oId, 
+                    phone: oPhone, 
+                    serviceName: currentServiceName, 
+                    operatorName: opNameDisplay, 
+                    price: finalPrice, 
+                    otp: null, 
+                    status: "Waiting SMS", 
+                    createdAt: nowStamp, // Titik lahir 20 menit absolut
+                    expiresAt: nowStamp + (20 * 60 * 1000), 
+                    hasReceivedOTP: false,
+                    isResent: false
                 });
                 
                 saveActiveOrders(); renderOrders(); fetchBalance(); copyToClipboard(oPhone);
@@ -434,6 +436,7 @@ function renderOrders() {
     }
 }
 
+// ================= MESIN WAKTU 1 DETIK DENGAN LOGIKA SELESAI OTOMATIS =================
 function startTimerTick() {
     if (timerInterval) clearInterval(timerInterval);
     
@@ -443,14 +446,27 @@ function startTimerTick() {
         
         for (let i = activeOrders.length - 1; i >= 0; i--) {
             let o = activeOrders[i];
+            
+            // Kompatibilitas mundur jika tidak ada memori createdAt
+            if (!o.createdAt) o.createdAt = o.expiresAt - (20 * 60 * 1000); 
+            
             const left = o.expiresAt - now;
             
             if (left <= 0) {
-                apiCall('set_status', `&order_id=${o.id}&status=2`); 
-                saveToHistory(o, "BATAL");
+                // JIKA SISA WAKTU HABIS (Mencapai 0:00)
+                if (o.isResent) {
+                    // Jika sedang mode "Ulang", otomatis SELESAI
+                    apiCall('set_status', `&order_id=${o.id}&status=4`); 
+                    saveToHistory(o, "SELESAI");
+                } else {
+                    // Jika mode normal/batas 10 menit awal, otomatis BATAL
+                    apiCall('set_status', `&order_id=${o.id}&status=2`); 
+                    saveToHistory(o, "BATAL");
+                }
                 activeOrders.splice(i, 1); 
                 needsRender = true;
             } else {
+                // PEMBARUAN VISUAL TIMER
                 const timerEl = document.getElementById(`timer-${o.id}`);
                 if (timerEl) {
                     let m = Math.floor(left / 60000); 
@@ -503,6 +519,7 @@ window.setOrderStatus = async function(orderId, statusCode) {
     }
 }
 
+// === LOGIKA TOMBOL ULANG: Meneruskan Sisa 20 Menit Asli ===
 window.resendSpecificOrder = async function(id) {
     const btnResend = document.getElementById(`btn-resend-${id}`);
     if(btnResend) { btnResend.disabled = true; btnResend.innerHTML = '<div class="loader"></div>'; }
@@ -513,11 +530,15 @@ window.resendSpecificOrder = async function(id) {
             showToast("Meminta kode SMS baru...");
             let idx = activeOrders.findIndex(o => String(o.id) === String(id));
             if (idx !== -1) {
-                saveToHistory(activeOrders[idx], "MINTA ULANG");
+                saveToHistory(activeOrders[idx], "MINTA ULANG"); // Simpan riwayat OTP lama
+                
                 activeOrders[idx].status = "Waiting SMS";
                 activeOrders[idx].otp = null;
-                activeOrders[idx].hasReceivedOTP = false; 
-                activeOrders[idx].expiresAt = Date.now() + (20 * 60 * 1000); 
+                activeOrders[idx].isResent = true; // Tandai bahwa ini adalah proses ulang
+                
+                // Menghapus logika 10 menit, memanggil kembali SISA WAKTU dari 20 menit asli
+                activeOrders[idx].expiresAt = activeOrders[idx].createdAt + (20 * 60 * 1000); 
+                
                 saveActiveOrders();
             }
         } else { showToast("Gagal resend: " + (res.msg || "Error"), "error"); }
@@ -555,9 +576,14 @@ window.replaceSpecificOrder = async function(id) {
                     else { opNameDisplay = guessOperator(oPhone); }
                 }
                 
+                const nowStamp = Date.now();
                 activeOrders.unshift({ 
                     id: oId, phone: oPhone, serviceName: currentServiceName, operatorName: opNameDisplay, price: finalPrice, 
-                    otp: null, status: "Waiting SMS", expiresAt: Date.now() + (20 * 60 * 1000), hasReceivedOTP: false
+                    otp: null, status: "Waiting SMS", 
+                    createdAt: nowStamp, 
+                    expiresAt: nowStamp + (20 * 60 * 1000), 
+                    hasReceivedOTP: false,
+                    isResent: false
                 });
                 copyToClipboard(oPhone); showToast("Berhasil mendapat nomor baru!");
             }
@@ -612,6 +638,7 @@ function startPolling() {
                             
                             if (!o.hasReceivedOTP) {
                                 o.hasReceivedOTP = true;
+                                // Terapkan logika batal 10 menit saat pertama kali OTP masuk
                                 o.expiresAt = Date.now() + (10 * 60 * 1000); 
                             }
                             
