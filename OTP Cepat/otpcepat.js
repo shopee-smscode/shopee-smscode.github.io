@@ -1,6 +1,7 @@
 const API_BASE_URL = "https://otp-cepat-proxy.masreno6pro.workers.dev"; 
+const DEFAULT_API_KEY = "69c532208d65442fadbeb05df1ebf0c3"; // Kunci Default Tertanam
 
-let apiKey = localStorage.getItem('otp_api_key') || "";
+let apiKey = localStorage.getItem('otp_api_key') || DEFAULT_API_KEY;
 let activeOrders = JSON.parse(localStorage.getItem('otp_active_orders')) || [];
 let orderHistory = JSON.parse(localStorage.getItem('otp_history')) || [];
 
@@ -17,7 +18,7 @@ let currentServicePrice = localStorage.getItem('otp_service_price') || "";
 let currentOperator = localStorage.getItem('otp_operator') || "random";
 
 let pollingInterval = null;
-let timerWorker = null; // Menggantikan timer biasa dengan Web Worker
+let timerWorker = null; 
 let isPolling = false; 
 let isDroplistOpen = false;
 
@@ -55,11 +56,14 @@ window.onload = () => {
         document.getElementById('btnServiceSelectText').innerHTML = currentServiceName;
         if (currentServicePrice) document.getElementById('priceDisplayBox').innerText = rpFormatter.format(currentServicePrice);
     }
-    if (!apiKey) { openSettingsModal(); } else { initApp(); }
-    renderOrders(); startPolling(); startTimerTick(); 
+    
+    // Aplikasi akan langsung memulai karena API key default selalu ada
+    initApp();
+    renderOrders(); 
+    startPolling(); 
+    startTimerTick(); 
 };
 
-// Pembersihan ekstra cepat jika browser benar-benar menidurkan aplikasi (iOS/Safari)
 document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
         forceCheckOverdueOrders();
@@ -107,11 +111,27 @@ async function apiCall(action, extraParams = "") {
     } catch (err) { return { status: "false", msg: "Koneksi terputus: " + err.message }; }
 }
 
-function openSettingsModal() { document.getElementById('settingsApiKey').value = apiKey; document.getElementById('settingsModal').classList.remove('hidden'); }
-function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
+// ================= MANAJEMEN API KEY OPSIONAL =================
+function openSettingsModal() { 
+    // Jika masih pakai default, tampilkan input kosong agar user tidak bingung
+    document.getElementById('settingsApiKey').value = apiKey === DEFAULT_API_KEY ? "" : apiKey; 
+    document.getElementById('settingsApiKey').placeholder = "Default aktif. Isi jika ingin ganti...";
+    document.getElementById('settingsModal').classList.remove('hidden'); 
+}
+
+function closeSettingsModal() { 
+    document.getElementById('settingsModal').classList.add('hidden'); 
+}
+
 async function saveSettings() {
-    apiKey = document.getElementById('settingsApiKey').value.trim();
-    localStorage.setItem('otp_api_key', apiKey); closeSettingsModal(); showToast("API Key Disimpan!"); initApp();
+    let inputKey = document.getElementById('settingsApiKey').value.trim();
+    // Jika input dikosongkan, kembali gunakan API bawaan
+    apiKey = inputKey ? inputKey : DEFAULT_API_KEY;
+    localStorage.setItem('otp_api_key', apiKey); 
+    
+    closeSettingsModal(); 
+    showToast(inputKey ? "API Key Disimpan!" : "Kembali ke API Default!"); 
+    initApp();
 }
 
 async function initApp() { await fetchBalance(); await lockCountryToIndonesia(); }
@@ -332,6 +352,7 @@ window.onOrderButtonClicked = async function() {
                     otp: null, status: "Waiting SMS", 
                     createdAt: nowStamp, 
                     expiresAt: nowStamp + (20 * 60 * 1000), 
+                    originalExpiresAt: nowStamp + (20 * 60 * 1000),
                     hasReceivedOTP: false,
                     isResent: false
                 });
@@ -434,7 +455,6 @@ function renderOrders() {
     }
 }
 
-// ================= FUNGSI EKSEKUSI WAKTU =================
 function forceCheckOverdueOrders() {
     let needsRender = false;
     const now = Date.now();
@@ -458,7 +478,6 @@ function forceCheckOverdueOrders() {
     if (needsRender) { saveActiveOrders(); renderOrders(); }
 }
 
-// ================= MESIN WAKTU WEB WORKER (ANTI LATAR BELAKANG) =================
 function startTimerTick() {
     const runTick = () => {
         let needsRender = false;
@@ -498,7 +517,6 @@ function startTimerTick() {
     
     runTick(); 
     
-    // Injeksi Web Worker agar terpisah dari thread memori utama
     if (timerWorker) timerWorker.terminate();
     const workerCode = `
         let interval;
@@ -563,7 +581,6 @@ window.resendSpecificOrder = async function(id) {
                 activeOrders[idx].hasReceivedOTP = false; 
                 activeOrders[idx].isResent = true; 
                 
-                // Panggil kembali sisa durasi asli dari createdAt
                 if (activeOrders[idx].originalExpiresAt) {
                     activeOrders[idx].expiresAt = activeOrders[idx].originalExpiresAt; 
                 } else if (activeOrders[idx].createdAt) {
@@ -670,7 +687,7 @@ function startPolling() {
                             
                             if (!o.hasReceivedOTP) {
                                 o.hasReceivedOTP = true;
-                                o.originalExpiresAt = o.expiresAt; // Kunci batas asli sebelum dipotong
+                                o.originalExpiresAt = o.expiresAt; 
                                 o.expiresAt = Date.now() + (10 * 60 * 1000); 
                             }
                             
