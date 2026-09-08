@@ -73,7 +73,6 @@
         .otp-display.success-glow { border: 2px solid var(--primary-color); box-shadow: inset 0 0 15px rgba(138, 43, 226, 0.1); background: rgba(138, 43, 226, 0.05); }
         .otp-title { font-size: 10px; font-weight: 900; color: var(--text-secondary); letter-spacing: 2px; margin-bottom: 4px; }
         
-        /* MULTI-OTP STACK */
         .otp-code-item { font-size: 26px; font-weight: 900; color: var(--primary-color); letter-spacing: 6px; margin: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
         .otp-code-item:last-child { border-bottom: none; }
 
@@ -129,7 +128,6 @@
                         <a href="#" class="active"><i class="fas fa-rocket"></i> Ada OTP</a>
                     </div>
                 </div>
-                <!-- TOMBOL CATATAN -->
                 <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-file-alt"></i></button>
             </div>
             
@@ -169,16 +167,13 @@
         <div style="margin-top: 24px; padding-top: 15px; border-top: 1px dashed var(--border-color);">
             <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-bottom: 15px;">
                 <div style="flex: 1; text-align: left;">
-                    <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; display: block;">Layanan Aplikasi</label>
-                    <button onclick="openServiceModal()" class="form-input" style="text-align: left; font-weight: 800; padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--primary-color); margin: 0;">
+                    <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; display: block;">Layanan & Harga</label>
+                    <button onclick="openServiceModal()" class="form-input" style="text-align: left; font-weight: 800; padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--primary-color); margin: 0; background-color: var(--bg-card);">
                         <span id="btnServiceSelectText">Memuat Layanan...</span>
-                        <i class="fas fa-search"></i>
+                        <span id="servicePriceBox" style="color: var(--success-color); font-size: 13px; font-weight: 900;"></span>
                     </button>
                 </div>
             </div>
-            
-            <!-- BLOK NEGARA SEPENUHNYA DISEMBUNYIKAN (TAPI TETAP ADA DI DOM AGAR JS TIDAK ERROR) -->
-            <div id="countryList" style="display: none;"></div>
             
             <button id="btnOrder" class="btn-primary" onclick="createNewOrder()" disabled>PESAN NOMOR BARU</button>
         </div>
