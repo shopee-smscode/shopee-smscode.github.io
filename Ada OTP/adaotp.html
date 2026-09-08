@@ -57,6 +57,13 @@
         .btn-primary:active { transform: scale(0.98); }
         .btn-primary:disabled { background-color: #555; color: #888; cursor: not-allowed; box-shadow: none; }
         
+        /* PRODUCT LIST (NEGARA KEMBALI) */
+        .product-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+        .product-card { background: var(--bg-card); border: 2px solid var(--border-color); border-radius: 12px; padding: 12px 5px; text-align: center; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .product-card:hover { border-color: #555; }
+        .product-card.selected { border-color: var(--primary-color); background: rgba(138, 43, 226, 0.05); }
+        .product-info h4 { font-size: 12px; margin: 0; color: var(--text-primary); font-weight: 800; }
+
         /* CARDS & ORDERS */
         .order-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); position: relative; transition: all 0.3s ease; }
         .order-card.removing { opacity: 0; transform: scale(0.9); }
@@ -114,7 +121,7 @@
 <body>
     <div class="container">
         
-        <!-- TOP BAR (Tombol Refresh Dipindah ke Kanan Sesuai Instruksi) -->
+        <!-- TOP BAR -->
         <div class="top-bar-modern">
             <div style="display: flex; gap: 8px; align-items: center;">
                 <div class="dropdown">
@@ -128,12 +135,10 @@
                         <a href="#" class="active"><i class="fas fa-rocket"></i> Ada OTP</a>
                     </div>
                 </div>
-                <!-- TOMBOL CATATAN -->
                 <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-file-alt"></i></button>
             </div>
             
             <div style="display: flex; gap: 8px; align-items: center;">
-                <!-- TOMBOL REFRESH -->
                 <button onclick="forceRefresh()" class="btn-top-action" title="Refresh Manual"><i class="fas fa-sync-alt" id="refreshIcon"></i></button>
                 <div class="dropdown">
                     <button class="dropbtn-icon" onclick="toggleDropdown('menuDropdown')">
@@ -170,15 +175,18 @@
         <div style="margin-top: 24px; padding-top: 15px; border-top: 1px dashed var(--border-color);">
             <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-bottom: 15px;">
                 <div style="flex: 1; text-align: left;">
-                    <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; display: block;">Layanan & Harga</label>
+                    <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; display: block;">Layanan Aplikasi</label>
                     <button onclick="openServiceModal()" class="form-input" style="text-align: left; font-weight: 800; padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--primary-color); margin: 0; background-color: var(--bg-card);">
                         <span id="btnServiceSelectText">Memuat Layanan...</span>
-                        <span id="servicePriceBox" style="color: var(--success-color); font-size: 13px; font-weight: 900;"></span>
+                        <i class="fas fa-search"></i>
                     </button>
                 </div>
             </div>
             
-            <div id="countryList" style="display: none;"></div>
+            <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; display: block;">Pilih Negara / Harga</label>
+            <div id="countryList" class="product-list">
+                <div class="status-text-mini" style="grid-column: span 3;">Memuat daftar negara...</div>
+            </div>
             
             <button id="btnOrder" class="btn-primary" onclick="createNewOrder()" disabled>PESAN NOMOR BARU</button>
         </div>

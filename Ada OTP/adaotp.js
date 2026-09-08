@@ -3,11 +3,10 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-// Reset ke versi paling stabil
-if (!localStorage.getItem('adaotp_shopee_forced_v3.0')) {
+if (!localStorage.getItem('adaotp_shopee_forced_v3.1')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v3.0', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v3.1', 'true');
 }
 
 let activeOrders = []; 
@@ -54,9 +53,15 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
 
     try {
         const response = await fetch(url, options);
-        return await response.json(); 
+        const text = await response.text();
+        try {
+            return JSON.parse(text);
+        } catch(e) {
+            // Anti-crash jika API ADAOTP membalas dengan HTML Error (misal 429 atau 500)
+            return { success: false, message: "Server memblokir/error (Format Bukan JSON)" };
+        }
     } catch (err) { 
-        return { success: false, message: "Koneksi API terputus" }; 
+        return { success: false, message: "Koneksi terputus: " + err.message }; 
     }
 }
 
@@ -131,7 +136,6 @@ async function initApp() {
 async function fetchProfile() {
     try {
         const res = await apiCall('/profile', 'GET');
-        // Pengecekan ketat untuk success
         if (res.success === true && res.data) {
             document.getElementById('currentAccountEmail').innerText = res.data.user ? res.data.user.email : "Akun Aktif";
             document.getElementById('balanceDisplay').innerText = res.data.user ? res.data.user.balance : "Rp -";
@@ -177,71 +181,91 @@ function updateServiceUI() {
     localStorage.setItem('adaotp_service_name', currentServiceName);
 }
 
-// ================= LOGIKA NEGARA & HARGA (PANTI-ERROR) =================
+// ================= MENAMPILKAN SEMUA LIST NEGARA =================
 async function fetchCountries() {
     const btn = document.getElementById('btnOrder');
-    const priceBox = document.getElementById('servicePriceBox');
+    const list = document.getElementById('countryList');
     btn.disabled = true;
-    priceBox.innerText = "...";
+    list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3;">Memuat daftar negara...</div>';
 
     if (!currentServiceId) return;
     
     try {
         const res = await apiCall(`/services/${currentServiceId}/countries`, 'GET');
-        if (res.success === true || Array.isArray(res.data) || typeof res.data === 'object') {
-            let foundId = "";
-            let foundPrice = "";
-            
-            let dataList = [];
-            let rawData = res.data || res;
-            
-            // Format data universal
-            if (Array.isArray(rawData)) {
-                dataList = rawData;
-            } else if (typeof rawData === 'object' && rawData !== null) {
+        
+        // Peringatan jika terdeteksi error seperti Limit / Block
+        if (res.success === false && res.message) {
+             list.innerHTML = `<div class="status-text-mini" style="grid-column: span 3; color: var(--danger-color);">${res.message}</div>`;
+             return;
+        }
+        
+        let dataList = [];
+        let rawData = res.data !== undefined ? res.data : res;
+        
+        if (Array.isArray(rawData)) {
+            dataList = rawData;
+        } else if (typeof rawData === 'object' && rawData !== null) {
+            if (rawData.countries) {
+                dataList = Array.isArray(rawData.countries) ? rawData.countries : Object.values(rawData.countries);
+            } else if (rawData.data) {
+                dataList = Array.isArray(rawData.data) ? rawData.data : Object.values(rawData.data);
+            } else {
                 for (let k in rawData) {
                     let item = rawData[k];
-                    if (typeof item === 'object') {
+                    if (typeof item === 'object' && item !== null) {
                         item._fallbackId = k;
                         dataList.push(item);
-                    } else if (typeof item === 'string') {
-                        dataList.push({ id: k, name: item });
+                    } else if (typeof item === 'string' || typeof item === 'number') {
+                        dataList.push({ id: k, name: String(item) });
                     }
                 }
             }
-            
-            // Cari Indonesia
-            for (let c of dataList) {
-                if (JSON.stringify(c).toLowerCase().includes("indo")) {
-                    foundId = c.id || c.country_id || c.value || c._fallbackId;
-                    foundPrice = c.price || c.cost || c.rate || "";
-                    break;
-                }
-            }
-            
-            // JIKA INDONESIA KOSONG, CEGAH ERROR DENGAN MENGAMBIL NEGARA PERTAMA YANG TERSEDIA
-            if (!foundId && dataList.length > 0) {
-                let first = dataList[0];
-                foundId = first.id || first.country_id || first.value || first._fallbackId;
-                foundPrice = first.price || first.cost || first.rate || "";
-            }
-            
-            if (foundId) {
-                currentCountryId = foundId; 
-                localStorage.setItem('adaotp_country_id', currentCountryId);
-                priceBox.innerText = foundPrice ? `Rp ${foundPrice}` : "Tersedia";
-                priceBox.style.color = "var(--success-color)";
-                btn.disabled = false; // Aktifkan tombol karena ID valid didapat
-            } else {
-                priceBox.innerText = "Stok Kosong";
-                priceBox.style.color = "var(--danger-color)";
-                btn.disabled = true; // Matikan tombol agar tidak terjadi error API
-            }
-        } else {
-            priceBox.innerText = "Error API";
         }
+        
+        list.innerHTML = '';
+        
+        if (dataList.length === 0) {
+            list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3; color: var(--danger-color);">Stok/Negara Kosong untuk Layanan ini</div>';
+            return;
+        }
+
+        let hasAutoSelected = false;
+
+        dataList.forEach(c => {
+            let cid = c.id || c.country_id || c.value || c._fallbackId;
+            let cname = c.name || c.text || c.country || c.title || cid;
+            let cprice = c.price || c.cost || c.rate || "";
+            
+            const card = document.createElement("div"); 
+            card.className = "product-card"; 
+            card.id = `country-card-${cid}`;
+            
+            let priceText = cprice ? `<div style="color:var(--success-color); font-size:10px;">Rp ${cprice}</div>` : '';
+            card.innerHTML = `<div class="product-info"><h4>${cname}</h4>${priceText}</div>`;
+            
+            card.onclick = () => { 
+                document.querySelectorAll('.product-card').forEach(el => el.classList.remove('selected')); 
+                card.classList.add('selected'); 
+                currentCountryId = cid; 
+                localStorage.setItem('adaotp_country_id', currentCountryId);
+                btn.disabled = false;
+            };
+            
+            list.appendChild(card);
+            
+            // Otomatis memilih Indonesia sebagai standar, namun membiarkan user bebas memindahkannya
+            let strVal = JSON.stringify(c).toLowerCase();
+            if (!hasAutoSelected && (strVal.includes("indonesia") || strVal.includes("indo"))) {
+                hasAutoSelected = true;
+                currentCountryId = cid;
+                localStorage.setItem('adaotp_country_id', currentCountryId);
+                card.classList.add('selected');
+                btn.disabled = false;
+            }
+        });
+
     } catch (e) {
-        priceBox.innerText = "Koneksi Error";
+        list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3; color: var(--danger-color);">Gagal memproses data server. Coba Refresh.</div>';
     }
 }
 
@@ -274,7 +298,7 @@ window.filterServices = function() {
     });
 }
 
-// ================= LOGIKA PESANAN ANTI-BOHONG =================
+// LOGIKA PESANAN ANTI-BOHONG
 window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
@@ -286,17 +310,13 @@ window.createNewOrder = async function() {
     try {
         const res = await apiCall('/orders', 'POST', params);
         
-        // PENGECEKAN KETAT: Mencegah 'status: error' terdeteksi sebagai sukses!
         let isSuccess = res.success === true || res.status === "success" || res.status === "ok" || res.id !== undefined || res.order_id !== undefined;
         
         if (isSuccess) {
             showToast("Pesanan Berhasil Dibuat!", "success");
             fetchProfile(); 
-            
-            // JANGAN DITEBAK, LANGSUNG MINTA SERVER MEMBERIKAN DAFTAR PESANAN AKTIF
             await pollActiveOrders(true);
         } else {
-            // Tampilkan pesan error ASLI dari server ADAOTP
             let errMsg = res.message || res.msg || res.error || "Gagal memesan nomor dari server";
             showToast(errMsg, "error");
             renderActiveOrders(); 
@@ -445,7 +465,6 @@ async function pollActiveOrders(isManual = false) {
             }
         }
         
-        // HANYA TERIMA PESANAN YANG PUNYA ID VALID
         let validOrders = ordersExtracted.filter(o => o && typeof o === 'object' && (o.id !== undefined || o.order_id !== undefined));
 
         let prevIds = activeOrders.map(o => String(o.id));
