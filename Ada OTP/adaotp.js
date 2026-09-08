@@ -1,12 +1,12 @@
-const API_BASE_URL = "https://adaotp.com/api/v1";
+lconst API_BASE_URL = "https://adaotp.com/api/v1";
 const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ"; 
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-if (!localStorage.getItem('adaotp_shopee_forced_v1.3')) {
+if (!localStorage.getItem('adaotp_shopee_forced_v1.4')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v1.3', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v1.4', 'true');
 }
 
 let activeOrders = []; 
@@ -38,10 +38,15 @@ function copyToClipboard(t) {
     } catch(e) { showToast("Gagal menyalin", "error"); }
 }
 
+// FUNGSI API YANG DILENGKAPI PENGHANCUR CACHE (CACHE-BUSTER)
 async function apiCall(endpoint, method = 'GET', urlParams = "") {
     if (!apiKey) return { success: false, message: "API Key Kosong" };
     
-    let url = `${API_BASE_URL}${endpoint}?apikey=${apiKey}${urlParams ? '&'+urlParams : ''}`;
+    // Tambahkan Timestamp untuk memaksa browser/jaringan menarik data terbaru detik itu juga
+    let cacheBuster = `_t=${Date.now()}`;
+    let finalParams = urlParams ? `${urlParams}&${cacheBuster}` : cacheBuster;
+    
+    let url = `${API_BASE_URL}${endpoint}?apikey=${apiKey}&${finalParams}`;
     let options = { method: method };
     
     if (method === 'POST' || method === 'DELETE') {
@@ -56,7 +61,6 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     }
 }
 
-// MESIN EKSTRAKTOR SUPER (Tahan Banting)
 function extractOrders(obj) {
     let found = [];
     let seen = new Set();
@@ -91,7 +95,6 @@ function extractOrders(obj) {
     return unique;
 }
 
-// TEBAK OPERATOR OTOMATIS
 function guessOperator(phone) {
     let p = String(phone).replace(/\D/g, "");
     if (p.startsWith("62")) p = "0" + p.substring(2);
@@ -313,7 +316,7 @@ function formatPhoneNumber(phone) {
     return p.replace(/(.{4})/g, '$1 ').trim(); 
 }
 
-// ================= RENDERER TAHAN CRASH & FIX OBJECT =================
+// RENDERER REAL-TIME 
 function renderActiveOrders() {
     const container = document.getElementById('activeOrdersContainer');
     if (!container) return;
@@ -340,12 +343,10 @@ function renderActiveOrders() {
             let canCancel = (now - createdTime) >= 60000;
             let cancelBtnHtml = "";
             
-            let smsArray = order.sms || order.messages || []; 
-            if (typeof smsArray === 'string') smsArray = [smsArray]; 
-            
+            // Pengambilan SMS tersinkronisasi yang sudah di-Normalisasi oleh mesin Polling
+            let smsArray = order.normalized_sms || []; 
             const hasSms = smsArray.length > 0;
             
-            // TIMER DISET KE 80 MENIT (4.800.000 ms)
             const left = (createdTime + 4800000) - now; 
             let m = Math.floor(Math.max(0, left) / 60000); 
             let s = Math.floor((Math.max(0, left) % 60000) / 1000);
@@ -385,7 +386,6 @@ function renderActiveOrders() {
                 otpHtml = `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text" style="font-size:11px; font-weight:800; color:var(--text-secondary); margin-top:8px;">MENUNGGU SMS...</div>`;
             }
             
-            // PERBAIKAN BUGS [object Object] DAN PENAMBAHAN OPERATOR
             let srvNameRaw = order.service || order.service_name;
             let finalSrvName = currentServiceName;
             if (typeof srvNameRaw === 'string') { finalSrvName = srvNameRaw; }
@@ -419,7 +419,7 @@ function renderActiveOrders() {
     });
 }
 
-// LOGIKA SINKRONISASI ANTI-HILANG SEBELUM 80 MENIT
+// LOGIKA SINKRONISASI REAL-TIME (KECEPATAN TINGGI & BYPASS CACHE)
 async function pollActiveOrders() {
     if (isPolling) return;
     isPolling = true;
@@ -431,33 +431,44 @@ async function pollActiveOrders() {
             let serverOrders = extractOrders(res);
             let mergedOrders = [...activeOrders];
             const now = Date.now();
+            let isChanged = false;
 
             serverOrders.forEach(so => {
                 let existingIdx = mergedOrders.findIndex(lo => lo.id == so.id);
+                
+                // NORMALISASI SMS SECARA KETAT
+                let rawSoSms = so.sms || so.messages || so.received_sms || [];
+                let soSmsArray = [];
+                if (Array.isArray(rawSoSms)) {
+                    soSmsArray = rawSoSms;
+                } else if (typeof rawSoSms === 'string' && rawSoSms.trim() !== '') {
+                    soSmsArray = rawSoSms.includes(',') ? rawSoSms.split(',').map(s=>s.trim()) : [rawSoSms.trim()];
+                }
+                so.normalized_sms = soSmsArray;
+
                 if (existingIdx !== -1) {
                     so.local_created_at = mergedOrders[existingIdx].local_created_at;
-                    mergedOrders[existingIdx] = so;
+                    
+                    // Cek jika ada penambahan SMS baru untuk physical feedback
+                    let oldSmsArray = mergedOrders[existingIdx].normalized_sms || [];
+                    if (soSmsArray.length > oldSmsArray.length) {
+                        isChanged = true;
+                        try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (vErr) {}
+                        try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
+                    }
+                    
+                    mergedOrders[existingIdx] = so; // Tumpuk data lama dengan data REAL-TIME dari server
                 } else {
                     so.local_created_at = now;
                     mergedOrders.push(so);
-                }
-                
-                // Cek suara SMS baru
-                let oldSmsCount = 0;
-                let existing = activeOrders.find(lo => lo.id == so.id);
-                if (existing) {
-                    let eSms = existing.sms || existing.messages || [];
-                    oldSmsCount = typeof eSms === 'string' ? 1 : eSms.length;
-                }
-                let newSmsArray = so.sms || so.messages || [];
-                let newSmsCount = typeof newSmsArray === 'string' ? 1 : newSmsArray.length;
-                
-                if (newSmsCount > oldSmsCount) {
-                    try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
+                    isChanged = true;
+                    if (soSmsArray.length > 0) {
+                        try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (vErr) {}
+                        try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
+                    }
                 }
             });
             
-            // Pertahankan pesanan secara lokal hingga 80 Menit (Meskipun server sudah membuangnya dari daftar)
             mergedOrders = mergedOrders.filter(o => {
                 let cTime = o.created_at ? new Date(o.created_at).getTime() : (o.local_created_at || now);
                 if(isNaN(cTime)) cTime = now;
@@ -465,6 +476,8 @@ async function pollActiveOrders() {
             });
 
             activeOrders = mergedOrders;
+            
+            // Selalu render ulang agar waktu tidak macet saat tab aktif
             renderActiveOrders();
         }
     } catch (e) {
@@ -472,7 +485,8 @@ async function pollActiveOrders() {
     } finally {
         isPolling = false;
         if (pollingTimeout) clearTimeout(pollingTimeout);
-        let nextDelay = activeOrders.length > 0 ? 4000 : 8000;
+        // KECEPATAN TURBO: 3 DETIK SAAT ADA PESANAN!
+        let nextDelay = activeOrders.length > 0 ? 3000 : 8000;
         pollingTimeout = setTimeout(pollActiveOrders, nextDelay);
     }
 }
@@ -490,7 +504,7 @@ window.cancelOrder = async function(orderId) {
     if (res.success) {
         showToast("Pesanan Dibatalkan");
         saveToHistory(orderId, "BATAL");
-        activeOrders = activeOrders.filter(o => o.id != orderId); // Hapus manual dari memori lokal
+        activeOrders = activeOrders.filter(o => o.id != orderId); 
         renderActiveOrders();
         fetchProfile(); 
     } else {
@@ -507,7 +521,7 @@ window.finishOrder = async function(orderId) {
     if (res.success) {
         showToast("Siklus OTP Selesai!");
         saveToHistory(orderId, "SELESAI");
-        activeOrders = activeOrders.filter(o => o.id != orderId); // Hapus manual dari memori lokal
+        activeOrders = activeOrders.filter(o => o.id != orderId); 
         renderActiveOrders(); 
     } else {
         showToast(res.message || "Gagal Finish", "error");
@@ -520,17 +534,14 @@ function startTimerTick() {
         let needsRender = false;
         const now = Date.now();
         
-        // Cek kadaluarsa 80 menit lokal dan sisa cooldown tombol Batal
         for (let i = activeOrders.length - 1; i >= 0; i--) {
             let o = activeOrders[i];
             let cTime = o.created_at ? new Date(o.created_at).getTime() : (o.local_created_at || now);
             if(isNaN(cTime)) cTime = now;
             
-            // 80 Menit = 4.800.000 ms
             const left = (cTime + 4800000) - now; 
             
             if (left <= 0) {
-                // Hapus jika sudah melewati 80 menit
                 activeOrders.splice(i, 1);
                 needsRender = true;
                 continue;
@@ -545,8 +556,8 @@ function startTimerTick() {
                 else timerEl.style.color = "var(--text-primary)";
             }
             
-            let smsArray = o.sms || o.messages || []; 
-            if (!smsArray.length || smsArray.length === 0) {
+            let smsArray = o.normalized_sms || []; 
+            if (smsArray.length === 0) {
                 let waitSecs = 60 - Math.floor((now - cTime) / 1000);
                 if (waitSecs === 0) needsRender = true; 
             }
@@ -574,8 +585,8 @@ function saveToHistory(orderId, finalStatus) {
     const order = activeOrders.find(o => o.id == orderId);
     if (!order) return; 
     
-    let smsArray = order.sms || order.messages || [];
-    let lastOtp = typeof smsArray === 'string' ? smsArray : (smsArray.length > 0 ? smsArray[smsArray.length-1] : "-");
+    let smsArray = order.normalized_sms || [];
+    let lastOtp = smsArray.length > 0 ? smsArray[smsArray.length-1] : "-";
     
     let srvNameRaw = order.service || order.service_name;
     let srv = currentServiceName;
