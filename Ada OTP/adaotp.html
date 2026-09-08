@@ -7,9 +7,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
     <style>
-        /* ================= CSS LENGKAP TEMA DARK MODERN ================= */
+        /* ================= CSS LENGKAP TEMA DARK MODERN (UNGU) ================= */
         :root {
-            --primary-color: #ffcc00;
+            /* Warna ungu dari screenshot: BlueViolet #8A2BE2 / RGB 138, 43, 226 */
+            --primary-color: #8A2BE2; 
             --bg-body: #121212;
             --bg-card: #1e1e1e;
             --bg-card-hover: #2a2a2a;
@@ -28,8 +29,10 @@
 
         /* TOP BAR */
         .top-bar-modern { display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 12px 16px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid var(--border-color); }
-        .dropbtn { background-color: var(--primary-color); color: #000; padding: 8px 14px; font-size: 13px; font-weight: 900; border: none; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 6px; }
-        .dropbtn-icon, .btn-top-action { background-color: transparent; color: var(--text-primary); padding: 8px; font-size: 16px; border: 1px solid var(--border-color); cursor: pointer; border-radius: 8px; }
+        .dropbtn { background-color: var(--primary-color); color: #ffffff; padding: 8px 14px; font-size: 13px; font-weight: 900; border: none; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 6px; }
+        .dropbtn-icon, .btn-top-action { background-color: transparent; color: var(--text-primary); padding: 8px; font-size: 16px; border: 1px solid var(--border-color); cursor: pointer; border-radius: 8px; transition: 0.2s; }
+        .btn-top-action:hover { border-color: var(--primary-color); color: var(--primary-color); }
+        
         .dropdown { position: relative; display: inline-block; }
         .dropdown-content { display: none; position: absolute; background-color: var(--bg-card); min-width: 170px; box-shadow: 0px 8px 16px rgba(0,0,0,0.5); z-index: 999; border-radius: 12px; border: 1px solid var(--border-color); overflow: hidden; top: 44px; left: 0; }
         .dropdown-right { left: auto; right: 0; }
@@ -50,8 +53,8 @@
 
         /* FORMS & BUTTONS */
         .form-input { width: 100%; padding: 12px 14px; margin-bottom: 15px; border-radius: 10px; border: 1px solid var(--border-color); background-color: var(--bg-card); color: var(--text-primary); font-size: 14px; transition: 0.3s; }
-        .form-input:focus { border-color: var(--primary-color); outline: none; box-shadow: 0 0 0 2px rgba(255, 204, 0, 0.2); }
-        .btn-primary { background-color: var(--primary-color); color: #000; border: none; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 900; cursor: pointer; width: 100%; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(255,204,0,0.3); transition: 0.2s; }
+        .form-input:focus { border-color: var(--primary-color); outline: none; box-shadow: 0 0 0 2px rgba(138, 43, 226, 0.2); }
+        .btn-primary { background-color: var(--primary-color); color: #ffffff; border: none; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 900; cursor: pointer; width: 100%; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(138, 43, 226, 0.3); transition: 0.2s; }
         .btn-primary:active { transform: scale(0.98); }
         .btn-primary:disabled { background-color: #555; color: #888; cursor: not-allowed; box-shadow: none; }
 
@@ -59,7 +62,7 @@
         .product-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
         .product-card { background: var(--bg-card); border: 2px solid var(--border-color); border-radius: 12px; padding: 12px 5px; text-align: center; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .product-card:hover { border-color: #555; }
-        .product-card.selected { border-color: var(--primary-color); background: rgba(255,204,0,0.05); }
+        .product-card.selected { border-color: var(--primary-color); background: rgba(138, 43, 226, 0.05); }
         .product-info h4 { font-size: 12px; margin: 0; color: var(--text-primary); font-weight: 800; }
         
         /* CARDS & ORDERS */
@@ -76,7 +79,7 @@
         .btn-copy:hover { color: var(--primary-color); background: var(--bg-card); }
         
         .otp-display { background: var(--otp-bg); border-radius: 10px; padding: 16px; text-align: center; margin-bottom: 12px; position: relative; min-height: 70px; display: flex; flex-direction: column; justify-content: center; border: 1px dashed var(--border-color); }
-        .otp-display.success-glow { border: 2px solid var(--primary-color); box-shadow: inset 0 0 15px rgba(255,204,0,0.1); background: rgba(255,204,0,0.05); }
+        .otp-display.success-glow { border: 2px solid var(--primary-color); box-shadow: inset 0 0 15px rgba(138, 43, 226, 0.1); background: rgba(138, 43, 226, 0.05); }
         .otp-title { font-size: 10px; font-weight: 900; color: var(--text-secondary); letter-spacing: 2px; margin-bottom: 4px; }
         
         /* MULTI-OTP STACK */
@@ -133,6 +136,8 @@
                         <a href="#" class="active"><i class="fas fa-rocket"></i> Ada OTP</a>
                     </div>
                 </div>
+                <!-- TOMBOL CATATAN -->
+                <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-sticky-note"></i></button>
             </div>
             
             <div style="display: flex; gap: 8px; align-items: center;">
@@ -193,11 +198,24 @@
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
                 <h3 class="modal-title">Pilih Layanan</h3>
-                <button onclick="closeServiceModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px;"><i class="fas fa-times"></i></button>
+                <button onclick="closeServiceModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
             <input type="text" id="searchServiceInput" class="form-input" placeholder="🔍 Cari nama aplikasi..." oninput="filterServices()" style="border-radius: 10px; font-weight: bold;">
             <div id="serviceListContainer" style="overflow-y: auto; flex: 1; margin-top: 10px;">
                 <div class="status-text-mini">Memuat...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CATATAN -->
+    <div id="iframeNoteModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 95vh; display: flex; flex-direction: column; padding: 10px; width: 95%; max-width: 450px;">
+            <div class="modal-header" style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: none;">
+                <h3 class="modal-title" style="font-size: 16px;">Catatan</h3>
+                <button onclick="closeIframeNoteModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="flex: 1; border-radius: 12px; overflow: hidden; background: #fff;">
+                <iframe src="https://shopee-smscode.github.io/Notes/notes.html" style="width: 100%; height: 100%; border: none; min-height: 65vh; display: block;"></iframe>
             </div>
         </div>
     </div>
@@ -207,11 +225,10 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title">⚙️ API Key ADAOTP</h3>
-                <button onclick="closeSettingsModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px;"><i class="fas fa-times"></i></button>
+                <button onclick="closeSettingsModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
             <div style="margin-bottom: 20px;">
                 <label style="font-size: 13px; font-weight: bold; color: var(--text-secondary); margin-bottom: 8px; display: block;">Masukkan API Key Anda</label>
-                <!-- Menyesuaikan placeholder agar lebih informatif -->
                 <input type="text" id="settingsApiKey" class="form-input" placeholder="Default aktif. Isi jika ingin ganti...">
             </div>
             <button onclick="saveSettings()" class="btn-success" style="width: 100%; padding: 14px; border-radius: 12px; font-weight: 900;"><i class="fas fa-save"></i> SIMPAN PENGATURAN</button>
@@ -223,7 +240,7 @@
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
                 <h3 class="modal-title">Riwayat Lokal</h3>
-                <button onclick="closeHistoryModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px;"><i class="fas fa-times"></i></button>
+                <button onclick="closeHistoryModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
             <div id="history-list" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px;">
                 <div class="status-text-mini">Kosong.</div>
@@ -245,6 +262,8 @@
                 document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
             }
         }
+        function openIframeNoteModal() { document.getElementById('iframeNoteModal').classList.remove('hidden'); }
+        function closeIframeNoteModal() { document.getElementById('iframeNoteModal').classList.add('hidden'); }
     </script>
 </body>
 </html>

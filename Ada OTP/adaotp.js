@@ -1,8 +1,7 @@
 const API_BASE_URL = "https://adaotp.com/api/v1";
-// 1. PENANAMAN API DEFAULT
 const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ"; 
-let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
+let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 let activeOrders = []; 
 let orderHistory = JSON.parse(localStorage.getItem('adaotp_history')) || [];
 let allServices = [];
@@ -33,7 +32,6 @@ function copyToClipboard(t) {
     } catch(e) { showToast("Gagal menyalin", "error"); }
 }
 
-// ================= API CALLER ADAOTP =================
 async function apiCall(endpoint, method = 'GET', urlParams = "") {
     if (!apiKey) return { success: false, message: "API Key Kosong" };
     
@@ -52,11 +50,8 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     }
 }
 
-// ================= INIT & SETTINGS =================
 window.onload = () => {
     if (currentServiceName) { document.getElementById('btnServiceSelectText').innerHTML = currentServiceName; }
-    
-    // Langsung jalankan inisialisasi karena Default API Key sudah terpasang
     initApp();
 };
 
@@ -66,15 +61,12 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener('online', () => { showToast("🌐 Online", "success"); startPolling(); });
 
 function openSettingsModal() { 
-    // Biarkan kosong jika memakai default agar tampilan rapi
     document.getElementById('settingsApiKey').value = apiKey === DEFAULT_API_KEY ? "" : apiKey; 
     document.getElementById('settingsModal').classList.remove('hidden'); 
 }
 function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
 async function saveSettings() {
     let inputKey = document.getElementById('settingsApiKey').value.trim();
-    
-    // 2. KEMBALI KE DEFAULT JIKA DIKOSONGKAN
     apiKey = inputKey ? inputKey : DEFAULT_API_KEY;
     localStorage.setItem('adaotp_api_key', apiKey); 
     
@@ -101,14 +93,15 @@ async function fetchProfile() {
     }
 }
 
-// ================= LAYANAN & PENGUNCIAN NEGARA =================
 async function fetchServices() {
     document.getElementById('btnServiceSelectText').innerText = "Memuat...";
     const res = await apiCall('/services', 'GET');
     if (res.success && res.data) {
         allServices = res.data.sort((a, b) => String(a.text).localeCompare(String(b.text)));
         
-        let target = allServices.find(s => s.id == currentServiceId) || allServices.find(s => String(s.text).toLowerCase().includes("whatsapp")) || allServices[0];
+        // 1. LOGIKA DEFAULT LAYANAN: JADIKAN SHOPEE SEBAGAI PRIORITAS UTAMA
+        let target = allServices.find(s => s.id == currentServiceId) || allServices.find(s => String(s.text).toLowerCase().includes("shopee")) || allServices[0];
+        
         if (target) {
             currentServiceId = target.id;
             currentServiceName = target.text;
@@ -126,7 +119,6 @@ function updateServiceUI() {
     localStorage.setItem('adaotp_service_name', currentServiceName);
 }
 
-// 3. LOGIKA PENGUNCIAN KHUSUS INDONESIA
 async function fetchCountries() {
     const list = document.getElementById('countryList');
     list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3;">Mencari stok Indonesia...</div>';
@@ -138,7 +130,6 @@ async function fetchCountries() {
     if (res.success && res.data) {
         let fetchedCountries = res.data;
         
-        // Filter cerdas: cari negara yang namanya atau ID-nya berkaitan dengan Indonesia
         let indo = fetchedCountries.find(c => {
             let cName = String(c.name || c.country || c.country_name || "").toLowerCase();
             return cName.includes("indonesia") || cName.includes("indo");
@@ -153,10 +144,9 @@ async function fetchCountries() {
             const card = document.createElement("div"); 
             card.className = "product-card selected"; 
             
-            // Kunci Tampilan Kotak Negara
             card.style.cursor = "default";
             card.style.borderColor = "var(--primary-color)";
-            card.style.background = "rgba(255,204,0,0.05)";
+            card.style.background = "rgba(138, 43, 226, 0.05)";
             
             let cName = indo.name || `ID: ${indo.id}`;
             let priceText = indo.price ? `<div style="color:var(--success-color); font-size:10px;">Rp ${indo.price}</div>` : '';
@@ -203,7 +193,6 @@ window.filterServices = function() {
     });
 }
 
-// ================= PESAN NOMOR BARU =================
 window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
@@ -222,7 +211,6 @@ window.createNewOrder = async function() {
     btn.disabled = false; btn.innerText = "PESAN NOMOR";
 }
 
-// ================= RENDER PESANAN AKTIF =================
 function renderActiveOrders() {
     const container = document.getElementById('activeOrdersContainer');
     if (!container) return;
@@ -311,7 +299,6 @@ function renderActiveOrders() {
     });
 }
 
-// ================= SINKRONISASI SERVER =================
 async function pollActiveOrders() {
     if (isPolling) return;
     isPolling = true;
@@ -364,7 +351,6 @@ function startPolling() {
     pollActiveOrders();
 }
 
-// ================= AKSI BATAL & SELESAI =================
 window.cancelOrder = async function(orderId) {
     const card = document.getElementById(`order-card-${orderId}`);
     if(card) card.style.opacity = '0.5';
@@ -396,7 +382,6 @@ window.finishOrder = async function(orderId) {
     }
 }
 
-// ================= MESIN WAKTU & RENDER (WEB WORKER) =================
 function startTimerTick() {
     const runTick = () => {
         let needsRender = false;
@@ -441,7 +426,6 @@ function startTimerTick() {
     timerWorker.postMessage('start');
 }
 
-// ================= RIWAYAT LOKAL =================
 function saveToHistory(orderId, finalStatus) { 
     const order = activeOrders.find(o => o.id == orderId);
     if (!order) return; 
