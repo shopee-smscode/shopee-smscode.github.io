@@ -3,10 +3,10 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-if (!localStorage.getItem('adaotp_shopee_forced_v3.1')) {
+if (!localStorage.getItem('adaotp_shopee_forced_v4.0')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v3.1', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v4.0', 'true');
 }
 
 let activeOrders = []; 
@@ -53,20 +53,14 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
 
     try {
         const response = await fetch(url, options);
-        const text = await response.text();
-        try {
-            return JSON.parse(text);
-        } catch(e) {
-            // Anti-crash jika API ADAOTP membalas dengan HTML Error (misal 429 atau 500)
-            return { success: false, message: "Server memblokir/error (Format Bukan JSON)" };
-        }
+        return await response.json(); 
     } catch (err) { 
         return { success: false, message: "Koneksi terputus: " + err.message }; 
     }
 }
 
 function guessOperator(phone) {
-    if (!phone || String(phone).trim() === "" || String(phone).includes("Memproses")) return "MENCARI...";
+    if (!phone || String(phone).trim() === "" || String(phone).includes("Menyiapkan")) return "MENCARI...";
     let p = String(phone).replace(/\D/g, "");
     if (p.startsWith("62")) p = "0" + p.substring(2);
     let prefix = p.substring(0, 4);
@@ -136,14 +130,14 @@ async function initApp() {
 async function fetchProfile() {
     try {
         const res = await apiCall('/profile', 'GET');
-        if (res.success === true && res.data) {
+        if ((res.success || res.status) && res.data) {
             document.getElementById('currentAccountEmail').innerText = res.data.user ? res.data.user.email : "Akun Aktif";
-            document.getElementById('balanceDisplay').innerText = res.data.user ? res.data.user.balance : "Rp -";
+            document.getElementById('balanceDisplay').innerText = res.data.user ? res.data.user.balance : res.data.balance || "Rp -";
         } else {
-            document.getElementById('balanceDisplay').innerText = "Gagal Cek Saldo";
+            document.getElementById('balanceDisplay').innerText = "Error API";
         }
     } catch (e) {
-        document.getElementById('balanceDisplay').innerText = "Koneksi Terputus";
+        document.getElementById('balanceDisplay').innerText = "Gagal Terhubung";
     }
 }
 
@@ -151,9 +145,10 @@ async function fetchServices() {
     document.getElementById('btnServiceSelectText').innerText = "Memuat...";
     try {
         const res = await apiCall('/services', 'GET');
-        if (res.success === true) {
-            let dataArr = Array.isArray(res.data) ? res.data : Object.values(res.data || {});
-            allServices = dataArr.sort((a, b) => String(a.text || a.name).localeCompare(String(b.text || b.name)));
+        if (res.success || res.status) {
+            let dataTarget = res.data.data ? res.data.data : res.data;
+            let servicesArray = Array.isArray(dataTarget) ? dataTarget : Object.values(dataTarget);
+            allServices = servicesArray.sort((a, b) => String(a.text || a.name).localeCompare(String(b.text || b.name)));
             
             let target = null;
             if (currentServiceId) target = allServices.find(s => String(s.id) === String(currentServiceId));
@@ -181,23 +176,17 @@ function updateServiceUI() {
     localStorage.setItem('adaotp_service_name', currentServiceName);
 }
 
-// ================= MENAMPILKAN SEMUA LIST NEGARA =================
+// ================= LOGIKA DROPDOWN NEGARA & HARGA REKOMENDASI =================
 async function fetchCountries() {
     const btn = document.getElementById('btnOrder');
-    const list = document.getElementById('countryList');
+    const select = document.getElementById('countrySelect');
     btn.disabled = true;
-    list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3;">Memuat daftar negara...</div>';
+    select.innerHTML = '<option value="">Memuat daftar negara...</option>';
 
     if (!currentServiceId) return;
     
     try {
         const res = await apiCall(`/services/${currentServiceId}/countries`, 'GET');
-        
-        // Peringatan jika terdeteksi error seperti Limit / Block
-        if (res.success === false && res.message) {
-             list.innerHTML = `<div class="status-text-mini" style="grid-column: span 3; color: var(--danger-color);">${res.message}</div>`;
-             return;
-        }
         
         let dataList = [];
         let rawData = res.data !== undefined ? res.data : res;
@@ -222,51 +211,59 @@ async function fetchCountries() {
             }
         }
         
-        list.innerHTML = '';
-        
         if (dataList.length === 0) {
-            list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3; color: var(--danger-color);">Stok/Negara Kosong untuk Layanan ini</div>';
+            select.innerHTML = '<option value="">Stok Kosong</option>';
             return;
         }
 
-        let hasAutoSelected = false;
-
+        // Ekstrak & Format
+        let formattedList = [];
         dataList.forEach(c => {
             let cid = c.id || c.country_id || c.value || c._fallbackId;
             let cname = c.name || c.text || c.country || c.title || cid;
-            let cprice = c.price || c.cost || c.rate || "";
-            
-            const card = document.createElement("div"); 
-            card.className = "product-card"; 
-            card.id = `country-card-${cid}`;
-            
-            let priceText = cprice ? `<div style="color:var(--success-color); font-size:10px;">Rp ${cprice}</div>` : '';
-            card.innerHTML = `<div class="product-info"><h4>${cname}</h4>${priceText}</div>`;
-            
-            card.onclick = () => { 
-                document.querySelectorAll('.product-card').forEach(el => el.classList.remove('selected')); 
-                card.classList.add('selected'); 
-                currentCountryId = cid; 
-                localStorage.setItem('adaotp_country_id', currentCountryId);
-                btn.disabled = false;
-            };
-            
-            list.appendChild(card);
-            
-            // Otomatis memilih Indonesia sebagai standar, namun membiarkan user bebas memindahkannya
-            let strVal = JSON.stringify(c).toLowerCase();
-            if (!hasAutoSelected && (strVal.includes("indonesia") || strVal.includes("indo"))) {
-                hasAutoSelected = true;
-                currentCountryId = cid;
-                localStorage.setItem('adaotp_country_id', currentCountryId);
-                card.classList.add('selected');
-                btn.disabled = false;
-            }
+            let cprice = parseFloat(c.price || c.cost || c.rate || 0);
+            formattedList.push({ id: cid, name: cname, price: cprice });
         });
 
+        // Pisahkan Indonesia dan Negara Lain, urutkan berdasarkan harga termurah
+        let indoList = formattedList.filter(c => String(c.name).toLowerCase().includes("indo")).sort((a, b) => a.price - b.price);
+        let otherList = formattedList.filter(c => !String(c.name).toLowerCase().includes("indo")).sort((a, b) => a.price - b.price);
+
+        let finalOptions = "";
+        let firstValidId = "";
+
+        // Masukkan Indonesia dengan Rekomendasi di paling atas
+        if (indoList.length > 0) {
+            firstValidId = indoList[0].id;
+            indoList.forEach((c, index) => {
+                let label = index === 0 ? `${c.name} - Rp ${c.price} (Rekomendasi)` : `${c.name} - Rp ${c.price}`;
+                finalOptions += `<option value="${c.id}">${label}</option>`;
+            });
+        }
+
+        if (otherList.length > 0) {
+            if (!firstValidId) firstValidId = otherList[0].id;
+            otherList.forEach(c => {
+                finalOptions += `<option value="${c.id}">${c.name} - Rp ${c.price}</option>`;
+            });
+        }
+
+        select.innerHTML = finalOptions;
+        currentCountryId = firstValidId;
+        select.value = currentCountryId;
+        localStorage.setItem('adaotp_country_id', currentCountryId);
+        btn.disabled = false;
+
     } catch (e) {
-        list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3; color: var(--danger-color);">Gagal memproses data server. Coba Refresh.</div>';
+        select.innerHTML = '<option value="">Error memuat data</option>';
     }
+}
+
+// Fungsi Trigger Saat Dropdown Diubah
+window.changeCountry = function() {
+    const select = document.getElementById('countrySelect');
+    currentCountryId = select.value;
+    localStorage.setItem('adaotp_country_id', currentCountryId);
 }
 
 window.openServiceModal = function() { document.getElementById('serviceModal').classList.remove('hidden'); document.getElementById('searchServiceInput').value = ''; filterServices(); }
@@ -298,24 +295,40 @@ window.filterServices = function() {
     });
 }
 
-// LOGIKA PESANAN ANTI-BOHONG
+// ================= SISTEM INJEKSI BAYANGAN MUTLAK =================
 window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
     
-    document.getElementById('activeOrdersContainer').innerHTML = '<div class="status-text-mini">Merespons server...</div>';
+    document.getElementById('activeOrdersContainer').innerHTML = '<div class="status-text-mini">Menghubungi server...</div>';
     
     const params = `country=${currentCountryId}&service_id=${currentServiceId}`;
     
     try {
         const res = await apiCall('/orders', 'POST', params);
         
-        let isSuccess = res.success === true || res.status === "success" || res.status === "ok" || res.id !== undefined || res.order_id !== undefined;
+        let isSuccess = res.success === true || res.status === "success" || res.status === "ok" || res.id !== undefined || res.order_id !== undefined || (res.data && res.data.id !== undefined);
         
         if (isSuccess) {
             showToast("Pesanan Berhasil Dibuat!", "success");
+            
+            // INJEKSI PAKSA: Buat kartu bayangan menggunakan data seadanya atau ID waktu agar layar TIDAK KOSONG
+            let shadowId = res.id || res.order_id || (res.data ? res.data.id : null) || (res.data && res.data.order ? res.data.order.id : null) || Date.now();
+            let shadowPhone = res.phone || res.number || (res.data ? res.data.phone : null) || "Menyiapkan...";
+            
+            if (!activeOrders.find(o => String(o.id) === String(shadowId))) {
+                activeOrders.unshift({
+                    id: shadowId,
+                    phone: shadowPhone,
+                    local_created_at: Date.now(),
+                    normalized_sms: []
+                });
+            }
+            
+            // Tampilkan bayangan, lalu perbarui dengan data server yang asli
+            renderActiveOrders(); 
             fetchProfile(); 
-            await pollActiveOrders(true);
+            pollActiveOrders(true); 
         } else {
             let errMsg = res.message || res.msg || res.error || "Gagal memesan nomor dari server";
             showToast(errMsg, "error");
@@ -332,7 +345,7 @@ window.createNewOrder = async function() {
 }
 
 function formatPhoneNumber(phone) { 
-    if (!phone || String(phone).trim() === "") return "Memproses Nomor..."; 
+    if (!phone || String(phone).trim() === "") return "Menyiapkan Nomor..."; 
     let p = String(phone).replace(/\D/g, "");
     if (p.startsWith("62")) { p = "0" + p.substring(2); } 
     return p.replace(/(.{4})/g, '$1 ').trim(); 
@@ -409,9 +422,12 @@ function renderActiveOrders() {
             if (typeof srvNameRaw === 'string') { finalSrvName = srvNameRaw; }
             else if (typeof srvNameRaw === 'object' && srvNameRaw !== null) { finalSrvName = srvNameRaw.name || srvNameRaw.text || currentServiceName; }
             
-            let phoneNumber = order.phone || order.number || order.phone_number || "Memproses...";
+            let phoneNumber = order.phone || order.number || order.phone_number || "Menyiapkan...";
             let opName = guessOperator(phoneNumber);
             
+            const card = document.createElement("div"); 
+            card.className = "order-card"; 
+            card.id = `order-card-${order.id}`;
             card.innerHTML = `
                 <div class="order-header">
                     <div>
@@ -437,6 +453,48 @@ function renderActiveOrders() {
     });
 }
 
+// MESIN EKSTRAKTOR AMAN V1.12
+function extractOrdersSafe(res) {
+    let found = [];
+    let seen = new Set();
+    
+    function search(current) {
+        if (!current || typeof current !== 'object') return;
+        if (seen.has(current)) return;
+        seen.add(current);
+        
+        let id = current.id || current.order_id || current.order;
+        let phone = current.phone || current.number || current.phone_number;
+        
+        // Pengecekan rileks
+        if (id !== undefined && (phone !== undefined || current.status !== undefined || current.sms !== undefined)) {
+            current.id = id;
+            found.push(current);
+        } else {
+            for (let key in current) {
+                if (!isNaN(key) && current[key] && typeof current[key] === 'object') {
+                    current[key].id = current[key].id || key;
+                    search(current[key]);
+                } else if (typeof current[key] === 'object') {
+                    search(current[key]);
+                }
+            }
+        }
+    }
+    
+    search(res);
+    
+    let unique = [];
+    let map = {};
+    for (let o of found) {
+        if (!map[o.id]) {
+            map[o.id] = true;
+            unique.push(o);
+        }
+    }
+    return unique;
+}
+
 async function pollActiveOrders(isManual = false) {
     if (isPolling && !isManual) return;
     isPolling = true;
@@ -444,77 +502,53 @@ async function pollActiveOrders(isManual = false) {
     try {
         const res = await apiCall('/orders/active', 'GET');
         
-        let ordersExtracted = [];
-        let rawData = res.data !== undefined ? res.data : res;
-        
-        if (Array.isArray(rawData)) {
-            ordersExtracted = rawData;
-        } else if (typeof rawData === 'object' && rawData !== null) {
-            if (rawData.orders && Array.isArray(rawData.orders)) {
-                ordersExtracted = rawData.orders;
-            } else if (rawData.data && Array.isArray(rawData.data)) {
-                ordersExtracted = rawData.data;
-            } else {
-                for (let k in rawData) {
-                    let item = rawData[k];
-                    if (typeof item === 'object' && item !== null) {
-                        item.id = item.id || item.order_id || k;
-                        ordersExtracted.push(item);
+        if (res.success === true || res.status === "success" || res.data !== undefined) {
+            let serverOrders = extractOrdersSafe(res);
+            let prevIds = activeOrders.map(o => String(o.id));
+            let mergedOrders = [...activeOrders];
+            const now = Date.now();
+            let isChanged = false;
+
+            serverOrders.forEach(so => {
+                let existingIdx = mergedOrders.findIndex(lo => String(lo.id) === String(so.id));
+                
+                let rawSoSms = so.sms || so.messages || so.received_sms || [];
+                let soSmsArray = Array.isArray(rawSoSms) ? rawSoSms : (typeof rawSoSms === 'string' && rawSoSms.trim() !== '' ? rawSoSms.split(',').map(s=>s.trim()) : []);
+                so.normalized_sms = soSmsArray;
+
+                if (existingIdx !== -1) {
+                    so.local_created_at = mergedOrders[existingIdx].local_created_at;
+                    let oldSmsArray = mergedOrders[existingIdx].normalized_sms || [];
+                    if (soSmsArray.length > oldSmsArray.length) {
+                        isChanged = true;
+                        try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+                        try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (e) {}
+                    }
+                    mergedOrders[existingIdx] = so; 
+                } else {
+                    so.local_created_at = now;
+                    mergedOrders.unshift(so); 
+                    isChanged = true;
+                    if (soSmsArray.length > 0) {
+                        try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+                        try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (e) {}
                     }
                 }
-            }
-        }
-        
-        let validOrders = ordersExtracted.filter(o => o && typeof o === 'object' && (o.id !== undefined || o.order_id !== undefined));
-
-        let prevIds = activeOrders.map(o => String(o.id));
-        let mergedOrders = [...activeOrders];
-        const now = Date.now();
-        let isChanged = false;
-
-        validOrders.forEach(so => {
-            so.id = so.id || so.order_id;
+            });
             
-            let rawSoSms = so.sms || so.messages || so.received_sms || [];
-            let soSmsArray = Array.isArray(rawSoSms) ? rawSoSms : (typeof rawSoSms === 'string' && rawSoSms.trim() !== '' ? rawSoSms.split(',').map(s=>s.trim()) : []);
-            so.normalized_sms = soSmsArray;
+            mergedOrders = mergedOrders.filter(o => {
+                let cTime = o.local_created_at || now;
+                return (now - cTime) < 4800000; 
+            });
 
-            let existingIdx = mergedOrders.findIndex(lo => String(lo.id) === String(so.id));
-            if (existingIdx !== -1) {
-                so.local_created_at = mergedOrders[existingIdx].local_created_at;
-                
-                let oldSmsArray = mergedOrders[existingIdx].normalized_sms || [];
-                if (soSmsArray.length > oldSmsArray.length) {
-                    isChanged = true;
-                    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
-                    try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (e) {}
-                }
-                
-                mergedOrders[existingIdx] = so; 
-            } else {
-                so.local_created_at = now;
-                mergedOrders.unshift(so); 
-                isChanged = true;
-                if (soSmsArray.length > 0) {
-                    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
-                    try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (e) {}
-                }
-            }
-        });
-        
-        mergedOrders = mergedOrders.filter(o => {
-            let cTime = o.local_created_at || now;
-            return (now - cTime) < 4800000; 
-        });
+            activeOrders = mergedOrders;
+            
+            let currentIds = activeOrders.map(o => String(o.id));
+            let hasRemoved = prevIds.some(id => !currentIds.includes(id));
+            if (hasRemoved || isChanged) fetchProfile();
 
-        activeOrders = mergedOrders;
-        
-        let currentIds = activeOrders.map(o => String(o.id));
-        let hasRemoved = prevIds.some(id => !currentIds.includes(id));
-        if (hasRemoved || isChanged) fetchProfile();
-
-        renderActiveOrders();
-        
+            renderActiveOrders();
+        }
     } catch (e) {
         console.error("Polling Terhambat:", e);
     } finally {
