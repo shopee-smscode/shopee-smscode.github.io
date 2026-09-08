@@ -3,14 +3,17 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-if (!localStorage.getItem('adaotp_shopee_forced_v4.2')) {
+if (!localStorage.getItem('adaotp_shopee_forced_v4.4')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v4.2', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v4.4', 'true');
 }
 
 let activeOrders = []; 
 let orderHistory = JSON.parse(localStorage.getItem('adaotp_history')) || [];
+// BRANKAS WAKTU PERMANEN: Menyimpan waktu pembuatan pesanan agar tidak reset saat refresh
+let orderTimestamps = JSON.parse(localStorage.getItem('adaotp_order_times')) || {};
+
 let allServices = [];
 
 let currentServiceId = localStorage.getItem('adaotp_service_id') || "";
@@ -107,7 +110,7 @@ window.forceRefresh = async function() {
     isPolling = false;
     if (pollingTimeout) clearTimeout(pollingTimeout);
     
-    await fetchProfile();
+    syncBalanceRobust(); 
     await pollActiveOrders(true);
     
     if(icon) icon.classList.remove('fa-spin');
@@ -139,12 +142,21 @@ async function fetchProfile() {
         if ((res.success || res.status) && res.data) {
             document.getElementById('currentAccountEmail').innerText = res.data.user ? res.data.user.email : "Akun Aktif";
             document.getElementById('balanceDisplay').innerText = res.data.user ? res.data.user.balance : res.data.balance || "Rp -";
+            return true;
         } else {
             document.getElementById('balanceDisplay').innerText = "Error API";
+            return false;
         }
     } catch (e) {
         document.getElementById('balanceDisplay').innerText = "Gagal Terhubung";
+        return false;
     }
+}
+
+function syncBalanceRobust() {
+    fetchProfile(); 
+    setTimeout(fetchProfile, 1000); 
+    setTimeout(fetchProfile, 2500); 
 }
 
 async function fetchServices() {
@@ -302,6 +314,20 @@ window.filterServices = function() {
     });
 }
 
+// Fungsi Simpan Waktu ke Memory Internal (Brankas Waktu)
+function saveTimestamp(id, time) {
+    orderTimestamps[id] = time;
+    
+    // Pembersihan memori: Hapus data yang usianya lebih dari 2 jam (7.200.000 ms) agar localStorage tidak kepenuhan
+    let now = Date.now();
+    for (let key in orderTimestamps) {
+        if (now - orderTimestamps[key] > 7200000) {
+            delete orderTimestamps[key];
+        }
+    }
+    localStorage.setItem('adaotp_order_times', JSON.stringify(orderTimestamps));
+}
+
 window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
@@ -317,7 +343,7 @@ window.createNewOrder = async function() {
         
         if (isSuccess) {
             showToast("Pesanan Berhasil Dibuat!", "success");
-            await fetchProfile(); 
+            syncBalanceRobust(); 
             await pollActiveOrders(true); 
         } else {
             let errMsg = res.message || res.msg || res.error || "Gagal memesan nomor dari server";
@@ -370,7 +396,6 @@ function renderActiveOrders() {
             let s = Math.floor((Math.max(0, left) % 60000) / 1000);
             let timeStr = left > 0 ? `${m}:${s<10?'0':''}${s}` : 'Habis';
             
-            // LOGIKA PEMBATALAN INSTAN TANPA TIMER
             if (!hasSms) {
                 cancelBtnHtml = `<button class="btn-danger" onclick="cancelOrder('${order.id}')">BATAL</button>`;
                 finishBtnHtml = `<button class="btn-success" disabled>SELESAI</button>`;
@@ -493,7 +518,14 @@ async function pollActiveOrders(isManual = false) {
                 
                 mergedOrders[existingIdx] = so; 
             } else {
-                so.local_created_at = now;
+                // LOGIKA BRANKAS WAKTU: Cek apakah pesanan ini pernah dilihat sebelumnya (dari refresh/reload page)
+                if (orderTimestamps[so.id]) {
+                    so.local_created_at = orderTimestamps[so.id];
+                } else {
+                    so.local_created_at = now;
+                    saveTimestamp(so.id, now); // Simpan permanen
+                }
+
                 mergedOrders.unshift(so); 
                 isChanged = true;
                 if (soSmsArray.length > 0) {
@@ -505,14 +537,14 @@ async function pollActiveOrders(isManual = false) {
         
         mergedOrders = mergedOrders.filter(o => {
             let cTime = o.local_created_at || now;
-            return (now - cTime) < 4800000; 
+            return (now - cTime) < 4800000; // Filter 80 menit
         });
 
         activeOrders = mergedOrders;
         
         let currentIds = activeOrders.map(o => String(o.id));
         let hasRemoved = prevIds.some(id => !currentIds.includes(id));
-        if (hasRemoved || isChanged) fetchProfile();
+        if (hasRemoved || isChanged) syncBalanceRobust(); 
 
         renderActiveOrders();
         
@@ -542,10 +574,10 @@ window.cancelOrder = async function(orderId) {
         activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); 
         renderActiveOrders();
         
-        setTimeout(async () => {
-            await fetchProfile();
-        }, 1500);
+        // Bersihkan memori brankas waktu saat batal
+        if(orderTimestamps[orderId]) { delete orderTimestamps[orderId]; localStorage.setItem('adaotp_order_times', JSON.stringify(orderTimestamps)); }
 
+        syncBalanceRobust(); 
     } else {
         showToast(res.message || "Gagal membatalkan", "error");
         if(card) card.style.opacity = '1';
@@ -563,10 +595,10 @@ window.finishOrder = async function(orderId) {
         activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); 
         renderActiveOrders(); 
         
-        setTimeout(async () => {
-            await fetchProfile();
-        }, 1500);
+        // Bersihkan memori brankas waktu saat selesai
+        if(orderTimestamps[orderId]) { delete orderTimestamps[orderId]; localStorage.setItem('adaotp_order_times', JSON.stringify(orderTimestamps)); }
 
+        syncBalanceRobust(); 
     } else {
         showToast(res.message || "Gagal Finish", "error");
         if(card) card.style.opacity = '1';
@@ -585,6 +617,9 @@ function startTimerTick() {
             const left = (cTime + 4800000) - now; 
             
             if (left <= 0) {
+                // Bersihkan memori brankas waktu jika waktu habis
+                if(orderTimestamps[o.id]) { delete orderTimestamps[o.id]; localStorage.setItem('adaotp_order_times', JSON.stringify(orderTimestamps)); }
+                
                 activeOrders.splice(i, 1);
                 needsRender = true;
                 continue;
