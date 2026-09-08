@@ -3,10 +3,10 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-if (!localStorage.getItem('adaotp_shopee_forced_v4.1')) {
+if (!localStorage.getItem('adaotp_shopee_forced_v4.2')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v4.1', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v4.2', 'true');
 }
 
 let activeOrders = []; 
@@ -50,7 +50,6 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     if (method === 'POST' || method === 'DELETE') {
         options.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
     } else {
-        // PENEMBUS CACHE EKSTRA AGAR SALDO SELALU UPDATE
         options.headers = { 
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
@@ -183,7 +182,6 @@ function updateServiceUI() {
     localStorage.setItem('adaotp_service_name', currentServiceName);
 }
 
-// ================= LOGIKA HARGA REKOMENDASI (1755 PRIORITAS UTAMA) =================
 async function fetchCountries() {
     const btn = document.getElementById('btnOrder');
     const select = document.getElementById('countrySelect');
@@ -231,7 +229,6 @@ async function fetchCountries() {
             formattedList.push({ id: cid, name: cname, price: cprice });
         });
 
-        // Urutkan daftar berdasarkan harga
         let indoList = formattedList.filter(c => String(c.name).toLowerCase().includes("indo")).sort((a, b) => a.price - b.price);
         let otherList = formattedList.filter(c => !String(c.name).toLowerCase().includes("indo")).sort((a, b) => a.price - b.price);
 
@@ -239,11 +236,10 @@ async function fetchCountries() {
         let firstValidId = "";
 
         if (indoList.length > 0) {
-            // MENCARI HARGA 1755 UNTUK DIJADIKAN REKOMENDASI UTAMA
             let targetIdx = indoList.findIndex(c => c.price === 1755);
             if (targetIdx !== -1) {
                 let targetItem = indoList.splice(targetIdx, 1)[0];
-                indoList.unshift(targetItem); // Pindahkan ke paling atas
+                indoList.unshift(targetItem); 
             }
 
             firstValidId = indoList[0].id;
@@ -306,7 +302,6 @@ window.filterServices = function() {
     });
 }
 
-// ================= HAPUS INJEKSI BAYANGAN =================
 window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
@@ -322,9 +317,6 @@ window.createNewOrder = async function() {
         
         if (isSuccess) {
             showToast("Pesanan Berhasil Dibuat!", "success");
-            
-            // Jangan pakai injeksi bayangan lagi agar tidak dobel.
-            // Langsung panggil API agar mendapat data dan ID yang valid!
             await fetchProfile(); 
             await pollActiveOrders(true); 
         } else {
@@ -367,7 +359,6 @@ function renderActiveOrders() {
             const now = Date.now();
             let cTime = order.local_created_at || now; 
             
-            let canCancel = (now - cTime) >= 60000;
             let cancelBtnHtml = "";
             let finishBtnHtml = "";
             
@@ -379,13 +370,9 @@ function renderActiveOrders() {
             let s = Math.floor((Math.max(0, left) % 60000) / 1000);
             let timeStr = left > 0 ? `${m}:${s<10?'0':''}${s}` : 'Habis';
             
+            // LOGIKA PEMBATALAN INSTAN TANPA TIMER
             if (!hasSms) {
-                if (canCancel) {
-                    cancelBtnHtml = `<button class="btn-danger" onclick="cancelOrder('${order.id}')">BATAL</button>`;
-                } else {
-                    let waitSecs = 60 - Math.floor((now - cTime) / 1000);
-                    cancelBtnHtml = `<button class="btn-danger" disabled>BATAL (${Math.max(0, waitSecs)}s)</button>`;
-                }
+                cancelBtnHtml = `<button class="btn-danger" onclick="cancelOrder('${order.id}')">BATAL</button>`;
                 finishBtnHtml = `<button class="btn-success" disabled>SELESAI</button>`;
             } else {
                 cancelBtnHtml = `<button class="btn-danger" disabled>BATAL</button>`;
@@ -555,7 +542,6 @@ window.cancelOrder = async function(orderId) {
         activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); 
         renderActiveOrders();
         
-        // JEDA CERDAS 1.5 DETIK UNTUK MENUNGGU SERVER MENGEMBALIKAN SALDO
         setTimeout(async () => {
             await fetchProfile();
         }, 1500);
@@ -611,12 +597,6 @@ function startTimerTick() {
                 timerEl.innerText = left > 0 ? `${m}:${s<10?'0':''}${s}` : 'Habis';
                 if (left <= 180000) timerEl.style.color = "var(--danger-color)";
                 else timerEl.style.color = "var(--text-primary)";
-            }
-            
-            let smsArray = o.normalized_sms || []; 
-            if (smsArray.length === 0) {
-                let waitSecs = 60 - Math.floor((now - cTime) / 1000);
-                if (waitSecs === 0) needsRender = true; 
             }
         }
         if (needsRender) renderActiveOrders();
