@@ -3,11 +3,11 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-// Pemaksaan reset ke versi paling stabil (v1.10)
-if (!localStorage.getItem('adaotp_shopee_forced_v1.10')) {
+// Pemaksaan reset ke versi paling mutlak (v1.11)
+if (!localStorage.getItem('adaotp_shopee_forced_v1.11')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v1.10', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v1.11', 'true');
 }
 
 let activeOrders = []; 
@@ -42,7 +42,6 @@ function copyToClipboard(t) {
 async function apiCall(endpoint, method = 'GET', urlParams = "") {
     if (!apiKey) return { success: false, message: "API Key Kosong" };
     
-    // Cache-buster wajib agar data pesanan tidak nyangkut di memori browser
     let cacheBuster = `_t=${Date.now()}`;
     let finalParams = urlParams ? `${urlParams}&${cacheBuster}` : cacheBuster;
     
@@ -61,35 +60,46 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     }
 }
 
-// ================= MESIN SAFE-EXTRACT V1.10 =================
-// Dijamin tidak akan menolak data pesanan apapun bentuk dari server
+// ================= MESIN PENAKLUK FORMAT ADAOTP (V1.11) =================
+// Mesin ini tidak peduli apakah ID pesanan ditaruh di dalam data atau dijadikan "Nama Objek" (Key). 
 function extractOrdersSafe(res) {
     if (!res) return [];
     
-    // Bongkar bungkusan data dari server
-    let data = res.data !== undefined ? res.data : res;
-    if (data && data.data !== undefined) data = data.data; 
-    if (data && data.orders !== undefined) data = data.orders; 
+    let rawData = res.data !== undefined ? res.data : res;
+    if (rawData && rawData.data !== undefined) rawData = rawData.data; 
+    if (rawData && rawData.orders !== undefined) rawData = rawData.orders; 
     
     let results = [];
     
-    if (Array.isArray(data)) {
-        results = data;
-    } else if (typeof data === 'object' && data !== null) {
-        // Cek apakah ini objek 1 pesanan (hasil dari klik tombol Pesan Nomor Baru)
-        if (data.id !== undefined || data.order_id !== undefined || data.order !== undefined) {
-            results = [data]; 
+    if (Array.isArray(rawData)) {
+        results = rawData;
+    } else if (typeof rawData === 'object' && rawData !== null) {
+        // Jika respons adalah objek tunggal yang sudah punya ID (dari POST)
+        if (rawData.id || rawData.order_id || rawData.order) {
+            results = [rawData];
         } else {
-            // Jika bukan, mungkin itu kumpulan pesanan dalam bentuk dictionary
-            results = Object.values(data); 
+            // INILAH PENYEBAB UTAMA MASALAH ANDA!
+            // Server merespons kumpulan objek di mana "KUNCI (KEY)" adalah "ID PESANAN".
+            for (let key in rawData) {
+                let item = rawData[key];
+                if (typeof item === 'object' && item !== null) {
+                    // Paksa masukkan nama kuncinya sebagai ID ke dalam data!
+                    item.id = item.id || item.order_id || item.order || key; 
+                    results.push(item);
+                } else if (typeof item === 'string' || typeof item === 'number') {
+                    // Jika server hanya merespons {"19027911": "083131805642"}
+                    results.push({ id: key, phone: String(item) });
+                }
+            }
         }
     }
 
-    // Filter mutlak: Asal ada ID, itu pasti pesanan. Masukkan ke layar!
-    return results.filter(o => o && typeof o === 'object' && (o.id !== undefined || o.order_id !== undefined || o.order !== undefined)).map(o => {
+    // Pastikan hasil akhir punya ID yang valid untuk ditampilkan di layar
+    return results.map(o => {
+        if (typeof o !== 'object') return null;
         o.id = o.id || o.order_id || o.order;
         return o;
-    });
+    }).filter(o => o !== null && o.id !== undefined && String(o.id).trim() !== "");
 }
 
 function guessOperator(phone) {
@@ -125,18 +135,17 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener('online', () => { showToast("🌐 Online", "success"); startPolling(); });
 
-// TOMBOL SINKRONISASI MANUAL (REFRESH)
 window.forceRefresh = async function() {
     const icon = document.getElementById('refreshIcon');
     if(icon) icon.classList.add('fa-spin');
     
-    showToast("Menarik data terbaru...", "warning");
+    showToast("Menarik pesanan...", "warning");
     
     isPolling = false;
     if (pollingTimeout) clearTimeout(pollingTimeout);
     
     await fetchProfile();
-    await pollActiveOrders(true);
+    await pollActiveOrders(true); // Panggil paksa
     
     if(icon) icon.classList.remove('fa-spin');
     showToast("Sinkronisasi Selesai!", "success");
@@ -303,41 +312,34 @@ window.filterServices = function() {
     });
 }
 
-// LOGIKA PEMESANAN AMAN TERKENDALI
+// LOGIKA PEMESANAN BARU YANG DIBENAHI
 window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
     
-    document.getElementById('activeOrdersContainer').innerHTML = '<div class="status-text-mini">Merespons server...</div>';
+    document.getElementById('activeOrdersContainer').innerHTML = '<div class="status-text-mini">Menarik pesanan dari server...</div>';
     
     const params = `country=${currentCountryId || '1'}&service_id=${currentServiceId}`;
     
     try {
         const res = await apiCall('/orders', 'POST', params);
         
-        // Pengecekan status yang lebih ramah (mengantisipasi res.status === true)
-        if (res.success || res.status) {
+        // Cek jika API merespons dengan indikasi sukses apa pun
+        if (res.success || res.status || res.id || res.order_id || (res.data && (res.data.id || res.data.order_id))) {
             showToast("Nomor Berhasil Dipesan!");
             fetchProfile(); 
             
-            let newOrders = extractOrdersSafe(res);
-            if (newOrders.length > 0) {
-                let newOrder = newOrders[0];
-                newOrder.local_created_at = Date.now();
-                if(!activeOrders.find(o => String(o.id) === String(newOrder.id))) {
-                    activeOrders.unshift(newOrder); 
-                }
-            } else {
-                // BACKUP: Jika data POST sangat aneh, langsung tarik paksa dari server detik itu juga!
-                await pollActiveOrders(true); 
-            }
+            // JANGAN MENGANDALKAN RESPONS POST!
+            // Tarik paksa dari daftar pesanan aktif yang mutlak
+            await pollActiveOrders(true);
         } else {
             showToast(res.message || "Gagal memesan nomor", "error");
+            renderActiveOrders(); 
         }
     } catch(e) {
         showToast("Error Koneksi!", "error");
+        renderActiveOrders();
     } finally {
-        renderActiveOrders(); 
         if (pollingTimeout) clearTimeout(pollingTimeout);
         pollActiveOrders(); 
         btn.disabled = false; btn.innerText = "PESAN NOMOR BARU";
@@ -383,7 +385,7 @@ function renderActiveOrders() {
             
             if (!hasSms) {
                 if (canCancel) {
-                    cancelBtnHtml = `<button class="btn-danger" onclick="cancelOrder(${order.id})">BATAL</button>`;
+                    cancelBtnHtml = `<button class="btn-danger" onclick="cancelOrder('${order.id}')">BATAL</button>`;
                 } else {
                     let waitSecs = 60 - Math.floor((now - cTime) / 1000);
                     cancelBtnHtml = `<button class="btn-danger" disabled>BATAL (${Math.max(0, waitSecs)}s)</button>`;
@@ -391,7 +393,7 @@ function renderActiveOrders() {
                 finishBtnHtml = `<button class="btn-success" disabled>SELESAI</button>`;
             } else {
                 cancelBtnHtml = `<button class="btn-danger" disabled>BATAL</button>`;
-                finishBtnHtml = `<button class="btn-success" onclick="finishOrder(${order.id})">SELESAI</button>`;
+                finishBtnHtml = `<button class="btn-success" onclick="finishOrder('${order.id}')">SELESAI</button>`;
             }
 
             let otpHtml = "";
@@ -422,7 +424,7 @@ function renderActiveOrders() {
             if (typeof srvNameRaw === 'string') { finalSrvName = srvNameRaw; }
             else if (typeof srvNameRaw === 'object' && srvNameRaw !== null) { finalSrvName = srvNameRaw.name || srvNameRaw.text || currentServiceName; }
             
-            let phoneNumber = order.phone || order.number || order.phone_number || "";
+            let phoneNumber = order.phone || order.number || order.phone_number || "Menyiapkan...";
             let opName = guessOperator(phoneNumber);
             
             card.innerHTML = `
@@ -450,6 +452,7 @@ function renderActiveOrders() {
     });
 }
 
+// POLLING AKTIF DENGAN EKSTRAKTOR AMAN V1.11
 async function pollActiveOrders(isManual = false) {
     if (isPolling && !isManual) return;
     isPolling = true;
@@ -457,7 +460,8 @@ async function pollActiveOrders(isManual = false) {
     try {
         const res = await apiCall('/orders/active', 'GET');
         
-        if (res.success || res.status) {
+        // Pengecekan rileks untuk menangkap data server
+        if (res.success || res.status || res.data !== undefined) {
             let serverOrders = extractOrdersSafe(res);
             let prevIds = activeOrders.map(o => String(o.id));
             let mergedOrders = [...activeOrders];
