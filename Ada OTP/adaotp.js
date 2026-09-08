@@ -1,7 +1,9 @@
 const API_BASE_URL = "https://adaotp.com/api/v1";
-let apiKey = localStorage.getItem('adaotp_api_key') || ""; 
+// 1. PENANAMAN API DEFAULT
+const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ"; 
+let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-let activeOrders = []; // Disinkronkan langsung dari server ADAOTP
+let activeOrders = []; 
 let orderHistory = JSON.parse(localStorage.getItem('adaotp_history')) || [];
 let allServices = [];
 let allCountries = [];
@@ -35,7 +37,6 @@ function copyToClipboard(t) {
 async function apiCall(endpoint, method = 'GET', urlParams = "") {
     if (!apiKey) return { success: false, message: "API Key Kosong" };
     
-    // Format URL: https://adaotp.com/api/v1/endpoint?apikey=...&...
     let url = `${API_BASE_URL}${endpoint}?apikey=${apiKey}${urlParams ? '&'+urlParams : ''}`;
     let options = { method: method };
     
@@ -54,7 +55,9 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
 // ================= INIT & SETTINGS =================
 window.onload = () => {
     if (currentServiceName) { document.getElementById('btnServiceSelectText').innerHTML = currentServiceName; }
-    if (!apiKey) { openSettingsModal(); } else { initApp(); }
+    
+    // Langsung jalankan inisialisasi karena Default API Key sudah terpasang
+    initApp();
 };
 
 document.addEventListener("visibilitychange", () => {
@@ -63,14 +66,21 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener('online', () => { showToast("🌐 Online", "success"); startPolling(); });
 
 function openSettingsModal() { 
-    document.getElementById('settingsApiKey').value = apiKey; 
+    // Biarkan kosong jika memakai default agar tampilan rapi
+    document.getElementById('settingsApiKey').value = apiKey === DEFAULT_API_KEY ? "" : apiKey; 
     document.getElementById('settingsModal').classList.remove('hidden'); 
 }
 function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
 async function saveSettings() {
-    apiKey = document.getElementById('settingsApiKey').value.trim();
+    let inputKey = document.getElementById('settingsApiKey').value.trim();
+    
+    // 2. KEMBALI KE DEFAULT JIKA DIKOSONGKAN
+    apiKey = inputKey ? inputKey : DEFAULT_API_KEY;
     localStorage.setItem('adaotp_api_key', apiKey); 
-    closeSettingsModal(); showToast("API Key Disimpan!"); initApp();
+    
+    closeSettingsModal(); 
+    showToast(inputKey ? "API Key Tersimpan!" : "Menggunakan API Bawaan!"); 
+    initApp();
 }
 
 async function initApp() {
@@ -91,7 +101,7 @@ async function fetchProfile() {
     }
 }
 
-// ================= LAYANAN & NEGARA =================
+// ================= LAYANAN & PENGUNCIAN NEGARA =================
 async function fetchServices() {
     document.getElementById('btnServiceSelectText').innerText = "Memuat...";
     const res = await apiCall('/services', 'GET');
@@ -116,49 +126,54 @@ function updateServiceUI() {
     localStorage.setItem('adaotp_service_name', currentServiceName);
 }
 
-// Menarik negara spesifik berdasarkan layanan yang dipilih
+// 3. LOGIKA PENGUNCIAN KHUSUS INDONESIA
 async function fetchCountries() {
     const list = document.getElementById('countryList');
-    list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3;">Memuat negara...</div>';
+    list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3;">Mencari stok Indonesia...</div>';
     document.getElementById('btnOrder').disabled = true;
 
     if (!currentServiceId) return;
     
-    // API GET /services/{id}/countries
     const res = await apiCall(`/services/${currentServiceId}/countries`, 'GET');
     if (res.success && res.data) {
-        allCountries = res.data;
+        let fetchedCountries = res.data;
+        
+        // Filter cerdas: cari negara yang namanya atau ID-nya berkaitan dengan Indonesia
+        let indo = fetchedCountries.find(c => {
+            let cName = String(c.name || c.country || c.country_name || "").toLowerCase();
+            return cName.includes("indonesia") || cName.includes("indo");
+        });
+        
         list.innerHTML = '';
         
-        // Cek apakah memori negara masih ada di layanan ini
-        let validCountry = allCountries.find(c => c.id == currentCountryId);
-        if (!validCountry && allCountries.length > 0) currentCountryId = allCountries[0].id;
-        
-        allCountries.forEach(c => {
+        if (indo) {
+            currentCountryId = indo.id; 
+            localStorage.setItem('adaotp_country_id', currentCountryId);
+            
             const card = document.createElement("div"); 
-            card.className = "product-card"; 
-            if (currentCountryId == c.id) card.classList.add('selected');
+            card.className = "product-card selected"; 
             
-            // Render nama negara & harga (jika disediakan API, jika tidak tampilkan namanya saja)
-            let cName = c.name || `ID: ${c.id}`;
-            let priceText = c.price ? `<div style="color:var(--success-color); font-size:10px;">Rp ${c.price}</div>` : '';
+            // Kunci Tampilan Kotak Negara
+            card.style.cursor = "default";
+            card.style.borderColor = "var(--primary-color)";
+            card.style.background = "rgba(255,204,0,0.05)";
             
-            card.innerHTML = `<div class="product-info"><h4>${cName}</h4>${priceText}</div>`;
-            card.onclick = () => { 
-                document.querySelectorAll('.product-card').forEach(el => el.classList.remove('selected')); 
-                card.classList.add('selected'); 
-                currentCountryId = c.id; 
-                localStorage.setItem('adaotp_country_id', currentCountryId);
-            };
+            let cName = indo.name || `ID: ${indo.id}`;
+            let priceText = indo.price ? `<div style="color:var(--success-color); font-size:10px;">Rp ${indo.price}</div>` : '';
+            
+            card.innerHTML = `<div class="product-info"><h4>${cName} (Terkunci)</h4>${priceText}</div>`;
             list.appendChild(card);
-        });
-        document.getElementById('btnOrder').disabled = false;
+            
+            document.getElementById('btnOrder').disabled = false;
+        } else {
+            currentCountryId = "";
+            list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--warning-color);">Stok Nomor Indonesia Kosong Untuk Layanan Ini</div>';
+        }
     } else {
-        list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--danger-color);">Stok Kosong / Gagal</div>';
+        list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--danger-color);">Gagal Mengecek Stok Server</div>';
     }
 }
 
-// Modal Layanan (Bisa pakai logo)
 window.openServiceModal = function() { document.getElementById('serviceModal').classList.remove('hidden'); document.getElementById('searchServiceInput').value = ''; filterServices(); }
 window.closeServiceModal = function() { document.getElementById('serviceModal').classList.add('hidden'); }
 window.filterServices = function() {
@@ -182,7 +197,7 @@ window.filterServices = function() {
             currentServiceName = svc.text; 
             updateServiceUI(); 
             closeServiceModal();
-            fetchCountries(); // Refresh negara setiap pindah layanan
+            fetchCountries(); 
         };
         container.appendChild(btn);
     });
@@ -193,14 +208,13 @@ window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
     
-    // API POST /orders
     const params = `country=${currentCountryId}&service_id=${currentServiceId}`;
     const res = await apiCall('/orders', 'POST', params);
     
     if (res.success) {
         showToast("Nomor Berhasil Dipesan!");
-        fetchProfile(); // Update saldo
-        pollActiveOrders(); // Langsung paksa sinkronisasi dengan server
+        fetchProfile(); 
+        pollActiveOrders(); 
     } else {
         showToast(res.message || "Gagal memesan nomor", "error");
     }
@@ -220,36 +234,27 @@ function renderActiveOrders() {
     
     container.innerHTML = "";
     
-    // Balik urutan agar yang terbaru di atas
     [...activeOrders].reverse().forEach(order => {
         const now = Date.now();
-        // Server ADAOTP memberikan created_at, kita ubah ke timestamp JS
-        // Jika API memberi format string "2025-09-30T00...", kita parse. 
-        // Jika belum ada/tidak jelas, kita pakai fallback Date.now
         let createdTime = order.created_at ? new Date(order.created_at).getTime() : now; 
         
         const card = document.createElement("div"); 
         card.className = "order-card"; 
         card.id = `order-card-${order.id}`;
         
-        // Mengecek apakah sudah bisa dibatalkan (Cancel rule: > 1 min)
         let canCancel = (now - createdTime) >= 60000;
         let cancelBtnHtml = "";
         
-        // Mengecek multi-OTP SMS
-        // Asumsi API mengembalikan sms sebagai array atau string jika ada (misal: order.sms atau order.received_sms)
         let smsArray = order.sms || order.messages || []; 
-        if (typeof smsArray === 'string') smsArray = [smsArray]; // Antisipasi jika formatnya beda
+        if (typeof smsArray === 'string') smsArray = [smsArray]; 
         
         const hasSms = smsArray.length > 0;
         
-        // TIMER DISPLAY (Maksimal 20 Menit = 1200000 ms)
         const left = (createdTime + 1200000) - now; 
         let m = Math.floor(Math.max(0, left) / 60000); 
         let s = Math.floor((Math.max(0, left) % 60000) / 1000);
         let timeStr = left > 0 ? `${m}:${s<10?'0':''}${s}` : 'Habis';
         
-        // Tombol Batal Pintar
         if (!hasSms) {
             if (canCancel) {
                 cancelBtnHtml = `<button class="btn-danger" onclick="cancelOrder(${order.id})"><i class="fas fa-times"></i> Batal</button>`;
@@ -258,15 +263,12 @@ function renderActiveOrders() {
                 cancelBtnHtml = `<button class="btn-danger" disabled><i class="fas fa-lock"></i> Batal (${Math.max(0, waitSecs)}s)</button>`;
             }
         } else {
-            // Sesuai aturan: tidak bisa cancel jika sudah ada SMS
             cancelBtnHtml = `<button class="btn-danger" disabled><i class="fas fa-ban"></i> Batal</button>`;
         }
 
-        // Tampilan Multi SMS Berjejer
         let otpHtml = "";
         if (hasSms) {
             let stackHtml = smsArray.map((msg, i) => {
-                // Ekstrak angka saja jika memungkinkan
                 let code = msg;
                 let extracted = String(msg).match(/\b\d{4,8}\b/);
                 if (extracted) code = extracted[0];
@@ -309,30 +311,26 @@ function renderActiveOrders() {
     });
 }
 
-// ================= SINKRONISASI SERVER MASTER (Polling) =================
+// ================= SINKRONISASI SERVER =================
 async function pollActiveOrders() {
     if (isPolling) return;
     isPolling = true;
     
-    // API GET /orders/active
     const res = await apiCall('/orders/active', 'GET');
     
     if (res.success && res.data) {
-        // API ADAOTP menyinkronkan seluruh order
-        // Pastikan kita menambahkan timestamp lokal buatan jika server tidak mengirim created_at
         let serverOrders = res.data;
         const now = Date.now();
         
         serverOrders.forEach(so => {
             let existing = activeOrders.find(lo => lo.id == so.id);
             if (existing) {
-                so.local_created_at = existing.local_created_at; // Pertahankan timer
+                so.local_created_at = existing.local_created_at; 
             } else {
-                so.local_created_at = now; // Catat waktu lahir lokal
+                so.local_created_at = now; 
             }
         });
         
-        // Bandingkan apakah ada penambahan SMS baru untuk Notifikasi Suara
         serverOrders.forEach(so => {
             let oldSmsCount = 0;
             let existing = activeOrders.find(lo => lo.id == so.id);
@@ -346,7 +344,6 @@ async function pollActiveOrders() {
             let newSmsCount = typeof newSmsArray === 'string' ? 1 : newSmsArray.length;
             
             if (newSmsCount > oldSmsCount) {
-                // Mainkan suara jika ada SMS baru masuk (Multi-OTP trigger)
                 try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
             }
         });
@@ -357,8 +354,6 @@ async function pollActiveOrders() {
     
     isPolling = false;
     
-    // Adaptive Polling: Karena API me-return SEMUA pesanan sekaligus, 1 request sudah cukup untuk semua.
-    // Kita panggil tiap 5 detik (12 request/menit, sangat aman dari batas 100 req/min)
     if (pollingTimeout) clearTimeout(pollingTimeout);
     let nextDelay = activeOrders.length > 0 ? 5000 : 10000;
     pollingTimeout = setTimeout(pollActiveOrders, nextDelay);
@@ -374,13 +369,12 @@ window.cancelOrder = async function(orderId) {
     const card = document.getElementById(`order-card-${orderId}`);
     if(card) card.style.opacity = '0.5';
     
-    // API DELETE /orders/{id}
     const res = await apiCall(`/orders/${orderId}`, 'DELETE');
     if (res.success) {
         showToast("Pesanan Dibatalkan");
         saveToHistory(orderId, "BATAL");
-        pollActiveOrders(); // Sync
-        fetchProfile(); // Kembalikan saldo
+        pollActiveOrders(); 
+        fetchProfile(); 
     } else {
         showToast(res.message || "Gagal membatalkan", "error");
         if(card) card.style.opacity = '1';
@@ -391,12 +385,11 @@ window.finishOrder = async function(orderId) {
     const card = document.getElementById(`order-card-${orderId}`);
     if(card) card.style.opacity = '0.5';
     
-    // API POST /orders/{id}/finish
     const res = await apiCall(`/orders/${orderId}/finish`, 'POST');
     if (res.success) {
         showToast("Siklus OTP Selesai!");
         saveToHistory(orderId, "SELESAI");
-        pollActiveOrders(); // Sync
+        pollActiveOrders(); 
     } else {
         showToast(res.message || "Gagal Finish", "error");
         if(card) card.style.opacity = '1';
@@ -413,7 +406,6 @@ function startTimerTick() {
             let o = activeOrders[i];
             let cTime = o.created_at ? new Date(o.created_at).getTime() : (o.local_created_at || now);
             
-            // Render ulang visualisasi timer Batal dan 20 Menit secara lokal
             const timerEl = document.getElementById(`timer-${o.id}`);
             if (timerEl) {
                 const left = (cTime + 1200000) - now; 
@@ -424,11 +416,10 @@ function startTimerTick() {
                 else timerEl.style.color = "var(--text-primary)";
             }
             
-            // Render hitung mundur Tombol Batal 60 Detik
             let smsArray = o.sms || o.messages || []; 
             if (!smsArray.length || smsArray.length === 0) {
                 let waitSecs = 60 - Math.floor((now - cTime) / 1000);
-                if (waitSecs === 0) needsRender = true; // Picu render ulang saat gembok lepas
+                if (waitSecs === 0) needsRender = true; 
             }
         }
         if (needsRender) renderActiveOrders();
