@@ -1,1 +1,250 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ada OTP ⚡</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <style>
+        /* ================= CSS LENGKAP TEMA DARK MODERN ================= */
+        :root {
+            --primary-color: #ffcc00;
+            --bg-body: #121212;
+            --bg-card: #1e1e1e;
+            --bg-card-hover: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #aaaaaa;
+            --border-color: #333333;
+            --success-color: #00e676;
+            --danger-color: #ff4d4d;
+            --warning-color: #ff9800;
+            --otp-bg: #2b2b2b;
+        }
+
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        body { background-color: var(--bg-body); color: var(--text-primary); margin: 0; padding-bottom: 50px; font-size: 14px; }
+        .container { max-width: 480px; margin: 0 auto; padding: 16px; }
+
+        /* TOP BAR */
+        .top-bar-modern { display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 12px 16px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid var(--border-color); }
+        .dropbtn { background-color: var(--primary-color); color: #000; padding: 8px 14px; font-size: 13px; font-weight: 900; border: none; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 6px; }
+        .dropbtn-icon, .btn-top-action { background-color: transparent; color: var(--text-primary); padding: 8px; font-size: 16px; border: 1px solid var(--border-color); cursor: pointer; border-radius: 8px; }
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-content { display: none; position: absolute; background-color: var(--bg-card); min-width: 170px; box-shadow: 0px 8px 16px rgba(0,0,0,0.5); z-index: 999; border-radius: 12px; border: 1px solid var(--border-color); overflow: hidden; top: 44px; left: 0; }
+        .dropdown-right { left: auto; right: 0; }
+        .dropdown-content.show { display: block; animation: fadeIn 0.2s ease; }
+        .dropdown-content a { color: var(--text-primary); padding: 12px 14px; text-decoration: none; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-color); font-size: 13px; font-weight: 700; transition: 0.2s; }
+        .dropdown-content a:hover { background-color: var(--bg-card-hover); color: var(--primary-color); }
+        .dropdown-content a.active { color: var(--primary-color); background-color: var(--bg-body); }
+        .dropdown-content a i { width: 16px; text-align: center; }
+
+        /* HEADER & SALDO */
+        .app-header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header-titles h1 { font-size: 24px; font-weight: 900; color: var(--primary-color); margin-bottom: 4px; letter-spacing: 1px; }
+        .header-titles p { font-size: 12px; color: var(--text-secondary); }
+        .balance-container { text-align: right; }
+        .balance-badge { background: linear-gradient(135deg, #1e1e1e, #2a2a2a); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 10px; display: inline-flex; flex-direction: column; align-items: flex-end; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .balance-label { font-size: 10px; font-weight: bold; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+        .balance-value { font-size: 16px; font-weight: 900; color: var(--success-color); letter-spacing: 0.5px; }
+
+        /* FORMS & BUTTONS */
+        .form-input { width: 100%; padding: 12px 14px; margin-bottom: 15px; border-radius: 10px; border: 1px solid var(--border-color); background-color: var(--bg-card); color: var(--text-primary); font-size: 14px; transition: 0.3s; }
+        .form-input:focus { border-color: var(--primary-color); outline: none; box-shadow: 0 0 0 2px rgba(255, 204, 0, 0.2); }
+        .btn-primary { background-color: var(--primary-color); color: #000; border: none; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 900; cursor: pointer; width: 100%; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(255,204,0,0.3); transition: 0.2s; }
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-primary:disabled { background-color: #555; color: #888; cursor: not-allowed; box-shadow: none; }
+
+        /* PRODUCT LIST (NEGARA) */
+        .product-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+        .product-card { background: var(--bg-card); border: 2px solid var(--border-color); border-radius: 12px; padding: 12px 5px; text-align: center; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .product-card:hover { border-color: #555; }
+        .product-card.selected { border-color: var(--primary-color); background: rgba(255,204,0,0.05); }
+        .product-info h4 { font-size: 12px; margin: 0; color: var(--text-primary); font-weight: 800; }
+        
+        /* CARDS & ORDERS */
+        .order-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); position: relative; transition: all 0.3s ease; }
+        .order-card.removing { opacity: 0; transform: scale(0.9); }
+        .order-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; border-bottom: 1px dashed var(--border-color); padding-bottom: 10px; }
+        .order-id-label { font-size: 13px; font-weight: 800; color: var(--text-primary); }
+        .order-price { font-size: 11px; font-weight: 900; color: var(--success-color); background: rgba(0,230,118,0.1); padding: 2px 6px; border-radius: 4px; display: inline-block; }
+        .timer { font-size: 16px; font-weight: 900; letter-spacing: 1px; }
+        
+        .phone-row { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 12px 16px; border-radius: 10px; margin-bottom: 12px; }
+        .phone-number { font-size: 20px; font-weight: 900; letter-spacing: 2px; color: var(--primary-color); }
+        .btn-copy { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 16px; padding: 8px; border-radius: 8px; }
+        .btn-copy:hover { color: var(--primary-color); background: var(--bg-card); }
+        
+        .otp-display { background: var(--otp-bg); border-radius: 10px; padding: 16px; text-align: center; margin-bottom: 12px; position: relative; min-height: 70px; display: flex; flex-direction: column; justify-content: center; border: 1px dashed var(--border-color); }
+        .otp-display.success-glow { border: 2px solid var(--primary-color); box-shadow: inset 0 0 15px rgba(255,204,0,0.1); background: rgba(255,204,0,0.05); }
+        .otp-title { font-size: 10px; font-weight: 900; color: var(--text-secondary); letter-spacing: 2px; margin-bottom: 4px; }
+        
+        /* MULTI-OTP STACK */
+        .otp-code-item { font-size: 26px; font-weight: 900; color: var(--primary-color); letter-spacing: 6px; margin: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .otp-code-item:last-child { border-bottom: none; }
+        .otp-time { font-size: 10px; letter-spacing: 0; color: var(--text-secondary); font-weight: normal; }
+
+        .action-buttons-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .action-buttons-grid button { padding: 12px; border: none; border-radius: 10px; font-weight: 900; font-size: 13px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn-danger { background-color: rgba(255, 77, 77, 0.1); color: var(--danger-color); border: 1px solid rgba(255, 77, 77, 0.3) !important; }
+        .btn-danger:not(:disabled):hover { background-color: var(--danger-color); color: #fff; }
+        .btn-success { background-color: rgba(0, 230, 118, 0.1); color: var(--success-color); border: 1px solid rgba(0, 230, 118, 0.3) !important; }
+        .btn-success:not(:disabled):hover { background-color: var(--success-color); color: #000; }
+        .action-buttons-grid button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* MODALS */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(5px); }
+        .modal.hidden { display: none; }
+        .modal-content { background: var(--bg-body); width: 90%; max-width: 400px; border-radius: 16px; padding: 20px; border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+        .modal-title { font-size: 16px; font-weight: 900; color: var(--text-primary); }
+        
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--success-color); color: #000; padding: 12px 24px; border-radius: 30px; font-weight: 900; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); opacity: 0; visibility: hidden; transition: 0.3s; z-index: 10000; }
+        .toast.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(-10px); }
+
+        .loader { border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid var(--primary-color); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* LOADING DOTS */
+        .waiting-animation { display: flex; justify-content: center; gap: 6px; margin: 10px 0; }
+        .dot-pulse { width: 8px; height: 8px; background-color: var(--primary-color); border-radius: 50%; animation: pulse 1.5s infinite ease-in-out; }
+        .dot-pulse:nth-child(2) { animation-delay: 0.2s; }
+        .dot-pulse:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes pulse { 0%, 100% { transform: scale(0.5); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 1; } }
+        
+        .status-text-mini { text-align: center; font-size: 12px; color: var(--text-secondary); padding: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <!-- TOP BAR -->
+        <div class="top-bar-modern">
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <div class="dropdown">
+                    <button class="dropbtn" onclick="toggleDropdown('appDropdown')">
+                        <i class="fas fa-rocket"></i> Ada OTP <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 2px;"></i>
+                    </button>
+                    <div id="appDropdown" class="dropdown-content">
+                        <a href="virtualsms.html"><i class="fas fa-globe"></i> SMS Virtual</a>
+                        <a href="herosms.html"><i class="fas fa-bolt"></i> Hero SMS</a>
+                        <a href="smscode.html"><i class="fas fa-sms"></i> SMS Code</a>
+                        <a href="#" class="active"><i class="fas fa-rocket"></i> Ada OTP</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <div class="dropdown">
+                    <button class="dropbtn-icon" onclick="toggleDropdown('menuDropdown')">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div id="menuDropdown" class="dropdown-content dropdown-right">
+                        <a href="#" onclick="openHistoryModal(); return false;"><i class="fas fa-history"></i> Riwayat Lokal</a>
+                        <a href="#" onclick="openSettingsModal(); return false;"><i class="fas fa-cog"></i> Pengaturan API</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HEADER & SALDO -->
+        <div class="app-header-container">
+            <div class="header-titles">
+                <h1>ADA OTP ⚡</h1>
+                <p class="subtitle">📧 <strong id="currentAccountEmail">Menghubungkan...</strong></p>
+            </div>
+            <div class="balance-container">
+                <div class="balance-badge">
+                    <span class="balance-label">Saldo API</span>
+                    <span id="balanceDisplay" class="balance-value">Rp 0</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- WADAH PESANAN AKTIF -->
+        <div id="activeOrdersContainer">
+            <div class="status-text-mini">Memuat pesanan aktif...</div>
+        </div>
+
+        <!-- AREA PEMESANAN BARU -->
+        <div style="margin-top: 24px; padding-top: 15px; border-top: 1px dashed var(--border-color);">
+            <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-bottom: 12px;">
+                <div style="flex: 1; text-align: left;">
+                    <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; display: block;">Layanan Aplikasi</label>
+                    <button onclick="openServiceModal()" class="form-input" style="text-align: left; font-weight: 800; padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--primary-color); margin: 0;">
+                        <span id="btnServiceSelectText">Memuat Layanan...</span>
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; display: block;">Pilih Negara (Stok Tersedia)</label>
+            <div id="countryList" class="product-list">
+                <div class="status-text-mini" style="grid-column: span 3;">Pilih layanan terlebih dahulu...</div>
+            </div>
+            
+            <button id="btnOrder" class="btn-primary" onclick="createNewOrder()" disabled>PESAN NOMOR</button>
+        </div>
+    </div>
+
+    <!-- MODAL LAYANAN -->
+    <div id="serviceModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title">Pilih Layanan</h3>
+                <button onclick="closeServiceModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px;"><i class="fas fa-times"></i></button>
+            </div>
+            <input type="text" id="searchServiceInput" class="form-input" placeholder="🔍 Cari nama aplikasi..." oninput="filterServices()" style="border-radius: 10px; font-weight: bold;">
+            <div id="serviceListContainer" style="overflow-y: auto; flex: 1; margin-top: 10px;">
+                <div class="status-text-mini">Memuat...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PENGATURAN -->
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">⚙️ API Key ADAOTP</h3>
+                <button onclick="closeSettingsModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="font-size: 13px; font-weight: bold; color: var(--text-secondary); margin-bottom: 8px; display: block;">Masukkan API Key Anda</label>
+                <input type="text" id="settingsApiKey" class="form-input" placeholder="Contoh: c28b8xxx...">
+            </div>
+            <button onclick="saveSettings()" class="btn-success" style="width: 100%; padding: 14px; border-radius: 12px; font-weight: 900;"><i class="fas fa-save"></i> SIMPAN PENGATURAN</button>
+        </div>
+    </div>
+
+    <!-- MODAL RIWAYAT -->
+    <div id="historyModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title">Riwayat Lokal</h3>
+                <button onclick="closeHistoryModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px;"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="history-list" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                <div class="status-text-mini">Kosong.</div>
+            </div>
+            <button onclick="clearHistory()" class="btn-danger" style="margin-top: 15px; width: 100%; padding: 12px; border-radius: 12px; font-weight: bold;"><i class="fas fa-trash"></i> Bersihkan</button>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">Notifikasi!</div>
+
+    <script src="adaotp.js"></script>
+    <script>
+        function toggleDropdown(id) {
+            document.querySelectorAll('.dropdown-content').forEach(d => { if(d.id !== id) d.classList.remove('show'); });
+            document.getElementById(id).classList.toggle("show");
+        }
+        window.onclick = function(e) {
+            if (!e.target.matches('.dropbtn') && !e.target.closest('.dropbtn') && !e.target.closest('.dropbtn-icon')) {
+                document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
+            }
+        }
+    </script>
+</body>
+</html>
 
