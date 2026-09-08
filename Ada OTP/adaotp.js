@@ -3,10 +3,10 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-if (!localStorage.getItem('adaotp_shopee_forced_v4.0')) {
+if (!localStorage.getItem('adaotp_shopee_forced_v4.1')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v4.0', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v4.1', 'true');
 }
 
 let activeOrders = []; 
@@ -49,6 +49,13 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     
     if (method === 'POST' || method === 'DELETE') {
         options.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+    } else {
+        // PENEMBUS CACHE EKSTRA AGAR SALDO SELALU UPDATE
+        options.headers = { 
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        };
     }
 
     try {
@@ -60,7 +67,7 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
 }
 
 function guessOperator(phone) {
-    if (!phone || String(phone).trim() === "" || String(phone).includes("Menyiapkan")) return "MENCARI...";
+    if (!phone || String(phone).trim() === "" || String(phone).includes("Memproses")) return "MENCARI...";
     let p = String(phone).replace(/\D/g, "");
     if (p.startsWith("62")) p = "0" + p.substring(2);
     let prefix = p.substring(0, 4);
@@ -123,7 +130,7 @@ async function saveSettings() {
 }
 
 async function initApp() {
-    fetchProfile(); 
+    await fetchProfile(); 
     await fetchServices();
 }
 
@@ -176,7 +183,7 @@ function updateServiceUI() {
     localStorage.setItem('adaotp_service_name', currentServiceName);
 }
 
-// ================= LOGIKA DROPDOWN NEGARA & HARGA REKOMENDASI =================
+// ================= LOGIKA HARGA REKOMENDASI (1755 PRIORITAS UTAMA) =================
 async function fetchCountries() {
     const btn = document.getElementById('btnOrder');
     const select = document.getElementById('countrySelect');
@@ -216,7 +223,6 @@ async function fetchCountries() {
             return;
         }
 
-        // Ekstrak & Format
         let formattedList = [];
         dataList.forEach(c => {
             let cid = c.id || c.country_id || c.value || c._fallbackId;
@@ -225,15 +231,21 @@ async function fetchCountries() {
             formattedList.push({ id: cid, name: cname, price: cprice });
         });
 
-        // Pisahkan Indonesia dan Negara Lain, urutkan berdasarkan harga termurah
+        // Urutkan daftar berdasarkan harga
         let indoList = formattedList.filter(c => String(c.name).toLowerCase().includes("indo")).sort((a, b) => a.price - b.price);
         let otherList = formattedList.filter(c => !String(c.name).toLowerCase().includes("indo")).sort((a, b) => a.price - b.price);
 
         let finalOptions = "";
         let firstValidId = "";
 
-        // Masukkan Indonesia dengan Rekomendasi di paling atas
         if (indoList.length > 0) {
+            // MENCARI HARGA 1755 UNTUK DIJADIKAN REKOMENDASI UTAMA
+            let targetIdx = indoList.findIndex(c => c.price === 1755);
+            if (targetIdx !== -1) {
+                let targetItem = indoList.splice(targetIdx, 1)[0];
+                indoList.unshift(targetItem); // Pindahkan ke paling atas
+            }
+
             firstValidId = indoList[0].id;
             indoList.forEach((c, index) => {
                 let label = index === 0 ? `${c.name} - Rp ${c.price} (Rekomendasi)` : `${c.name} - Rp ${c.price}`;
@@ -259,7 +271,6 @@ async function fetchCountries() {
     }
 }
 
-// Fungsi Trigger Saat Dropdown Diubah
 window.changeCountry = function() {
     const select = document.getElementById('countrySelect');
     currentCountryId = select.value;
@@ -295,7 +306,7 @@ window.filterServices = function() {
     });
 }
 
-// ================= SISTEM INJEKSI BAYANGAN MUTLAK =================
+// ================= HAPUS INJEKSI BAYANGAN =================
 window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
@@ -312,23 +323,10 @@ window.createNewOrder = async function() {
         if (isSuccess) {
             showToast("Pesanan Berhasil Dibuat!", "success");
             
-            // INJEKSI PAKSA: Buat kartu bayangan menggunakan data seadanya atau ID waktu agar layar TIDAK KOSONG
-            let shadowId = res.id || res.order_id || (res.data ? res.data.id : null) || (res.data && res.data.order ? res.data.order.id : null) || Date.now();
-            let shadowPhone = res.phone || res.number || (res.data ? res.data.phone : null) || "Menyiapkan...";
-            
-            if (!activeOrders.find(o => String(o.id) === String(shadowId))) {
-                activeOrders.unshift({
-                    id: shadowId,
-                    phone: shadowPhone,
-                    local_created_at: Date.now(),
-                    normalized_sms: []
-                });
-            }
-            
-            // Tampilkan bayangan, lalu perbarui dengan data server yang asli
-            renderActiveOrders(); 
-            fetchProfile(); 
-            pollActiveOrders(true); 
+            // Jangan pakai injeksi bayangan lagi agar tidak dobel.
+            // Langsung panggil API agar mendapat data dan ID yang valid!
+            await fetchProfile(); 
+            await pollActiveOrders(true); 
         } else {
             let errMsg = res.message || res.msg || res.error || "Gagal memesan nomor dari server";
             showToast(errMsg, "error");
@@ -345,7 +343,7 @@ window.createNewOrder = async function() {
 }
 
 function formatPhoneNumber(phone) { 
-    if (!phone || String(phone).trim() === "") return "Menyiapkan Nomor..."; 
+    if (!phone || String(phone).trim() === "") return "Memproses Nomor..."; 
     let p = String(phone).replace(/\D/g, "");
     if (p.startsWith("62")) { p = "0" + p.substring(2); } 
     return p.replace(/(.{4})/g, '$1 ').trim(); 
@@ -422,7 +420,7 @@ function renderActiveOrders() {
             if (typeof srvNameRaw === 'string') { finalSrvName = srvNameRaw; }
             else if (typeof srvNameRaw === 'object' && srvNameRaw !== null) { finalSrvName = srvNameRaw.name || srvNameRaw.text || currentServiceName; }
             
-            let phoneNumber = order.phone || order.number || order.phone_number || "Menyiapkan...";
+            let phoneNumber = order.phone || order.number || order.phone_number || "Memproses...";
             let opName = guessOperator(phoneNumber);
             
             const card = document.createElement("div"); 
@@ -453,48 +451,6 @@ function renderActiveOrders() {
     });
 }
 
-// MESIN EKSTRAKTOR AMAN V1.12
-function extractOrdersSafe(res) {
-    let found = [];
-    let seen = new Set();
-    
-    function search(current) {
-        if (!current || typeof current !== 'object') return;
-        if (seen.has(current)) return;
-        seen.add(current);
-        
-        let id = current.id || current.order_id || current.order;
-        let phone = current.phone || current.number || current.phone_number;
-        
-        // Pengecekan rileks
-        if (id !== undefined && (phone !== undefined || current.status !== undefined || current.sms !== undefined)) {
-            current.id = id;
-            found.push(current);
-        } else {
-            for (let key in current) {
-                if (!isNaN(key) && current[key] && typeof current[key] === 'object') {
-                    current[key].id = current[key].id || key;
-                    search(current[key]);
-                } else if (typeof current[key] === 'object') {
-                    search(current[key]);
-                }
-            }
-        }
-    }
-    
-    search(res);
-    
-    let unique = [];
-    let map = {};
-    for (let o of found) {
-        if (!map[o.id]) {
-            map[o.id] = true;
-            unique.push(o);
-        }
-    }
-    return unique;
-}
-
 async function pollActiveOrders(isManual = false) {
     if (isPolling && !isManual) return;
     isPolling = true;
@@ -502,53 +458,77 @@ async function pollActiveOrders(isManual = false) {
     try {
         const res = await apiCall('/orders/active', 'GET');
         
-        if (res.success === true || res.status === "success" || res.data !== undefined) {
-            let serverOrders = extractOrdersSafe(res);
-            let prevIds = activeOrders.map(o => String(o.id));
-            let mergedOrders = [...activeOrders];
-            const now = Date.now();
-            let isChanged = false;
-
-            serverOrders.forEach(so => {
-                let existingIdx = mergedOrders.findIndex(lo => String(lo.id) === String(so.id));
-                
-                let rawSoSms = so.sms || so.messages || so.received_sms || [];
-                let soSmsArray = Array.isArray(rawSoSms) ? rawSoSms : (typeof rawSoSms === 'string' && rawSoSms.trim() !== '' ? rawSoSms.split(',').map(s=>s.trim()) : []);
-                so.normalized_sms = soSmsArray;
-
-                if (existingIdx !== -1) {
-                    so.local_created_at = mergedOrders[existingIdx].local_created_at;
-                    let oldSmsArray = mergedOrders[existingIdx].normalized_sms || [];
-                    if (soSmsArray.length > oldSmsArray.length) {
-                        isChanged = true;
-                        try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
-                        try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (e) {}
-                    }
-                    mergedOrders[existingIdx] = so; 
-                } else {
-                    so.local_created_at = now;
-                    mergedOrders.unshift(so); 
-                    isChanged = true;
-                    if (soSmsArray.length > 0) {
-                        try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
-                        try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (e) {}
+        let ordersExtracted = [];
+        let rawData = res.data !== undefined ? res.data : res;
+        
+        if (Array.isArray(rawData)) {
+            ordersExtracted = rawData;
+        } else if (typeof rawData === 'object' && rawData !== null) {
+            if (rawData.orders && Array.isArray(rawData.orders)) {
+                ordersExtracted = rawData.orders;
+            } else if (rawData.data && Array.isArray(rawData.data)) {
+                ordersExtracted = rawData.data;
+            } else {
+                for (let k in rawData) {
+                    let item = rawData[k];
+                    if (typeof item === 'object' && item !== null) {
+                        item.id = item.id || item.order_id || k;
+                        ordersExtracted.push(item);
                     }
                 }
-            });
-            
-            mergedOrders = mergedOrders.filter(o => {
-                let cTime = o.local_created_at || now;
-                return (now - cTime) < 4800000; 
-            });
-
-            activeOrders = mergedOrders;
-            
-            let currentIds = activeOrders.map(o => String(o.id));
-            let hasRemoved = prevIds.some(id => !currentIds.includes(id));
-            if (hasRemoved || isChanged) fetchProfile();
-
-            renderActiveOrders();
+            }
         }
+        
+        let validOrders = ordersExtracted.filter(o => o && typeof o === 'object' && (o.id !== undefined || o.order_id !== undefined));
+
+        let prevIds = activeOrders.map(o => String(o.id));
+        let mergedOrders = [...activeOrders];
+        const now = Date.now();
+        let isChanged = false;
+
+        validOrders.forEach(so => {
+            so.id = so.id || so.order_id;
+            
+            let rawSoSms = so.sms || so.messages || so.received_sms || [];
+            let soSmsArray = Array.isArray(rawSoSms) ? rawSoSms : (typeof rawSoSms === 'string' && rawSoSms.trim() !== '' ? rawSoSms.split(',').map(s=>s.trim()) : []);
+            so.normalized_sms = soSmsArray;
+
+            let existingIdx = mergedOrders.findIndex(lo => String(lo.id) === String(so.id));
+            if (existingIdx !== -1) {
+                so.local_created_at = mergedOrders[existingIdx].local_created_at;
+                
+                let oldSmsArray = mergedOrders[existingIdx].normalized_sms || [];
+                if (soSmsArray.length > oldSmsArray.length) {
+                    isChanged = true;
+                    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+                    try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (e) {}
+                }
+                
+                mergedOrders[existingIdx] = so; 
+            } else {
+                so.local_created_at = now;
+                mergedOrders.unshift(so); 
+                isChanged = true;
+                if (soSmsArray.length > 0) {
+                    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+                    try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (e) {}
+                }
+            }
+        });
+        
+        mergedOrders = mergedOrders.filter(o => {
+            let cTime = o.local_created_at || now;
+            return (now - cTime) < 4800000; 
+        });
+
+        activeOrders = mergedOrders;
+        
+        let currentIds = activeOrders.map(o => String(o.id));
+        let hasRemoved = prevIds.some(id => !currentIds.includes(id));
+        if (hasRemoved || isChanged) fetchProfile();
+
+        renderActiveOrders();
+        
     } catch (e) {
         console.error("Polling Terhambat:", e);
     } finally {
@@ -574,7 +554,12 @@ window.cancelOrder = async function(orderId) {
         saveToHistory(orderId, "BATAL");
         activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); 
         renderActiveOrders();
-        fetchProfile(); 
+        
+        // JEDA CERDAS 1.5 DETIK UNTUK MENUNGGU SERVER MENGEMBALIKAN SALDO
+        setTimeout(async () => {
+            await fetchProfile();
+        }, 1500);
+
     } else {
         showToast(res.message || "Gagal membatalkan", "error");
         if(card) card.style.opacity = '1';
@@ -591,7 +576,11 @@ window.finishOrder = async function(orderId) {
         saveToHistory(orderId, "SELESAI");
         activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); 
         renderActiveOrders(); 
-        fetchProfile(); 
+        
+        setTimeout(async () => {
+            await fetchProfile();
+        }, 1500);
+
     } else {
         showToast(res.message || "Gagal Finish", "error");
         if(card) card.style.opacity = '1';
