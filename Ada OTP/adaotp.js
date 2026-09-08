@@ -1,718 +1,266 @@
-const API_BASE_URL = "https://adaotp.com/api/v1";
-const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ"; 
-
-let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
-
-if (!localStorage.getItem('adaotp_shopee_forced_v4.5')) {
-    localStorage.removeItem('adaotp_service_id');
-    localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v4.5', 'true');
-}
-
-let activeOrders = []; 
-let orderHistory = JSON.parse(localStorage.getItem('adaotp_history')) || [];
-let orderTimestamps = JSON.parse(localStorage.getItem('adaotp_order_times')) || {};
-let allServices = [];
-
-let currentServiceId = localStorage.getItem('adaotp_service_id') || "";
-let currentServiceName = localStorage.getItem('adaotp_service_name') || "";
-let currentCountryId = localStorage.getItem('adaotp_country_id') || "";
-
-let pollingTimeout = null;
-let timerWorker = null;
-let isPolling = false;
-
-function showToast(pesan, type = "success") { 
-    const t = document.getElementById("toast"); 
-    t.innerHTML = pesan; 
-    t.style.backgroundColor = type === "error" ? "var(--danger-color)" : type === "warning" ? "var(--warning-color)" : "var(--success-color)";
-    t.style.color = type === "warning" ? "#000" : (type === "error" ? "#fff" : "#000");
-    t.classList.add("show"); 
-    setTimeout(() => t.classList.remove("show"), 3000); 
-}
-
-function copyToClipboard(t) { 
-    try {
-        const ta = document.createElement("textarea"); ta.value = t; 
-        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); 
-        document.body.removeChild(ta); showToast("Disalin: " + t); 
-    } catch(e) { showToast("Gagal menyalin", "error"); }
-}
-
-async function apiCall(endpoint, method = 'GET', urlParams = "") {
-    if (!apiKey) return { success: false, message: "API Key Kosong" };
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ada OTP ⚡</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
-    let cacheBuster = `_t=${Date.now()}`;
-    let finalParams = urlParams ? `${urlParams}&${cacheBuster}` : cacheBuster;
-    
-    let url = `${API_BASE_URL}${endpoint}?apikey=${apiKey}&${finalParams}`;
-    let options = { method: method };
-    
-    if (method === 'POST' || method === 'DELETE') {
-        options.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
-    } else {
-        options.headers = { 
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-        };
-    }
-
-    try {
-        const response = await fetch(url, options);
-        return await response.json(); 
-    } catch (err) { 
-        return { success: false, message: "Koneksi terputus: " + err.message }; 
-    }
-}
-
-function guessOperator(phone) {
-    if (!phone || String(phone).trim() === "" || String(phone).includes("Memproses")) return "MENCARI...";
-    let p = String(phone).replace(/\D/g, "");
-    if (p.startsWith("62")) p = "0" + p.substring(2);
-    let prefix = p.substring(0, 4);
-    const telkomsel = ["0811","0812","0813","0821","0822","0823","0851","0852","0853"];
-    const indosat = ["0814","0815","0816","0855","0856","0857","0858"];
-    const xl = ["0817","0818","0819","0859","0877","0878"];
-    const axis = ["0831","0832","0833","0838"];
-    const three = ["0895","0896","0897","0898","0899"];
-    const smartfren = ["0881","0882","0883","0884","0885","0886","0887","0888","0889"];
-    
-    if (telkomsel.includes(prefix)) return "TELKOMSEL";
-    if (indosat.includes(prefix)) return "INDOSAT";
-    if (xl.includes(prefix)) return "XL";
-    if (axis.includes(prefix)) return "AXIS";
-    if (three.includes(prefix)) return "THREE";
-    if (smartfren.includes(prefix)) return "SMARTFREN";
-    return "ACAK"; 
-}
-
-window.onload = () => {
-    if (currentServiceName) { document.getElementById('btnServiceSelectText').innerHTML = currentServiceName; }
-    startPolling();
-    startTimerTick();
-    initApp();
-};
-
-document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") { startPolling(); startTimerTick(); }
-});
-window.addEventListener('online', () => { showToast("🌐 Online", "success"); startPolling(); });
-
-window.forceRefresh = async function() {
-    const icon = document.getElementById('refreshIcon');
-    if(icon) icon.classList.add('fa-spin');
-    showToast("Sinkronisasi manual...", "warning");
-    isPolling = false;
-    if (pollingTimeout) clearTimeout(pollingTimeout);
-    syncBalanceRobust(); 
-    await pollActiveOrders(true);
-    if(icon) icon.classList.remove('fa-spin');
-    showToast("Sinkronisasi Selesai!", "success");
-}
-
-function openSettingsModal() { 
-    document.getElementById('settingsApiKey').value = apiKey === DEFAULT_API_KEY ? "" : apiKey; 
-    document.getElementById('settingsModal').classList.remove('hidden'); 
-}
-function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
-async function saveSettings() {
-    let inputKey = document.getElementById('settingsApiKey').value.trim();
-    apiKey = inputKey ? inputKey : DEFAULT_API_KEY;
-    localStorage.setItem('adaotp_api_key', apiKey); 
-    closeSettingsModal(); 
-    showToast(inputKey ? "API Key Tersimpan!" : "Menggunakan API Bawaan!"); 
-    initApp();
-}
-
-async function initApp() {
-    await fetchProfile(); 
-    await fetchServices();
-}
-
-async function fetchProfile() {
-    try {
-        const res = await apiCall('/profile', 'GET');
-        if ((res.success || res.status) && res.data) {
-            document.getElementById('currentAccountEmail').innerText = res.data.user ? res.data.user.email : "Akun Aktif";
-            document.getElementById('balanceDisplay').innerText = res.data.user ? res.data.user.balance : res.data.balance || "Rp -";
-            return true;
-        } else {
-            document.getElementById('balanceDisplay').innerText = "Error API";
-            return false;
+    <style>
+        /* ================= CSS TEMA DARK MODERN ================= */
+        :root {
+            --primary-color: #8A2BE2; 
+            --bg-body: #121212;
+            --bg-card: #1e1e1e;
+            --bg-card-hover: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #aaaaaa;
+            --border-color: #333333;
+            --success-color: #00e676;
+            --danger-color: #ff4d4d;
+            --warning-color: #ff9800;
+            --otp-bg: #2b2b2b;
         }
-    } catch (e) {
-        document.getElementById('balanceDisplay').innerText = "Gagal Terhubung";
-        return false;
-    }
-}
 
-function syncBalanceRobust() {
-    fetchProfile(); 
-    setTimeout(fetchProfile, 1000); 
-    setTimeout(fetchProfile, 2500); 
-}
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        body { background-color: var(--bg-body); color: var(--text-primary); margin: 0; padding-bottom: 50px; font-size: 14px; }
+        .container { max-width: 480px; margin: 0 auto; padding: 16px; }
 
-async function fetchServices() {
-    document.getElementById('btnServiceSelectText').innerText = "Memuat...";
-    try {
-        const res = await apiCall('/services', 'GET');
-        if (res.success || res.status) {
-            let dataTarget = res.data.data ? res.data.data : res.data;
-            let servicesArray = Array.isArray(dataTarget) ? dataTarget : Object.values(dataTarget);
-            allServices = servicesArray.sort((a, b) => String(a.text || a.name).localeCompare(String(b.text || b.name)));
-            
-            let target = null;
-            if (currentServiceId) target = allServices.find(s => String(s.id) === String(currentServiceId));
-            if (!target) target = allServices.find(s => String(s.text || s.name || "").toLowerCase().includes("shopee"));
-            if (!target && allServices.length > 0) target = allServices[0];
-            
-            if (target) {
-                currentServiceId = target.id;
-                currentServiceName = target.text || target.name;
-            }
-            updateServiceUI();
-            await fetchCountries();
-        } else {
-            document.getElementById('btnServiceSelectText').innerText = "Gagal Memuat Layanan";
-        }
-    } catch (e) {
-        document.getElementById('btnServiceSelectText').innerText = "Error Layanan";
-    }
-}
-
-function updateServiceUI() {
-    document.getElementById('btnServiceSelectText').innerHTML = currentServiceName;
-    localStorage.setItem('adaotp_service_id', currentServiceId);
-    localStorage.setItem('adaotp_service_name', currentServiceName);
-}
-
-async function fetchCountries() {
-    const btn = document.getElementById('btnOrder');
-    const select = document.getElementById('countrySelect');
-    btn.disabled = true;
-    select.innerHTML = '<option value="">Memuat daftar negara...</option>';
-
-    if (!currentServiceId) return;
-    
-    try {
-        const res = await apiCall(`/services/${currentServiceId}/countries`, 'GET');
+        /* TOP BAR */
+        .top-bar-modern { display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 12px 16px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid var(--border-color); }
+        .dropbtn { background-color: var(--primary-color); color: #ffffff; padding: 8px 14px; font-size: 13px; font-weight: 900; border: none; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 6px; }
+        .dropbtn-icon, .btn-top-action { background-color: transparent; color: var(--text-primary); padding: 8px; font-size: 16px; border: 1px solid var(--border-color); cursor: pointer; border-radius: 8px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; }
+        .btn-top-action:hover, .dropbtn-icon:hover { border-color: var(--primary-color); color: var(--primary-color); }
         
-        let dataList = [];
-        let rawData = res.data !== undefined ? res.data : res;
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-content { display: none; position: absolute; background-color: var(--bg-card); min-width: 170px; box-shadow: 0px 8px 16px rgba(0,0,0,0.5); z-index: 999; border-radius: 12px; border: 1px solid var(--border-color); overflow: hidden; top: 44px; left: 0; }
+        .dropdown-right { left: auto; right: 0; }
+        .dropdown-content.show { display: block; animation: fadeIn 0.2s ease; }
+        .dropdown-content a { color: var(--text-primary); padding: 12px 14px; text-decoration: none; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-color); font-size: 13px; font-weight: 700; transition: 0.2s; }
+        .dropdown-content a:hover { background-color: var(--bg-card-hover); color: var(--primary-color); }
+        .dropdown-content a.active { color: var(--primary-color); background-color: var(--bg-body); }
+        .dropdown-content a i { width: 16px; text-align: center; }
+
+        /* HEADER & SALDO */
+        .app-header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header-titles h1 { font-size: 24px; font-weight: 900; color: var(--primary-color); margin-bottom: 4px; letter-spacing: 1px; }
+        .header-titles p { font-size: 12px; color: var(--text-secondary); }
+        .balance-container { text-align: right; }
+        .balance-badge { background: linear-gradient(135deg, #1e1e1e, #2a2a2a); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 10px; display: inline-flex; flex-direction: column; align-items: flex-end; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .balance-label { font-size: 10px; font-weight: bold; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+        .balance-value { font-size: 16px; font-weight: 900; color: var(--success-color); letter-spacing: 0.5px; }
+
+        /* FORMS & BUTTONS */
+        .form-input { width: 100%; padding: 12px 14px; margin-bottom: 15px; border-radius: 10px; border: 1px solid var(--border-color); background-color: var(--bg-card); color: var(--text-primary); font-size: 14px; transition: 0.3s; }
+        .form-input:focus { border-color: var(--primary-color); outline: none; box-shadow: 0 0 0 2px rgba(138, 43, 226, 0.2); }
+        select.form-input { appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 14px center; background-size: 16px; padding-right: 40px; }
+        select.form-input option { background-color: var(--bg-card); color: #fff; font-weight: bold; }
         
-        if (Array.isArray(rawData)) {
-            dataList = rawData;
-        } else if (typeof rawData === 'object' && rawData !== null) {
-            if (rawData.countries) {
-                dataList = Array.isArray(rawData.countries) ? rawData.countries : Object.values(rawData.countries);
-            } else if (rawData.data) {
-                dataList = Array.isArray(rawData.data) ? rawData.data : Object.values(rawData.data);
-            } else {
-                for (let k in rawData) {
-                    let item = rawData[k];
-                    if (typeof item === 'object' && item !== null) {
-                        item._fallbackId = k;
-                        dataList.push(item);
-                    } else if (typeof item === 'string' || typeof item === 'number') {
-                        dataList.push({ id: k, name: String(item) });
-                    }
-                }
-            }
-        }
+        .btn-primary { background-color: var(--primary-color); color: #ffffff; border: none; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 900; cursor: pointer; width: 100%; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(138, 43, 226, 0.3); transition: 0.2s; }
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-primary:disabled { background-color: #555; color: #888; cursor: not-allowed; box-shadow: none; }
         
-        if (dataList.length === 0) {
-            select.innerHTML = '<option value="">Stok Kosong</option>';
-            return;
-        }
-
-        let formattedList = [];
-        dataList.forEach(c => {
-            let cid = c.id || c.country_id || c.value || c._fallbackId;
-            let cname = c.name || c.text || c.country || c.title || cid;
-            let cprice = parseFloat(c.price || c.cost || c.rate || 0);
-            formattedList.push({ id: cid, name: cname, price: cprice });
-        });
-
-        let indoList = formattedList.filter(c => String(c.name).toLowerCase().includes("indo")).sort((a, b) => a.price - b.price);
-        let otherList = formattedList.filter(c => !String(c.name).toLowerCase().includes("indo")).sort((a, b) => a.price - b.price);
-
-        let finalOptions = "";
-        let firstValidId = "";
-
-        if (indoList.length > 0) {
-            let targetIdx = indoList.findIndex(c => c.price === 1755);
-            if (targetIdx !== -1) {
-                let targetItem = indoList.splice(targetIdx, 1)[0];
-                indoList.unshift(targetItem); 
-            }
-
-            firstValidId = indoList[0].id;
-            indoList.forEach((c, index) => {
-                let label = index === 0 ? `${c.name} - Rp ${c.price} (Rekomendasi)` : `${c.name} - Rp ${c.price}`;
-                finalOptions += `<option value="${c.id}">${label}</option>`;
-            });
-        }
-
-        if (otherList.length > 0) {
-            if (!firstValidId) firstValidId = otherList[0].id;
-            otherList.forEach(c => {
-                finalOptions += `<option value="${c.id}">${c.name} - Rp ${c.price}</option>`;
-            });
-        }
-
-        select.innerHTML = finalOptions;
-        currentCountryId = firstValidId;
-        select.value = currentCountryId;
-        localStorage.setItem('adaotp_country_id', currentCountryId);
-        btn.disabled = false;
-
-    } catch (e) {
-        select.innerHTML = '<option value="">Error memuat data</option>';
-    }
-}
-
-window.changeCountry = function() {
-    const select = document.getElementById('countrySelect');
-    currentCountryId = select.value;
-    localStorage.setItem('adaotp_country_id', currentCountryId);
-}
-
-window.openServiceModal = function() { document.getElementById('serviceModal').classList.remove('hidden'); document.getElementById('searchServiceInput').value = ''; filterServices(); }
-window.closeServiceModal = function() { document.getElementById('serviceModal').classList.add('hidden'); }
-window.filterServices = function() {
-    const q = document.getElementById('searchServiceInput').value.toLowerCase();
-    const container = document.getElementById('serviceListContainer');
-    container.innerHTML = '';
-    const filtered = allServices.filter(s => String(s.text || s.name).toLowerCase().includes(q));
-    
-    if(filtered.length === 0) { container.innerHTML = '<div class="status-text-mini">Tidak ditemukan.</div>'; return; }
-
-    filtered.forEach(svc => {
-        const isActive = (String(svc.id) === String(currentServiceId));
-        const btn = document.createElement('div');
-        btn.style = `width: 100%; padding: 10px; border-radius: 10px; font-size: 13px; font-weight: bold; display: flex; align-items: center; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; margin-bottom: 6px;`;
-        let iconHtml = svc.icon ? `<img src="${svc.icon}" style="width:24px; height:24px; border-radius:6px; margin-right:10px;">` : `<i class="fas fa-cube" style="margin-right:10px;"></i>`;
-        btn.innerHTML = `${iconHtml} <span>${svc.text || svc.name}</span>`;
-        btn.onclick = () => {
-            currentServiceId = svc.id; 
-            currentServiceName = svc.text || svc.name; 
-            updateServiceUI(); 
-            closeServiceModal();
-            fetchCountries(); 
-        };
-        container.appendChild(btn);
-    });
-}
-
-function saveTimestamp(id, time) {
-    orderTimestamps[id] = time;
-    let now = Date.now();
-    for (let key in orderTimestamps) {
-        if (now - orderTimestamps[key] > 7200000) delete orderTimestamps[key];
-    }
-    localStorage.setItem('adaotp_order_times', JSON.stringify(orderTimestamps));
-}
-
-window.createNewOrder = async function() {
-    const btn = document.getElementById('btnOrder');
-    btn.disabled = true; btn.innerText = "MEMPROSES...";
-    document.getElementById('activeOrdersContainer').innerHTML = '<div class="status-text-mini">Menghubungi server...</div>';
-    const params = `country=${currentCountryId}&service_id=${currentServiceId}`;
-    
-    // MENGAMBIL HARGA DARI DROPDOWN UNTUK DISIMPAN
-    const select = document.getElementById('countrySelect');
-    let selText = select.options[select.selectedIndex]?.text || "";
-    let pMatch = selText.match(/Rp\s*([\d.,]+)/);
-    let orderPrice = pMatch ? pMatch[1] : "";
-    
-    try {
-        const res = await apiCall('/orders', 'POST', params);
-        let isSuccess = res.success === true || res.status === "success" || res.status === "ok" || res.id !== undefined || res.order_id !== undefined || (res.data && res.data.id !== undefined);
+        /* CARDS & ORDERS */
+        .order-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); position: relative; transition: all 0.3s ease; }
+        .order-card.removing { opacity: 0; transform: scale(0.9); }
+        .order-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; border-bottom: 1px dashed var(--border-color); padding-bottom: 10px; }
+        .order-id-label { font-size: 13px; font-weight: 800; color: var(--text-primary); }
+        .timer { font-size: 16px; font-weight: 900; letter-spacing: 1px; }
         
-        if (isSuccess) {
-            showToast("Pesanan Berhasil Dibuat!", "success");
-            
-            // Simpan harga pesanan secara lokal
-            let shadowId = res.id || res.order_id || (res.data ? res.data.id : null) || (res.data && res.data.order ? res.data.order.id : null);
-            if (shadowId && orderPrice) {
-                localStorage.setItem(`adaotp_price_${shadowId}`, orderPrice);
-            }
-            
-            syncBalanceRobust(); 
-            await pollActiveOrders(true); 
-        } else {
-            let errMsg = res.message || res.msg || res.error || "Gagal memesan nomor dari server";
-            showToast(errMsg, "error");
-            renderActiveOrders(); 
-        }
-    } catch(e) {
-        showToast("Error Koneksi: " + e.message, "error");
-        renderActiveOrders();
-    } finally {
-        if (pollingTimeout) clearTimeout(pollingTimeout);
-        pollActiveOrders(); 
-        btn.disabled = false; btn.innerText = "PESAN NOMOR BARU";
-    }
-}
+        .phone-row { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 12px 16px; border-radius: 10px; margin-bottom: 12px; }
+        .phone-number { font-size: 20px; font-weight: 900; letter-spacing: 2px; color: var(--primary-color); }
+        .btn-copy { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 16px; padding: 8px; border-radius: 8px; }
+        .btn-copy:hover { color: var(--primary-color); background: var(--bg-card); }
+        
+        .otp-display { background: var(--otp-bg); border-radius: 10px; padding: 16px; text-align: center; margin-bottom: 12px; position: relative; min-height: 70px; display: flex; flex-direction: column; justify-content: center; border: 1px dashed var(--border-color); }
+        .otp-display.success-glow { border: 2px solid var(--primary-color); box-shadow: inset 0 0 15px rgba(138, 43, 226, 0.1); background: rgba(138, 43, 226, 0.05); }
+        .otp-title { font-size: 10px; font-weight: 900; color: var(--text-secondary); letter-spacing: 2px; margin-bottom: 4px; }
+        
+        /* PEMBARUAN: POSISI OTP DITENGAH, TOMBOL COPY ABSOLUTE DI KANAN */
+        .otp-code-item { position: relative; font-size: 26px; font-weight: 900; color: var(--primary-color); letter-spacing: 6px; margin: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; display: flex; justify-content: center; align-items: center; }
+        .otp-code-item:last-child { border-bottom: none; }
+        .otp-code-item span { text-align: center; display: inline-block; }
+        .otp-code-item .btn-copy { position: absolute; right: 0; }
 
-function formatPhoneNumber(phone) { 
-    if (!phone || String(phone).trim() === "") return "Memproses Nomor..."; 
-    let p = String(phone).replace(/\D/g, "");
-    if (p.startsWith("62")) { p = "0" + p.substring(2); } 
-    return p.replace(/(.{4})/g, '$1 ').trim(); 
-}
+        /* ACTION BUTTONS */
+        .action-buttons-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .action-buttons-grid button { padding: 12px; border: none !important; border-radius: 10px; font-weight: 900; font-size: 13px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .btn-danger { background-color: var(--danger-color); color: #ffffff; }
+        .btn-danger:not(:disabled):hover { filter: brightness(1.1); box-shadow: 0 4px 10px rgba(255, 77, 77, 0.3); }
+        
+        .btn-success { background-color: var(--success-color); color: #000000; }
+        .btn-success:not(:disabled):hover { filter: brightness(1.1); box-shadow: 0 4px 10px rgba(0, 230, 118, 0.3); }
+        
+        .action-buttons-grid button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-function renderActiveOrders() {
-    const container = document.getElementById('activeOrdersContainer');
-    if (!container) return;
-    
-    if (!Array.isArray(activeOrders) || activeOrders.length === 0) { 
-        container.innerHTML = '<div class="status-text-mini">Belum ada pesanan aktif.</div>'; 
-        return; 
-    }
-    
-    container.innerHTML = "";
-    
-    [...activeOrders].reverse().forEach(order => {
-        try {
-            if (!order || !order.id) return; 
-            
-            const now = Date.now();
-            let cTime = order.local_created_at || now; 
-            
-            let cancelBtnHtml = "";
-            let finishBtnHtml = "";
-            
-            let smsArray = order.normalized_sms || []; 
-            const hasSms = smsArray.length > 0;
-            
-            const left = (cTime + 4800000) - now; 
-            let m = Math.floor(Math.max(0, left) / 60000); 
-            let s = Math.floor((Math.max(0, left) % 60000) / 1000);
-            let timeStr = left > 0 ? `${m}:${s<10?'0':''}${s}` : 'Habis';
-            
-            if (!hasSms) {
-                cancelBtnHtml = `<button class="btn-danger" onclick="cancelOrder('${order.id}')">BATAL</button>`;
-                finishBtnHtml = `<button class="btn-success" disabled>SELESAI</button>`;
-            } else {
-                cancelBtnHtml = `<button class="btn-danger" disabled>BATAL</button>`;
-                finishBtnHtml = `<button class="btn-success" onclick="finishOrder('${order.id}')">SELESAI</button>`;
-            }
+        /* MODALS */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(5px); }
+        .modal.hidden { display: none; }
+        .modal-content { background: var(--bg-body); width: 90%; max-width: 400px; border-radius: 16px; padding: 20px; border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+        .modal-title { font-size: 16px; font-weight: 900; color: var(--text-primary); }
+        
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--success-color); color: #000; padding: 12px 24px; border-radius: 30px; font-weight: 900; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); opacity: 0; visibility: hidden; transition: 0.3s; z-index: 10000; }
+        .toast.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(-10px); }
 
-            let otpHtml = "";
-            if (hasSms) {
-                let stackHtml = smsArray.map((msg) => {
-                    let code = String(msg || "");
-                    
-                    // Pengekstrak Angka Spesifik (Ambil 4-8 Digit)
-                    let extracted = code.match(/\b\d{4,8}\b/);
-                    let displayCode = extracted ? extracted[0] : code; // Tampilkan angka saja, atau teks mentah jika angka tidak ada
-                    
-                    return `
-                    <div class="otp-code-item">
-                        <span>${displayCode}</span>
-                        <button class="btn-copy" onclick="copyToClipboard('${displayCode}')"><i class="fas fa-copy"></i></button>
-                    </div>`;
-                }).join("");
-                
-                otpHtml = `
-                    <div class="otp-title">SMS DITERIMA (${smsArray.length})</div>
-                    ${stackHtml}
-                    <div class="waiting-animation" style="margin-top:10px;"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div>
-                    <div class="waiting-text" style="font-size:9px; font-weight:800; color:var(--text-secondary); text-align:center;">MENUNGGU SMS BERIKUTNYA...</div>
-                `;
-            } else {
-                otpHtml = `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text" style="font-size:11px; font-weight:800; color:var(--text-secondary); margin-top:8px;">MENUNGGU SMS...</div>`;
-            }
-            
-            let srvNameRaw = order.service || order.service_name;
-            let finalSrvName = currentServiceName;
-            if (typeof srvNameRaw === 'string') { finalSrvName = srvNameRaw; }
-            else if (typeof srvNameRaw === 'object' && srvNameRaw !== null) { finalSrvName = srvNameRaw.name || srvNameRaw.text || currentServiceName; }
-            
-            let phoneNumber = order.phone || order.number || order.phone_number || "Memproses...";
-            let opName = guessOperator(phoneNumber);
-            
-            // AMBIL HARGA TERSIMPAN DAN BUAT LENCANA
-            let savedPrice = order.price || order.cost || localStorage.getItem(`adaotp_price_${order.id}`) || "";
-            let priceBadge = savedPrice ? `<span style="font-size:10px; font-weight:900; background:rgba(0,230,118,0.15); color:var(--success-color); border:1px dashed var(--success-color); padding:2px 6px; border-radius:6px; margin-left:6px; display:inline-block; transform:translateY(-1px);">Rp ${savedPrice}</span>` : "";
-            
-            const card = document.createElement("div"); 
-            card.className = "order-card"; 
-            card.id = `order-card-${order.id}`;
-            card.innerHTML = `
-                <div class="order-header">
-                    <div style="display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
-                        <div class="order-id-label">#${order.id} (${String(finalSrvName).toUpperCase()} • ${opName})</div>
-                        ${priceBadge}
+        .loader { border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid var(--primary-color); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .waiting-animation { display: flex; justify-content: center; gap: 6px; margin: 10px 0; }
+        .dot-pulse { width: 8px; height: 8px; background-color: var(--primary-color); border-radius: 50%; animation: pulse 1.5s infinite ease-in-out; }
+        .dot-pulse:nth-child(2) { animation-delay: 0.2s; }
+        .dot-pulse:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes pulse { 0%, 100% { transform: scale(0.5); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 1; } }
+        
+        .status-text-mini { text-align: center; font-size: 12px; color: var(--text-secondary); padding: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <!-- TOP BAR -->
+        <div class="top-bar-modern">
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <div class="dropdown">
+                    <button class="dropbtn" onclick="toggleDropdown('appDropdown')">
+                        <i class="fas fa-rocket"></i> Ada OTP <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 2px;"></i>
+                    </button>
+                    <div id="appDropdown" class="dropdown-content">
+                        <a href="virtualsms.html"><i class="fas fa-globe"></i> SMS Virtual</a>
+                        <a href="herosms.html"><i class="fas fa-bolt"></i> Hero SMS</a>
+                        <a href="smscode.html"><i class="fas fa-sms"></i> SMS Code</a>
+                        <a href="#" class="active"><i class="fas fa-rocket"></i> Ada OTP</a>
                     </div>
-                    <span class="timer" id="timer-${order.id}">${timeStr}</span>
                 </div>
-                <div class="phone-row">
-                    <span class="phone-number">${formatPhoneNumber(phoneNumber)}</span>
-                    <button class="btn-copy" onclick="copyToClipboard('${phoneNumber}')"><i class="fas fa-copy"></i></button>
-                </div>
-                <div class="otp-display ${hasSms ? 'success-glow' : ''}">${otpHtml}</div>
-                
-                <div class="action-buttons-grid">
-                    ${cancelBtnHtml}
-                    ${finishBtnHtml}
-                </div>
-            `;
-            container.appendChild(card);
-        } catch (err) {
-            console.error("Gagal menggambar kotak", err);
-        }
-    });
-}
-
-async function pollActiveOrders(isManual = false) {
-    if (isPolling && !isManual) return;
-    isPolling = true;
-    
-    try {
-        const res = await apiCall('/orders/active', 'GET');
-        
-        let ordersExtracted = [];
-        let rawData = res.data !== undefined ? res.data : res;
-        
-        if (Array.isArray(rawData)) {
-            ordersExtracted = rawData;
-        } else if (typeof rawData === 'object' && rawData !== null) {
-            if (rawData.orders && Array.isArray(rawData.orders)) {
-                ordersExtracted = rawData.orders;
-            } else if (rawData.data && Array.isArray(rawData.data)) {
-                ordersExtracted = rawData.data;
-            } else {
-                for (let k in rawData) {
-                    let item = rawData[k];
-                    if (typeof item === 'object' && item !== null) {
-                        item.id = item.id || item.order_id || k;
-                        ordersExtracted.push(item);
-                    }
-                }
-            }
-        }
-        
-        let validOrders = ordersExtracted.filter(o => o && typeof o === 'object' && (o.id !== undefined || o.order_id !== undefined));
-
-        let prevIds = activeOrders.map(o => String(o.id));
-        let mergedOrders = [...activeOrders];
-        const now = Date.now();
-        let isChanged = false;
-
-        validOrders.forEach(so => {
-            so.id = so.id || so.order_id;
-            
-            let rawSoSms = so.sms || so.messages || so.received_sms || [];
-            let soSmsArray = Array.isArray(rawSoSms) ? rawSoSms : (typeof rawSoSms === 'string' && rawSoSms.trim() !== '' ? rawSoSms.split(',').map(s=>s.trim()) : []);
-            
-            // PENGHANCUR BUGS [object Object]
-            so.normalized_sms = soSmsArray.map(s => {
-                if (typeof s === 'object' && s !== null) {
-                    return s.text || s.message || s.sms || s.code || JSON.stringify(s);
-                }
-                return String(s);
-            });
-
-            let existingIdx = mergedOrders.findIndex(lo => String(lo.id) === String(so.id));
-            if (existingIdx !== -1) {
-                so.local_created_at = mergedOrders[existingIdx].local_created_at;
-                
-                let oldSmsArray = mergedOrders[existingIdx].normalized_sms || [];
-                if (so.normalized_sms.length > oldSmsArray.length) {
-                    isChanged = true;
-                    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
-                    try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (e) {}
-                }
-                
-                mergedOrders[existingIdx] = so; 
-            } else {
-                if (orderTimestamps[so.id]) {
-                    so.local_created_at = orderTimestamps[so.id];
-                } else {
-                    so.local_created_at = now;
-                    saveTimestamp(so.id, now); 
-                }
-
-                mergedOrders.unshift(so); 
-                isChanged = true;
-                if (so.normalized_sms.length > 0) {
-                    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
-                    try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (e) {}
-                }
-            }
-        });
-        
-        mergedOrders = mergedOrders.filter(o => {
-            let cTime = o.local_created_at || now;
-            return (now - cTime) < 4800000; 
-        });
-
-        activeOrders = mergedOrders;
-        
-        let currentIds = activeOrders.map(o => String(o.id));
-        let hasRemoved = prevIds.some(id => !currentIds.includes(id));
-        if (hasRemoved || isChanged) syncBalanceRobust(); 
-
-        renderActiveOrders();
-        
-    } catch (e) {
-        console.error("Polling Terhambat:", e);
-    } finally {
-        isPolling = false;
-        if (pollingTimeout) clearTimeout(pollingTimeout);
-        let nextDelay = activeOrders.length > 0 ? 3000 : 8000;
-        pollingTimeout = setTimeout(pollActiveOrders, nextDelay);
-    }
-}
-
-function startPolling() {
-    if (pollingTimeout) clearTimeout(pollingTimeout);
-    pollActiveOrders();
-}
-
-window.cancelOrder = async function(orderId) {
-    const card = document.getElementById(`order-card-${orderId}`);
-    if(card) card.style.opacity = '0.5';
-    
-    const res = await apiCall(`/orders/${orderId}`, 'DELETE');
-    if (res.success === true || res.status === "success" || res.status === "ok") {
-        showToast("Pesanan Dibatalkan");
-        saveToHistory(orderId, "BATAL");
-        activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); 
-        renderActiveOrders();
-        
-        // PEMBERSIHAN MEMORI LOKAL
-        if(orderTimestamps[orderId]) { delete orderTimestamps[orderId]; localStorage.setItem('adaotp_order_times', JSON.stringify(orderTimestamps)); }
-        localStorage.removeItem(`adaotp_price_${orderId}`);
-
-        syncBalanceRobust(); 
-    } else {
-        showToast(res.message || "Gagal membatalkan", "error");
-        if(card) card.style.opacity = '1';
-    }
-}
-
-window.finishOrder = async function(orderId) {
-    const card = document.getElementById(`order-card-${orderId}`);
-    if(card) card.style.opacity = '0.5';
-    
-    const res = await apiCall(`/orders/${orderId}/finish`, 'POST');
-    if (res.success === true || res.status === "success" || res.status === "ok") {
-        showToast("Siklus OTP Selesai!");
-        saveToHistory(orderId, "SELESAI");
-        activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); 
-        renderActiveOrders(); 
-        
-        if(orderTimestamps[orderId]) { delete orderTimestamps[orderId]; localStorage.setItem('adaotp_order_times', JSON.stringify(orderTimestamps)); }
-        localStorage.removeItem(`adaotp_price_${orderId}`);
-
-        syncBalanceRobust(); 
-    } else {
-        showToast(res.message || "Gagal Finish", "error");
-        if(card) card.style.opacity = '1';
-    }
-}
-
-function startTimerTick() {
-    const runTick = () => {
-        let needsRender = false;
-        const now = Date.now();
-        
-        for (let i = activeOrders.length - 1; i >= 0; i--) {
-            let o = activeOrders[i];
-            let cTime = o.local_created_at || now;
-            
-            const left = (cTime + 4800000) - now; 
-            
-            if (left <= 0) {
-                if(orderTimestamps[o.id]) { delete orderTimestamps[o.id]; localStorage.setItem('adaotp_order_times', JSON.stringify(orderTimestamps)); }
-                localStorage.removeItem(`adaotp_price_${o.id}`);
-                
-                activeOrders.splice(i, 1);
-                needsRender = true;
-                continue;
-            }
-            
-            const timerEl = document.getElementById(`timer-${o.id}`);
-            if (timerEl) {
-                let m = Math.floor(Math.max(0, left) / 60000); 
-                let s = Math.floor((Math.max(0, left) % 60000) / 1000);
-                timerEl.innerText = left > 0 ? `${m}:${s<10?'0':''}${s}` : 'Habis';
-                if (left <= 180000) timerEl.style.color = "var(--danger-color)";
-                else timerEl.style.color = "var(--text-primary)";
-            }
-        }
-        if (needsRender) renderActiveOrders();
-    };
-    
-    runTick(); 
-    
-    if (timerWorker) timerWorker.terminate();
-    const workerCode = `
-        let interval;
-        self.onmessage = function(e) {
-            if (e.data === 'start') { interval = setInterval(() => { postMessage('tick'); }, 1000); }
-            else if (e.data === 'stop') { clearInterval(interval); }
-        };
-    `;
-    const blob = new Blob([workerCode], { type: 'application/javascript' });
-    timerWorker = new Worker(URL.createObjectURL(blob));
-    timerWorker.onmessage = function() { runTick(); };
-    timerWorker.postMessage('start');
-}
-
-function saveToHistory(orderId, finalStatus) { 
-    const order = activeOrders.find(o => String(o.id) === String(orderId));
-    if (!order) return; 
-    
-    let smsArray = order.normalized_sms || [];
-    let lastOtp = smsArray.length > 0 ? smsArray[smsArray.length-1] : "-";
-    // Bersihkan tampilan untuk riwayat jika itu dari Objek
-    let extracted = String(lastOtp).match(/\b\d{4,8}\b/);
-    if(extracted) lastOtp = extracted[0];
-    
-    let srvNameRaw = order.service || order.service_name;
-    let srv = currentServiceName;
-    if (typeof srvNameRaw === 'string') { srv = srvNameRaw; }
-    else if (typeof srvNameRaw === 'object' && srvNameRaw !== null) { srv = srvNameRaw.name || srvNameRaw.text || currentServiceName; }
-            
-    let ph = order.phone || order.number || order.phone_number || "";
-    
-    const historyItem = { id: order.id, phone: ph, serviceName: srv, otp: lastOtp, status: finalStatus, date: Date.now() }; 
-    orderHistory.unshift(historyItem); 
-    if (orderHistory.length > 50) orderHistory.pop(); 
-    localStorage.setItem('adaotp_history', JSON.stringify(orderHistory)); 
-    renderHistory(); 
-}
-
-window.openHistoryModal = function() { document.getElementById('historyModal').classList.remove('hidden'); renderHistory(); }
-window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
-window.clearHistory = function() { if(confirm("Bersihkan riwayat?")) { orderHistory = []; localStorage.removeItem('adaotp_history'); renderHistory(); } }
-
-function renderHistory() {
-    const list = document.getElementById('history-list'); if (!list) return;
-    if (orderHistory.length === 0) { list.innerHTML = '<div class="status-text-mini">Belum ada riwayat lokal.</div>'; return; } 
-    list.innerHTML = "";
-    orderHistory.forEach(item => {
-        const card = document.createElement('div'); 
-        card.style = "background: var(--bg-card); padding: 10px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 11px;";
-        let statusColor = item.status === "SELESAI" ? "var(--success-color)" : "var(--danger-color)";
-        const dt = new Date(item.date); 
-        const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
-        
-        card.innerHTML = `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <strong style="color: var(--text-primary); font-size: 13px; letter-spacing: 1px;">${formatPhoneNumber(item.phone)} <span style="font-size:9px; color:var(--text-secondary);">(${item.serviceName})</span></strong>
-                <span style="color: ${statusColor}; font-weight: 900;">${item.status}</span>
+                <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-file-alt"></i></button>
             </div>
-            <div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 10px; margin-bottom: ${item.status === 'SELESAI' ? '6px' : '0'};">
-                <span>ID: #${item.id}</span><span>${timeStr}</span>
+            
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button onclick="forceRefresh()" class="btn-top-action" title="Refresh Manual"><i class="fas fa-sync-alt" id="refreshIcon"></i></button>
+                <div class="dropdown">
+                    <button class="dropbtn-icon" onclick="toggleDropdown('menuDropdown')">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div id="menuDropdown" class="dropdown-content dropdown-right">
+                        <a href="#" onclick="openHistoryModal(); return false;"><i class="fas fa-history"></i> Riwayat Lokal</a>
+                        <a href="#" onclick="openSettingsModal(); return false;"><i class="fas fa-cog"></i> Pengaturan API</a>
+                    </div>
+                </div>
             </div>
-            ${item.status === 'SELESAI' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 4px; text-align: center; border-radius: 6px; font-weight: 900; letter-spacing: 2px; font-size: 14px;">${item.otp}</div>` : ''}
-        `;
-        list.appendChild(card);
-    });
-}
+        </div>
+
+        <!-- HEADER & SALDO -->
+        <div class="app-header-container">
+            <div class="header-titles">
+                <h1>ADA OTP ⚡</h1>
+                <p class="subtitle">📧 <strong id="currentAccountEmail">Menghubungkan...</strong></p>
+            </div>
+            <div class="balance-container">
+                <div class="balance-badge">
+                    <span class="balance-label">Saldo API</span>
+                    <span id="balanceDisplay" class="balance-value">Rp 0</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- WADAH PESANAN AKTIF -->
+        <div id="activeOrdersContainer">
+            <div class="status-text-mini">Memuat pesanan aktif...</div>
+        </div>
+
+        <!-- AREA PEMESANAN BARU -->
+        <div style="margin-top: 24px; padding-top: 15px; border-top: 1px dashed var(--border-color);">
+            <div style="margin-bottom: 15px;">
+                <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; display: block;">Layanan Aplikasi</label>
+                <button onclick="openServiceModal()" class="form-input" style="text-align: left; font-weight: 800; padding: 12px 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: var(--primary-color); margin: 0; background-color: var(--bg-card);">
+                    <span id="btnServiceSelectText">Memuat Layanan...</span>
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; display: block;">Pilih Negara / Harga</label>
+                <select id="countrySelect" class="form-input" style="font-weight: 800; color: var(--primary-color); cursor: pointer;" onchange="changeCountry()">
+                    <option value="">Memuat daftar negara...</option>
+                </select>
+            </div>
+            
+            <button id="btnOrder" class="btn-primary" onclick="createNewOrder()" disabled>PESAN NOMOR BARU</button>
+        </div>
+    </div>
+
+    <!-- MODAL LAYANAN -->
+    <div id="serviceModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title">Pilih Layanan</h3>
+                <button onclick="closeServiceModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <input type="text" id="searchServiceInput" class="form-input" placeholder="🔍 Cari nama aplikasi..." oninput="filterServices()" style="border-radius: 10px; font-weight: bold;">
+            <div id="serviceListContainer" style="overflow-y: auto; flex: 1; margin-top: 10px;">
+                <div class="status-text-mini">Memuat...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CATATAN -->
+    <div id="iframeNoteModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 95vh; display: flex; flex-direction: column; padding: 10px; width: 95%; max-width: 450px;">
+            <div class="modal-header" style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: none;">
+                <h3 class="modal-title" style="font-size: 16px;">Catatan</h3>
+                <button onclick="closeIframeNoteModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="flex: 1; border-radius: 12px; overflow: hidden; background: #fff;">
+                <iframe src="https://shopee-smscode.github.io/Notes/notes.html" style="width: 100%; height: 100%; border: none; min-height: 65vh; display: block;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PENGATURAN -->
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">⚙️ API Key ADAOTP</h3>
+                <button onclick="closeSettingsModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="font-size: 13px; font-weight: bold; color: var(--text-secondary); margin-bottom: 8px; display: block;">Masukkan API Key Anda</label>
+                <input type="text" id="settingsApiKey" class="form-input" placeholder="Default aktif. Isi jika ingin ganti...">
+            </div>
+            <button onclick="saveSettings()" class="btn-success" style="width: 100%; padding: 14px; border-radius: 12px; font-weight: 900;"><i class="fas fa-save"></i> SIMPAN PENGATURAN</button>
+        </div>
+    </div>
+
+    <!-- MODAL RIWAYAT -->
+    <div id="historyModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title">Riwayat Lokal</h3>
+                <button onclick="closeHistoryModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="history-list" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                <div class="status-text-mini">Kosong.</div>
+            </div>
+            <button onclick="clearHistory()" class="btn-danger" style="margin-top: 15px; width: 100%; padding: 12px; border-radius: 12px; font-weight: bold;"><i class="fas fa-trash"></i> Bersihkan</button>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">Notifikasi!</div>
+
+    <script src="adaotp.js"></script>
+    <script>
+        function toggleDropdown(id) {
+            document.querySelectorAll('.dropdown-content').forEach(d => { if(d.id !== id) d.classList.remove('show'); });
+            document.getElementById(id).classList.toggle("show");
+        }
+        window.onclick = function(e) {
+            if (!e.target.matches('.dropbtn') && !e.target.closest('.dropbtn') && !e.target.closest('.dropbtn-icon')) {
+                document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
+            }
+        }
+        function openIframeNoteModal() { document.getElementById('iframeNoteModal').classList.remove('hidden'); }
+        function closeIframeNoteModal() { document.getElementById('iframeNoteModal').classList.add('hidden'); }
+    </script>
+</body>
+</html>
