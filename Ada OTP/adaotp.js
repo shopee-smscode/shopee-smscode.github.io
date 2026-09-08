@@ -3,7 +3,6 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-// PENGUNCIAN DEFAULT KE SHOPEE UNTUK PENGGUNAAN PERTAMA (V1.2)
 if (!localStorage.getItem('adaotp_shopee_forced_v1.2')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
@@ -13,7 +12,6 @@ if (!localStorage.getItem('adaotp_shopee_forced_v1.2')) {
 let activeOrders = []; 
 let orderHistory = JSON.parse(localStorage.getItem('adaotp_history')) || [];
 let allServices = [];
-let allCountries = [];
 
 let currentServiceId = localStorage.getItem('adaotp_service_id') || "";
 let currentServiceName = localStorage.getItem('adaotp_service_name') || "";
@@ -58,7 +56,6 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     }
 }
 
-// INISIALISASI PARALEL ANTI-CRASH
 window.onload = () => {
     if (currentServiceName) { document.getElementById('btnServiceSelectText').innerHTML = currentServiceName; }
     startPolling();
@@ -109,24 +106,13 @@ async function fetchServices() {
     try {
         const res = await apiCall('/services', 'GET');
         if (res.success && res.data) {
-            // Deteksi array vs object dengan aman
             let dataTarget = res.data.data ? res.data.data : res.data;
             let servicesArray = Array.isArray(dataTarget) ? dataTarget : Object.values(dataTarget);
             allServices = servicesArray.sort((a, b) => String(a.text || a.name).localeCompare(String(b.text || b.name)));
             
             let target = null;
-            if (currentServiceId) {
-                target = allServices.find(s => s.id == currentServiceId);
-            }
-            
-            // PAKSA PENCARIAN SHOPEE JIKA KOSONG
-            if (!target) {
-                target = allServices.find(s => {
-                    let name = String(s.text || s.name || "").toLowerCase();
-                    return name.includes("shopee");
-                });
-            }
-            
+            if (currentServiceId) target = allServices.find(s => s.id == currentServiceId);
+            if (!target) target = allServices.find(s => String(s.text || s.name || "").toLowerCase().includes("shopee"));
             if (!target && allServices.length > 0) target = allServices[0];
             
             if (target) {
@@ -150,136 +136,55 @@ function updateServiceUI() {
     localStorage.setItem('adaotp_service_name', currentServiceName);
 }
 
-// ================= LOGIKA PENCARI NEGARA SUPER BRUTE-FORCE =================
+// Pencarian Negara Di Belakang Layar (Tombol Langsung Aktif)
 async function fetchCountries() {
-    const list = document.getElementById('countryList');
-    list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3;">Mencari stok Indonesia...</div>';
-    document.getElementById('btnOrder').disabled = true;
+    const btn = document.getElementById('btnOrder');
+    btn.disabled = true;
+    btn.innerText = "MENGUNCI NEGARA...";
 
-    if (!currentServiceId) {
-        list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3;">Pilih layanan terlebih dahulu.</div>';
-        return;
-    }
+    if (!currentServiceId) return;
     
     try {
         const res = await apiCall(`/services/${currentServiceId}/countries`, 'GET');
         if (res.success && res.data) {
-            
-            // Penyesuaian bersarang JSON API
             let dataTarget = res.data;
             if (dataTarget.data) dataTarget = dataTarget.data;
             if (dataTarget.countries) dataTarget = dataTarget.countries;
 
             let indoId = "";
-            let indoName = "";
-            let indoPrice = "";
             let found = false;
 
-            // Mode 1: Jika server merespons dengan Array
             if (Array.isArray(dataTarget)) {
                 let target = dataTarget.find(c => JSON.stringify(c).toLowerCase().includes("indonesia") || JSON.stringify(c).toLowerCase().includes("indo"));
                 if (target) {
                     found = true;
-                    if (typeof target === 'object') {
-                        indoId = target.id || target.country_id || target.value || target.country || "";
-                        indoName = target.name || target.text || target.title || "Indonesia";
-                        indoPrice = target.price || target.cost || "";
-                    } else {
-                        indoId = target;
-                        indoName = target;
-                    }
+                    indoId = typeof target === 'object' ? (target.id || target.country_id || target.value || target.country) : target;
                 }
-            } 
-            // Mode 2: Jika server merespons dengan Object/Dictionary bersarang
-            else if (typeof dataTarget === 'object') {
+            } else if (typeof dataTarget === 'object') {
                 for (let [key, val] of Object.entries(dataTarget)) {
                     let strVal = JSON.stringify(val).toLowerCase();
                     if (strVal.includes("indonesia") || strVal.includes("indo") || String(key).toLowerCase().includes("indo")) {
                         found = true;
-                        if (typeof val === 'object') {
-                            indoId = val.id || val.country_id || key;
-                            indoName = val.name || val.text || val.title || "Indonesia";
-                            indoPrice = val.price || val.cost || "";
-                        } else {
-                            indoId = key;
-                            indoName = val;
-                        }
+                        indoId = typeof val === 'object' ? (val.id || val.country_id || key) : key;
                         break;
                     }
                 }
             }
             
-            list.innerHTML = '';
-            
             if (found && indoId) {
                 currentCountryId = indoId; 
                 localStorage.setItem('adaotp_country_id', currentCountryId);
-                
-                const card = document.createElement("div"); 
-                card.className = "product-card selected"; 
-                card.style.cursor = "default";
-                card.style.borderColor = "var(--primary-color)";
-                card.style.background = "rgba(138, 43, 226, 0.05)";
-                
-                let priceText = indoPrice ? `<div style="color:var(--success-color); font-size:10px;">Rp ${indoPrice}</div>` : '';
-                card.innerHTML = `<div class="product-info"><h4>${indoName} (Terkunci)</h4>${priceText}</div>`;
-                list.appendChild(card);
-                
-                document.getElementById('btnOrder').disabled = false;
+                btn.disabled = false;
+                btn.innerText = "PESAN NOMOR BARU";
             } else {
-                // FALLBACK CERDAS JIKA DETEKSI OTOMATIS GAGAL
-                currentCountryId = "";
-                list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--warning-color);">Stok ID Indonesia sulit dibaca. Menampilkan semua negara...</div>';
-                setTimeout(() => { renderAllCountriesFallback(dataTarget); }, 1000);
+                btn.innerText = "STOK ID KOSONG";
             }
         } else {
-            list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--danger-color);">Stok Kosong / Gagal Mengecek Server</div>';
+            btn.innerText = "GAGAL CEK NEGARA";
         }
     } catch (e) {
-        list.innerHTML = `<div class="status-text-mini" style="grid-column:span 3; color:var(--danger-color);">Gangguan Format JSON Server</div>`;
+        btn.innerText = "ERROR NEGARA";
     }
-}
-
-// ================= FALLBACK RENDER SEMUA NEGARA =================
-// (Dipanggil jika mesin gagal mendeteksi ID spesifik Indonesia)
-function renderAllCountriesFallback(data) {
-    const list = document.getElementById('countryList');
-    list.innerHTML = '';
-    
-    let countries = [];
-    if (Array.isArray(data)) {
-        countries = data.map(c => typeof c === 'object' ? c : {id: c, name: c});
-    } else if (typeof data === 'object') {
-        for (let [key, val] of Object.entries(data)) {
-            countries.push(typeof val === 'object' ? {id: key, ...val} : {id: key, name: val});
-        }
-    }
-    
-    if (countries.length === 0) {
-        list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--danger-color);">Stok Kosong Total</div>';
-        return;
-    }
-
-    countries.forEach(c => {
-        let cid = c.id || c.country_id || c.value || c.country;
-        let cname = c.name || c.text || c.title || cid;
-        let cprice = c.price || c.cost || "";
-        
-        const card = document.createElement("div"); 
-        card.className = "product-card"; 
-        
-        let priceText = cprice ? `<div style="color:var(--success-color); font-size:10px;">Rp ${cprice}</div>` : '';
-        card.innerHTML = `<div class="product-info"><h4>${cname}</h4>${priceText}</div>`;
-        
-        card.onclick = () => { 
-            document.querySelectorAll('.product-card').forEach(el => el.classList.remove('selected')); 
-            card.classList.add('selected'); 
-            currentCountryId = cid; 
-            localStorage.setItem('adaotp_country_id', currentCountryId);
-            document.getElementById('btnOrder').disabled = false;
-        };
-        list.appendChild(card);
-    });
 }
 
 window.openServiceModal = function() { document.getElementById('serviceModal').classList.remove('hidden'); document.getElementById('searchServiceInput').value = ''; filterServices(); }
@@ -315,25 +220,40 @@ window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
     
+    // UI Feedback langsung agar tidak blank selama menunggu API
+    document.getElementById('activeOrdersContainer').innerHTML = '<div class="status-text-mini">Menarik pesanan dari server...</div>';
+    
     const params = `country=${currentCountryId}&service_id=${currentServiceId}`;
     const res = await apiCall('/orders', 'POST', params);
     
     if (res.success) {
         showToast("Nomor Berhasil Dipesan!");
         fetchProfile(); 
+        
+        // Memaksa polling langsung berjalan 
+        if (pollingTimeout) clearTimeout(pollingTimeout);
         pollActiveOrders(); 
     } else {
         showToast(res.message || "Gagal memesan nomor", "error");
+        renderActiveOrders(); // Kembalikan UI jika gagal
     }
     
-    btn.disabled = false; btn.innerText = "PESAN NOMOR";
+    btn.disabled = false; btn.innerText = "PESAN NOMOR BARU";
 }
 
+function formatPhoneNumber(phone) { 
+    if (!phone) return "Memproses..."; 
+    let p = String(phone).replace(/\D/g, "");
+    if (p.startsWith("62")) { p = "0" + p.substring(2); } 
+    return p.replace(/(.{4})/g, '$1 ').trim(); 
+}
+
+// ================= ANTI-CRASH RENDERER =================
 function renderActiveOrders() {
     const container = document.getElementById('activeOrdersContainer');
     if (!container) return;
     
-    if (activeOrders.length === 0) { 
+    if (!Array.isArray(activeOrders) || activeOrders.length === 0) { 
         container.innerHTML = '<div class="status-text-mini">Belum ada pesanan aktif.</div>'; 
         return; 
     }
@@ -341,79 +261,89 @@ function renderActiveOrders() {
     container.innerHTML = "";
     
     [...activeOrders].reverse().forEach(order => {
-        const now = Date.now();
-        let createdTime = order.created_at ? new Date(order.created_at).getTime() : now; 
-        
-        const card = document.createElement("div"); 
-        card.className = "order-card"; 
-        card.id = `order-card-${order.id}`;
-        
-        let canCancel = (now - createdTime) >= 60000;
-        let cancelBtnHtml = "";
-        
-        let smsArray = order.sms || order.messages || []; 
-        if (typeof smsArray === 'string') smsArray = [smsArray]; 
-        
-        const hasSms = smsArray.length > 0;
-        
-        const left = (createdTime + 1200000) - now; 
-        let m = Math.floor(Math.max(0, left) / 60000); 
-        let s = Math.floor((Math.max(0, left) % 60000) / 1000);
-        let timeStr = left > 0 ? `${m}:${s<10?'0':''}${s}` : 'Habis';
-        
-        if (!hasSms) {
-            if (canCancel) {
-                cancelBtnHtml = `<button class="btn-danger" onclick="cancelOrder(${order.id})"><i class="fas fa-times"></i> Batal</button>`;
+        try {
+            if (!order || !order.id) return; // Lewati jika data cacat
+            
+            const now = Date.now();
+            let createdTime = order.created_at ? new Date(order.created_at).getTime() : now; 
+            if (isNaN(createdTime)) createdTime = now;
+            
+            const card = document.createElement("div"); 
+            card.className = "order-card"; 
+            card.id = `order-card-${order.id}`;
+            
+            let canCancel = (now - createdTime) >= 60000;
+            let cancelBtnHtml = "";
+            
+            let smsArray = order.sms || order.messages || []; 
+            if (typeof smsArray === 'string') smsArray = [smsArray]; 
+            
+            const hasSms = smsArray.length > 0;
+            
+            const left = (createdTime + 1200000) - now; 
+            let m = Math.floor(Math.max(0, left) / 60000); 
+            let s = Math.floor((Math.max(0, left) % 60000) / 1000);
+            let timeStr = left > 0 ? `${m}:${s<10?'0':''}${s}` : 'Habis';
+            
+            if (!hasSms) {
+                if (canCancel) {
+                    cancelBtnHtml = `<button class="btn-danger" onclick="cancelOrder(${order.id})"><i class="fas fa-times"></i> Batal</button>`;
+                } else {
+                    let waitSecs = 60 - Math.floor((now - createdTime) / 1000);
+                    cancelBtnHtml = `<button class="btn-danger" disabled><i class="fas fa-lock"></i> Batal (${Math.max(0, waitSecs)}s)</button>`;
+                }
             } else {
-                let waitSecs = 60 - Math.floor((now - createdTime) / 1000);
-                cancelBtnHtml = `<button class="btn-danger" disabled><i class="fas fa-lock"></i> Batal (${Math.max(0, waitSecs)}s)</button>`;
+                cancelBtnHtml = `<button class="btn-danger" disabled><i class="fas fa-ban"></i> Batal</button>`;
             }
-        } else {
-            cancelBtnHtml = `<button class="btn-danger" disabled><i class="fas fa-ban"></i> Batal</button>`;
-        }
 
-        let otpHtml = "";
-        if (hasSms) {
-            let stackHtml = smsArray.map((msg, i) => {
-                let code = msg;
-                let extracted = String(msg).match(/\b\d{4,8}\b/);
-                if (extracted) code = extracted[0];
-                return `
-                <div class="otp-code-item">
-                    <span>${code}</span>
-                    <button class="btn-copy" onclick="copyToClipboard('${code}')"><i class="fas fa-copy"></i></button>
-                </div>`;
-            }).join("");
+            let otpHtml = "";
+            if (hasSms) {
+                let stackHtml = smsArray.map((msg) => {
+                    let code = String(msg || "");
+                    let extracted = code.match(/\b\d{4,8}\b/);
+                    if (extracted) code = extracted[0];
+                    return `
+                    <div class="otp-code-item">
+                        <span>${code}</span>
+                        <button class="btn-copy" onclick="copyToClipboard('${code}')"><i class="fas fa-copy"></i></button>
+                    </div>`;
+                }).join("");
+                
+                otpHtml = `
+                    <div class="otp-title">SMS DITERIMA (${smsArray.length})</div>
+                    ${stackHtml}
+                    <div class="waiting-animation" style="margin-top:10px;"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div>
+                    <div class="waiting-text" style="font-size:9px; font-weight:800; color:var(--text-secondary); text-align:center;">MENUNGGU SMS BERIKUTNYA...</div>
+                `;
+            } else {
+                otpHtml = `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text" style="font-size:11px; font-weight:800; color:var(--text-secondary); margin-top:8px;">MENUNGGU SMS...</div>`;
+            }
             
-            otpHtml = `
-                <div class="otp-title">SMS DITERIMA (${smsArray.length})</div>
-                ${stackHtml}
-                <div class="waiting-animation" style="margin-top:10px;"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div>
-                <div class="waiting-text" style="font-size:9px; font-weight:800; color:var(--text-secondary); text-align:center;">MENUNGGU SMS BERIKUTNYA...</div>
-            `;
-        } else {
-            otpHtml = `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text" style="font-size:11px; font-weight:800; color:var(--text-secondary); margin-top:8px;">MENUNGGU SMS...</div>`;
-        }
-        
-        card.innerHTML = `
-            <div class="order-header">
-                <div>
-                    <div class="order-id-label">#${order.id} (${order.service || currentServiceName})</div>
+            let srvName = order.service || order.service_name || currentServiceName;
+            let phoneNumber = order.phone || order.number || order.phone_number || "";
+            
+            card.innerHTML = `
+                <div class="order-header">
+                    <div>
+                        <div class="order-id-label">#${order.id} (${srvName})</div>
+                    </div>
+                    <span class="timer" id="timer-${order.id}">${timeStr}</span>
                 </div>
-                <span class="timer" id="timer-${order.id}">${timeStr}</span>
-            </div>
-            <div class="phone-row">
-                <span class="phone-number">${formatPhoneNumber(order.phone || order.number)}</span>
-                <button class="btn-copy" onclick="copyToClipboard('${order.phone || order.number}')"><i class="fas fa-copy"></i></button>
-            </div>
-            <div class="otp-display ${hasSms ? 'success-glow' : ''}">${otpHtml}</div>
-            
-            <div class="action-buttons-grid">
-                ${cancelBtnHtml}
-                <button class="btn-success" onclick="finishOrder(${order.id})" ${hasSms ? '' : 'disabled'}><i class="fas fa-check-double"></i> Selesai (Manual)</button>
-            </div>
-        `;
-        container.appendChild(card);
+                <div class="phone-row">
+                    <span class="phone-number">${formatPhoneNumber(phoneNumber)}</span>
+                    <button class="btn-copy" onclick="copyToClipboard('${phoneNumber}')"><i class="fas fa-copy"></i></button>
+                </div>
+                <div class="otp-display ${hasSms ? 'success-glow' : ''}">${otpHtml}</div>
+                
+                <div class="action-buttons-grid">
+                    ${cancelBtnHtml}
+                    <button class="btn-success" onclick="finishOrder(${order.id})" ${hasSms ? '' : 'disabled'}><i class="fas fa-check-double"></i> Selesai (Manual)</button>
+                </div>
+            `;
+            container.appendChild(card);
+        } catch (cardError) {
+            console.error("Gagal menggambar satu kartu pesanan", cardError);
+        }
     });
 }
 
@@ -426,16 +356,22 @@ async function pollActiveOrders() {
         
         if (res.success && res.data) {
             let dataTarget = res.data.data ? res.data.data : res.data;
-            let serverOrders = Array.isArray(dataTarget) ? dataTarget : Object.values(dataTarget);
-            const now = Date.now();
+            let rawOrders = Array.isArray(dataTarget) ? dataTarget : Object.values(dataTarget);
             
+            // Validasi ketat membuang data sampah dari API
+            let serverOrders = [];
+            rawOrders.forEach(o => {
+                if (typeof o === 'object' && o !== null && (o.id || o.order_id)) {
+                    o.id = o.id || o.order_id;
+                    serverOrders.push(o);
+                }
+            });
+
+            const now = Date.now();
             serverOrders.forEach(so => {
                 let existing = activeOrders.find(lo => lo.id == so.id);
-                if (existing) {
-                    so.local_created_at = existing.local_created_at; 
-                } else {
-                    so.local_created_at = now; 
-                }
+                if (existing) { so.local_created_at = existing.local_created_at; } 
+                else { so.local_created_at = now; }
             });
             
             serverOrders.forEach(so => {
@@ -457,13 +393,16 @@ async function pollActiveOrders() {
 
             activeOrders = serverOrders;
             renderActiveOrders();
+        } else {
+            // Jika API gagal tapi tidak error fetch
+            if (!activeOrders || activeOrders.length === 0) renderActiveOrders();
         }
     } catch (e) {
         console.error("Polling Terhambat:", e);
     } finally {
         isPolling = false;
         if (pollingTimeout) clearTimeout(pollingTimeout);
-        let nextDelay = activeOrders.length > 0 ? 5000 : 10000;
+        let nextDelay = activeOrders.length > 0 ? 4000 : 8000;
         pollingTimeout = setTimeout(pollActiveOrders, nextDelay);
     }
 }
@@ -512,6 +451,7 @@ function startTimerTick() {
         for (let i = 0; i < activeOrders.length; i++) {
             let o = activeOrders[i];
             let cTime = o.created_at ? new Date(o.created_at).getTime() : (o.local_created_at || now);
+            if(isNaN(cTime)) cTime = now;
             
             const timerEl = document.getElementById(`timer-${o.id}`);
             if (timerEl) {
@@ -554,8 +494,10 @@ function saveToHistory(orderId, finalStatus) {
     
     let smsArray = order.sms || order.messages || [];
     let lastOtp = typeof smsArray === 'string' ? smsArray : (smsArray.length > 0 ? smsArray[smsArray.length-1] : "-");
+    let srv = order.service || order.service_name || currentServiceName;
+    let ph = order.phone || order.number || order.phone_number || "";
     
-    const historyItem = { id: order.id, phone: order.phone || order.number, serviceName: order.service || currentServiceName, otp: lastOtp, status: finalStatus, date: Date.now() }; 
+    const historyItem = { id: order.id, phone: ph, serviceName: srv, otp: lastOtp, status: finalStatus, date: Date.now() }; 
     orderHistory.unshift(historyItem); 
     if (orderHistory.length > 50) orderHistory.pop(); 
     localStorage.setItem('adaotp_history', JSON.stringify(orderHistory)); 
