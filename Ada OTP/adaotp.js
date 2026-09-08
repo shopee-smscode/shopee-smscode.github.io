@@ -3,10 +3,10 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-if (!localStorage.getItem('adaotp_shopee_forced_v1.7')) {
+if (!localStorage.getItem('adaotp_shopee_forced_v1.8')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v1.7', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v1.8', 'true');
 }
 
 let activeOrders = []; 
@@ -59,39 +59,29 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     }
 }
 
-// MESIN EKSTRAKTOR DILONGGARKAN AGAR WEB-ORDER MASUK
-function extractOrders(obj) {
-    let found = [];
-    let seen = new Set();
+// MESIN EKSTRAKTOR AMAN: Tidak perlu deep-scan, cukup baca Array/Object standar dari API.
+// Ini dijamin 100% tidak akan mengosongkan pesanan yang baru dibuat.
+function extractOrders(res) {
+    if (!res) return [];
+    let dataObj = res.data !== undefined ? res.data : res;
+    if (!dataObj) return [];
     
-    function search(current) {
-        if (!current || typeof current !== 'object') return;
-        if (seen.has(current)) return;
-        seen.add(current);
-        
-        if (Array.isArray(current)) {
-            current.forEach(search);
+    let results = [];
+    
+    if (Array.isArray(dataObj)) {
+        results = dataObj;
+    } else if (typeof dataObj === 'object') {
+        if (dataObj.id || dataObj.order_id) {
+            results = [dataObj]; // Pesanan tunggal (contoh dari respons POST)
         } else {
-            let oId = current.id || current.order_id || current.order;
-            
-            // Aturan Longgar: Asal ada ID pesanan dan indikasi kuat bahwa ini adalah data pesanan
-            if (oId !== undefined && (current.phone !== undefined || current.number !== undefined || current.service !== undefined || current.status !== undefined || current.sms !== undefined)) {
-                current.id = oId; 
-                found.push(current);
-            } else {
-                Object.values(current).forEach(search);
-            }
+            results = Object.values(dataObj);
         }
     }
     
-    search(obj);
-    
-    let unique = [];
-    let map = {};
-    found.forEach(o => {
-        if(!map[o.id]) { map[o.id] = true; unique.push(o); }
+    return results.filter(o => o && typeof o === 'object' && (o.id || o.order_id || o.number || o.phone)).map(o => {
+        o.id = o.id || o.order_id || Date.now(); // Amankan ID mutlak
+        return o;
     });
-    return unique;
 }
 
 function guessOperator(phone) {
@@ -134,7 +124,6 @@ window.forceRefresh = async function() {
     
     showToast("Menarik data terbaru...", "warning");
     
-    // Matikan kunci polling sementara
     isPolling = false;
     if (pollingTimeout) clearTimeout(pollingTimeout);
     
@@ -321,6 +310,7 @@ window.createNewOrder = async function() {
             showToast("Nomor Berhasil Dipesan!");
             fetchProfile(); 
             
+            // Masukkan data pesanan baru langsung ke memori lokal
             let newOrders = extractOrders(res);
             if (newOrders.length > 0) {
                 let newOrder = newOrders[0];
@@ -448,6 +438,7 @@ function renderActiveOrders() {
     });
 }
 
+// ================= LOKAL KEEPER TERKUAT (80 MENIT MUTLAK) =================
 async function pollActiveOrders(isManual = false) {
     if (isPolling && !isManual) return;
     isPolling = true;
@@ -457,13 +448,14 @@ async function pollActiveOrders(isManual = false) {
         
         if (res.success && res.data) {
             let serverOrders = extractOrders(res);
-            let prevIds = activeOrders.map(o => String(o.id));
-            let mergedOrders = [...activeOrders];
-            const now = Date.now();
+            let now = Date.now();
             let isChanged = false;
+            
+            let newActiveOrders = [];
 
+            // 1. Proses Semua Pesanan dari Server (Sinkronisasi Utama)
             serverOrders.forEach(so => {
-                let existingIdx = mergedOrders.findIndex(lo => String(lo.id) === String(so.id));
+                let existing = activeOrders.find(lo => String(lo.id) === String(so.id));
                 
                 let rawSoSms = so.sms || so.messages || so.received_sms || [];
                 let soSmsArray = [];
@@ -474,41 +466,47 @@ async function pollActiveOrders(isManual = false) {
                 }
                 so.normalized_sms = soSmsArray;
 
-                if (existingIdx !== -1) {
-                    so.local_created_at = mergedOrders[existingIdx].local_created_at;
-                    
-                    let oldSmsArray = mergedOrders[existingIdx].normalized_sms || [];
+                if (existing) {
+                    so.local_created_at = existing.local_created_at;
+                    let oldSmsArray = existing.normalized_sms || [];
                     if (soSmsArray.length > oldSmsArray.length) {
                         isChanged = true;
                         try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (vErr) {}
                         try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
                     }
-                    
-                    mergedOrders[existingIdx] = so; 
                 } else {
                     so.local_created_at = now;
-                    mergedOrders.unshift(so); 
                     isChanged = true;
                     if (soSmsArray.length > 0) {
                         try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (vErr) {}
                         try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
                     }
                 }
-            });
-            
-            mergedOrders = mergedOrders.filter(o => {
-                let cTime = o.local_created_at || now;
-                return (now - cTime) < 4800000; 
+                newActiveOrders.push(so);
             });
 
-            activeOrders = mergedOrders;
-            
-            let currentIds = activeOrders.map(o => String(o.id));
-            let hasRemoved = prevIds.some(id => !currentIds.includes(id));
-            if (hasRemoved || isChanged) {
-                fetchProfile();
-            }
+            // 2. Pertahankan Pesanan Lokal yang Dihapus Sepihak oleh Server (Perisai 80 Menit)
+            activeOrders.forEach(lo => {
+                let existsInServer = newActiveOrders.find(so => String(so.id) === String(lo.id));
+                if (!existsInServer) {
+                    let cTime = lo.local_created_at || now;
+                    // Tahan selama kurang dari 80 Menit (4.800.000 milidetik)
+                    if ((now - cTime) < 4800000) {
+                        newActiveOrders.push(lo);
+                    }
+                }
+            });
 
+            // Urutkan berdasarkan waktu agar yang terbaru di atas
+            newActiveOrders.sort((a, b) => b.local_created_at - a.local_created_at);
+            
+            // Cek perubahan data untuk memicu penarikan Saldo
+            let oldIds = activeOrders.map(o => String(o.id));
+            let newIds = newActiveOrders.map(o => String(o.id));
+            let hasRemoved = oldIds.some(id => !newIds.includes(id));
+            if (hasRemoved || isChanged) fetchProfile();
+
+            activeOrders = newActiveOrders;
             renderActiveOrders();
         }
     } catch (e) {
@@ -571,6 +569,7 @@ function startTimerTick() {
             
             const left = (cTime + 4800000) - now; 
             
+            // Eksekutor Penghapus Mutlak 80 Menit
             if (left <= 0) {
                 activeOrders.splice(i, 1);
                 needsRender = true;

@@ -114,7 +114,7 @@
 <body>
     <div class="container">
         
-        <!-- TOP BAR -->
+        <!-- TOP BAR (Tombol Refresh Dipindah ke Kanan Sesuai Instruksi) -->
         <div class="top-bar-modern">
             <div style="display: flex; gap: 8px; align-items: center;">
                 <div class="dropdown">
@@ -128,13 +128,13 @@
                         <a href="#" class="active"><i class="fas fa-rocket"></i> Ada OTP</a>
                     </div>
                 </div>
-                <!-- TOMBOL REFRESH BARU -->
-                <button onclick="forceRefresh()" class="btn-top-action" title="Refresh Manual"><i class="fas fa-sync-alt" id="refreshIcon"></i></button>
                 <!-- TOMBOL CATATAN -->
                 <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-file-alt"></i></button>
             </div>
             
             <div style="display: flex; gap: 8px; align-items: center;">
+                <!-- TOMBOL REFRESH -->
+                <button onclick="forceRefresh()" class="btn-top-action" title="Refresh Manual"><i class="fas fa-sync-alt" id="refreshIcon"></i></button>
                 <div class="dropdown">
                     <button class="dropbtn-icon" onclick="toggleDropdown('menuDropdown')">
                         <i class="fas fa-bars"></i>
