@@ -3,10 +3,10 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-if (!localStorage.getItem('adaotp_shopee_forced_v1.8')) {
+if (!localStorage.getItem('adaotp_shopee_forced_v1.5')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v1.8', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v1.5', 'true');
 }
 
 let activeOrders = []; 
@@ -59,33 +59,41 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     }
 }
 
-// MESIN EKSTRAKTOR AMAN: Tidak perlu deep-scan, cukup baca Array/Object standar dari API.
-// Ini dijamin 100% tidak akan mengosongkan pesanan yang baru dibuat.
-function extractOrders(res) {
-    if (!res) return [];
-    let dataObj = res.data !== undefined ? res.data : res;
-    if (!dataObj) return [];
+function extractOrders(obj) {
+    let found = [];
+    let seen = new Set();
     
-    let results = [];
-    
-    if (Array.isArray(dataObj)) {
-        results = dataObj;
-    } else if (typeof dataObj === 'object') {
-        if (dataObj.id || dataObj.order_id) {
-            results = [dataObj]; // Pesanan tunggal (contoh dari respons POST)
+    function search(current) {
+        if (!current || typeof current !== 'object') return;
+        if (seen.has(current)) return;
+        seen.add(current);
+        
+        if (Array.isArray(current)) {
+            current.forEach(search);
         } else {
-            results = Object.values(dataObj);
+            let oId = current.id || current.order_id || current.order;
+            let oPhone = current.phone || current.number || current.phone_number;
+            
+            if (oId !== undefined && oPhone !== undefined && String(oPhone).length > 3) {
+                current.id = oId; 
+                found.push(current);
+            } else {
+                Object.values(current).forEach(search);
+            }
         }
     }
     
-    return results.filter(o => o && typeof o === 'object' && (o.id || o.order_id || o.number || o.phone)).map(o => {
-        o.id = o.id || o.order_id || Date.now(); // Amankan ID mutlak
-        return o;
+    search(obj);
+    
+    let unique = [];
+    let map = {};
+    found.forEach(o => {
+        if(!map[o.id]) { map[o.id] = true; unique.push(o); }
     });
+    return unique;
 }
 
 function guessOperator(phone) {
-    if (!phone || String(phone).trim() === "") return "MENCARI...";
     let p = String(phone).replace(/\D/g, "");
     if (p.startsWith("62")) p = "0" + p.substring(2);
     let prefix = p.substring(0, 4);
@@ -116,23 +124,6 @@ document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") { startPolling(); startTimerTick(); }
 });
 window.addEventListener('online', () => { showToast("🌐 Online", "success"); startPolling(); });
-
-// TOMBOL SINKRONISASI MANUAL (REFRESH)
-window.forceRefresh = async function() {
-    const icon = document.getElementById('refreshIcon');
-    if(icon) icon.classList.add('fa-spin');
-    
-    showToast("Menarik data terbaru...", "warning");
-    
-    isPolling = false;
-    if (pollingTimeout) clearTimeout(pollingTimeout);
-    
-    await fetchProfile();
-    await pollActiveOrders(true);
-    
-    if(icon) icon.classList.remove('fa-spin');
-    showToast("Sinkronisasi Selesai!", "success");
-}
 
 function openSettingsModal() { 
     document.getElementById('settingsApiKey').value = apiKey === DEFAULT_API_KEY ? "" : apiKey; 
@@ -177,7 +168,7 @@ async function fetchServices() {
             allServices = servicesArray.sort((a, b) => String(a.text || a.name).localeCompare(String(b.text || b.name)));
             
             let target = null;
-            if (currentServiceId) target = allServices.find(s => String(s.id) === String(currentServiceId));
+            if (currentServiceId) target = allServices.find(s => s.id == currentServiceId);
             if (!target) target = allServices.find(s => String(s.text || s.name || "").toLowerCase().includes("shopee"));
             if (!target && allServices.length > 0) target = allServices[0];
             
@@ -202,6 +193,7 @@ function updateServiceUI() {
     localStorage.setItem('adaotp_service_name', currentServiceName);
 }
 
+// Pencarian Negara & Harga
 async function fetchCountries() {
     const btn = document.getElementById('btnOrder');
     const priceBox = document.getElementById('servicePriceBox');
@@ -260,6 +252,7 @@ async function fetchCountries() {
             priceBox.innerText = "Error";
         }
     } catch (e) {
+        console.error("Negara gagal di-parse");
         priceBox.innerText = "Error";
     } finally {
         btn.disabled = false;
@@ -277,7 +270,7 @@ window.filterServices = function() {
     if(filtered.length === 0) { container.innerHTML = '<div class="status-text-mini">Tidak ditemukan.</div>'; return; }
 
     filtered.forEach(svc => {
-        const isActive = (String(svc.id) === String(currentServiceId));
+        const isActive = (svc.id == currentServiceId);
         const btn = document.createElement('div');
         btn.style = `width: 100%; padding: 10px; border-radius: 10px; font-size: 13px; font-weight: bold; display: flex; align-items: center; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; margin-bottom: 6px;`;
         
@@ -308,14 +301,13 @@ window.createNewOrder = async function() {
         
         if (res.success) {
             showToast("Nomor Berhasil Dipesan!");
-            fetchProfile(); 
+            fetchProfile(); // Tarik saldo setelah order sukses
             
-            // Masukkan data pesanan baru langsung ke memori lokal
             let newOrders = extractOrders(res);
             if (newOrders.length > 0) {
                 let newOrder = newOrders[0];
                 newOrder.local_created_at = Date.now();
-                if(!activeOrders.find(o => String(o.id) === String(newOrder.id))) {
+                if(!activeOrders.find(o => o.id == newOrder.id)) {
                     activeOrders.unshift(newOrder); 
                 }
             }
@@ -339,6 +331,7 @@ function formatPhoneNumber(phone) {
     return p.replace(/(.{4})/g, '$1 ').trim(); 
 }
 
+// RENDERER REAL-TIME 
 function renderActiveOrders() {
     const container = document.getElementById('activeOrdersContainer');
     if (!container) return;
@@ -355,29 +348,33 @@ function renderActiveOrders() {
             if (!order || !order.id) return; 
             
             const now = Date.now();
-            let cTime = order.local_created_at || now; 
+            let createdTime = order.created_at ? new Date(order.created_at).getTime() : now; 
+            if (isNaN(createdTime)) createdTime = now;
             
-            let canCancel = (now - cTime) >= 60000;
+            let canCancel = (now - createdTime) >= 60000;
             let cancelBtnHtml = "";
             let finishBtnHtml = "";
             
             let smsArray = order.normalized_sms || []; 
             const hasSms = smsArray.length > 0;
             
-            const left = (cTime + 4800000) - now; 
+            const left = (createdTime + 4800000) - now; 
             let m = Math.floor(Math.max(0, left) / 60000); 
             let s = Math.floor((Math.max(0, left) % 60000) / 1000);
             let timeStr = left > 0 ? `${m}:${s<10?'0':''}${s}` : 'Habis';
             
+            // LOGIKA TOMBOL BARU:
             if (!hasSms) {
+                // JIKA BELUM ADA OTP: Selesai Mati, Batal Aktif Setelah 1 Menit
                 if (canCancel) {
                     cancelBtnHtml = `<button class="btn-danger" onclick="cancelOrder(${order.id})">BATAL</button>`;
                 } else {
-                    let waitSecs = 60 - Math.floor((now - cTime) / 1000);
+                    let waitSecs = 60 - Math.floor((now - createdTime) / 1000);
                     cancelBtnHtml = `<button class="btn-danger" disabled>BATAL (${Math.max(0, waitSecs)}s)</button>`;
                 }
                 finishBtnHtml = `<button class="btn-success" disabled>SELESAI</button>`;
             } else {
+                // JIKA SUDAH ADA OTP: Batal Mati, Selesai Aktif
                 cancelBtnHtml = `<button class="btn-danger" disabled>BATAL</button>`;
                 finishBtnHtml = `<button class="btn-success" onclick="finishOrder(${order.id})">SELESAI</button>`;
             }
@@ -410,7 +407,7 @@ function renderActiveOrders() {
             if (typeof srvNameRaw === 'string') { finalSrvName = srvNameRaw; }
             else if (typeof srvNameRaw === 'object' && srvNameRaw !== null) { finalSrvName = srvNameRaw.name || srvNameRaw.text || currentServiceName; }
             
-            let phoneNumber = order.phone || order.number || order.phone_number || "Menunggu...";
+            let phoneNumber = order.phone || order.number || order.phone_number || "";
             let opName = guessOperator(phoneNumber);
             
             card.innerHTML = `
@@ -438,9 +435,8 @@ function renderActiveOrders() {
     });
 }
 
-// ================= LOKAL KEEPER TERKUAT (80 MENIT MUTLAK) =================
-async function pollActiveOrders(isManual = false) {
-    if (isPolling && !isManual) return;
+async function pollActiveOrders() {
+    if (isPolling) return;
     isPolling = true;
     
     try {
@@ -448,14 +444,13 @@ async function pollActiveOrders(isManual = false) {
         
         if (res.success && res.data) {
             let serverOrders = extractOrders(res);
-            let now = Date.now();
+            let prevIds = activeOrders.map(o => String(o.id));
+            let mergedOrders = [...activeOrders];
+            const now = Date.now();
             let isChanged = false;
-            
-            let newActiveOrders = [];
 
-            // 1. Proses Semua Pesanan dari Server (Sinkronisasi Utama)
             serverOrders.forEach(so => {
-                let existing = activeOrders.find(lo => String(lo.id) === String(so.id));
+                let existingIdx = mergedOrders.findIndex(lo => lo.id == so.id);
                 
                 let rawSoSms = so.sms || so.messages || so.received_sms || [];
                 let soSmsArray = [];
@@ -466,47 +461,44 @@ async function pollActiveOrders(isManual = false) {
                 }
                 so.normalized_sms = soSmsArray;
 
-                if (existing) {
-                    so.local_created_at = existing.local_created_at;
-                    let oldSmsArray = existing.normalized_sms || [];
+                if (existingIdx !== -1) {
+                    so.local_created_at = mergedOrders[existingIdx].local_created_at;
+                    
+                    let oldSmsArray = mergedOrders[existingIdx].normalized_sms || [];
                     if (soSmsArray.length > oldSmsArray.length) {
                         isChanged = true;
                         try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (vErr) {}
                         try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
                     }
+                    
+                    mergedOrders[existingIdx] = so; 
                 } else {
                     so.local_created_at = now;
+                    mergedOrders.push(so);
                     isChanged = true;
                     if (soSmsArray.length > 0) {
                         try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (vErr) {}
                         try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
                     }
                 }
-                newActiveOrders.push(so);
             });
-
-            // 2. Pertahankan Pesanan Lokal yang Dihapus Sepihak oleh Server (Perisai 80 Menit)
-            activeOrders.forEach(lo => {
-                let existsInServer = newActiveOrders.find(so => String(so.id) === String(lo.id));
-                if (!existsInServer) {
-                    let cTime = lo.local_created_at || now;
-                    // Tahan selama kurang dari 80 Menit (4.800.000 milidetik)
-                    if ((now - cTime) < 4800000) {
-                        newActiveOrders.push(lo);
-                    }
-                }
-            });
-
-            // Urutkan berdasarkan waktu agar yang terbaru di atas
-            newActiveOrders.sort((a, b) => b.local_created_at - a.local_created_at);
             
-            // Cek perubahan data untuk memicu penarikan Saldo
-            let oldIds = activeOrders.map(o => String(o.id));
-            let newIds = newActiveOrders.map(o => String(o.id));
-            let hasRemoved = oldIds.some(id => !newIds.includes(id));
-            if (hasRemoved || isChanged) fetchProfile();
+            mergedOrders = mergedOrders.filter(o => {
+                let cTime = o.created_at ? new Date(o.created_at).getTime() : (o.local_created_at || now);
+                if(isNaN(cTime)) cTime = now;
+                return (now - cTime) < 4800000; 
+            });
 
-            activeOrders = newActiveOrders;
+            activeOrders = mergedOrders;
+            
+            // SINKRONISASI SALDO OTOMATIS: 
+            // Jika ada pesanan yang dihapus server (batal otomatis/refund) ATAU ada perubahan status
+            let currentIds = activeOrders.map(o => String(o.id));
+            let hasRemoved = prevIds.some(id => !currentIds.includes(id));
+            if (hasRemoved || isChanged) {
+                fetchProfile();
+            }
+
             renderActiveOrders();
         }
     } catch (e) {
@@ -532,9 +524,9 @@ window.cancelOrder = async function(orderId) {
     if (res.success) {
         showToast("Pesanan Dibatalkan");
         saveToHistory(orderId, "BATAL");
-        activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); 
+        activeOrders = activeOrders.filter(o => o.id != orderId); 
         renderActiveOrders();
-        fetchProfile(); 
+        fetchProfile(); // Tarik Saldo setelah Batal
     } else {
         showToast(res.message || "Gagal membatalkan", "error");
         if(card) card.style.opacity = '1';
@@ -549,9 +541,9 @@ window.finishOrder = async function(orderId) {
     if (res.success) {
         showToast("Siklus OTP Selesai!");
         saveToHistory(orderId, "SELESAI");
-        activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); 
+        activeOrders = activeOrders.filter(o => o.id != orderId); 
         renderActiveOrders(); 
-        fetchProfile(); 
+        fetchProfile(); // Tarik saldo untuk memastikan
     } else {
         showToast(res.message || "Gagal Finish", "error");
         if(card) card.style.opacity = '1';
@@ -565,11 +557,11 @@ function startTimerTick() {
         
         for (let i = activeOrders.length - 1; i >= 0; i--) {
             let o = activeOrders[i];
-            let cTime = o.local_created_at || now;
+            let cTime = o.created_at ? new Date(o.created_at).getTime() : (o.local_created_at || now);
+            if(isNaN(cTime)) cTime = now;
             
             const left = (cTime + 4800000) - now; 
             
-            // Eksekutor Penghapus Mutlak 80 Menit
             if (left <= 0) {
                 activeOrders.splice(i, 1);
                 needsRender = true;
@@ -611,7 +603,7 @@ function startTimerTick() {
 }
 
 function saveToHistory(orderId, finalStatus) { 
-    const order = activeOrders.find(o => String(o.id) === String(orderId));
+    const order = activeOrders.find(o => o.id == orderId);
     if (!order) return; 
     
     let smsArray = order.normalized_sms || [];

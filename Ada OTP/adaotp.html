@@ -76,7 +76,7 @@
         .otp-code-item { font-size: 26px; font-weight: 900; color: var(--primary-color); letter-spacing: 6px; margin: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
         .otp-code-item:last-child { border-bottom: none; }
 
-        /* ACTION BUTTONS */
+        /* ACTION BUTTONS (SOLID ABSOLUTE) */
         .action-buttons-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .action-buttons-grid button { padding: 12px; border: none !important; border-radius: 10px; font-weight: 900; font-size: 13px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; text-transform: uppercase; letter-spacing: 1px; }
         
@@ -114,7 +114,7 @@
 <body>
     <div class="container">
         
-        <!-- TOP BAR (Tombol Refresh Dipindah ke Kanan Sesuai Instruksi) -->
+        <!-- TOP BAR -->
         <div class="top-bar-modern">
             <div style="display: flex; gap: 8px; align-items: center;">
                 <div class="dropdown">
@@ -128,13 +128,10 @@
                         <a href="#" class="active"><i class="fas fa-rocket"></i> Ada OTP</a>
                     </div>
                 </div>
-                <!-- TOMBOL CATATAN -->
                 <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-file-alt"></i></button>
             </div>
             
             <div style="display: flex; gap: 8px; align-items: center;">
-                <!-- TOMBOL REFRESH -->
-                <button onclick="forceRefresh()" class="btn-top-action" title="Refresh Manual"><i class="fas fa-sync-alt" id="refreshIcon"></i></button>
                 <div class="dropdown">
                     <button class="dropbtn-icon" onclick="toggleDropdown('menuDropdown')">
                         <i class="fas fa-bars"></i>
@@ -177,8 +174,6 @@
                     </button>
                 </div>
             </div>
-            
-            <div id="countryList" style="display: none;"></div>
             
             <button id="btnOrder" class="btn-primary" onclick="createNewOrder()" disabled>PESAN NOMOR BARU</button>
         </div>
