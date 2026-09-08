@@ -3,10 +3,10 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-if (!localStorage.getItem('adaotp_shopee_forced_v4.6')) {
+if (!localStorage.getItem('adaotp_shopee_forced_v4.7')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v4.6', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v4.7', 'true');
 }
 
 let activeOrders = []; 
@@ -39,7 +39,6 @@ function copyToClipboard(t) {
     } catch(e) { showToast("Gagal menyalin", "error"); }
 }
 
-// ================= SISTEM ANTI-HANG (TIMEOUT 10 DETIK) =================
 async function apiCall(endpoint, method = 'GET', urlParams = "") {
     if (!apiKey) return { success: false, message: "API Key Kosong" };
     
@@ -59,9 +58,8 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
         };
     }
 
-    // Pasang AbortController agar jika internet bengong, tidak hang selamanya
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 Detik Batas Waktu
+    const timeoutId = setTimeout(() => controller.abort(), 10000); 
     options.signal = controller.signal;
 
     try {
@@ -105,23 +103,18 @@ window.onload = () => {
     initApp();
 };
 
-// ================= SISTEM AUTO-WAKEUP =================
 document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") { 
         startPolling(); 
         startTimerTick(); 
+        fetchProfile(); 
         
-        fetchProfile(); // Segarkan saldo otomatis saat buka HP
-        
-        // Deteksi jika UI nyangkut (Tidur saat proses loading)
         let svcText = document.getElementById('btnServiceSelectText').innerText;
         let ctryHtml = document.getElementById('countrySelect').innerHTML;
-        
         if (svcText.includes("Memuat") || svcText.includes("Error") || ctryHtml.includes("Memuat") || ctryHtml.includes("Error")) {
-            initApp(); // Paksa inisialisasi ulang
+            initApp(); 
         }
         
-        // Lepaskan tombol "MEMPROSES" yang nyangkut
         let btn = document.getElementById('btnOrder');
         if (btn.innerText.includes("MEMPROSES")) {
             btn.disabled = false;
@@ -348,12 +341,42 @@ function saveTimestamp(id, time) {
     localStorage.setItem('adaotp_order_times', JSON.stringify(orderTimestamps));
 }
 
+// MESIN EKSTRAKTOR ID AMAN (Digunakan khusus untuk menangkap ID mutlak saat pembuatan pesanan)
+function extractOrdersSafe(res) {
+    let found = [];
+    let seen = new Set();
+    function search(current) {
+        if (!current || typeof current !== 'object') return;
+        if (seen.has(current)) return;
+        seen.add(current);
+        let id = current.id || current.order_id || current.order;
+        let phone = current.phone || current.number || current.phone_number;
+        if (id !== undefined && (phone !== undefined || current.status !== undefined || current.sms !== undefined)) {
+            current.id = id;
+            found.push(current);
+        } else {
+            for (let key in current) {
+                if (!isNaN(key) && current[key] && typeof current[key] === 'object') {
+                    current[key].id = current[key].id || key;
+                    search(current[key]);
+                } else if (typeof current[key] === 'object') {
+                    search(current[key]);
+                }
+            }
+        }
+    }
+    search(res);
+    return found;
+}
+
 window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
     document.getElementById('activeOrdersContainer').innerHTML = '<div class="status-text-mini">Menghubungi server...</div>';
+    
     const params = `country=${currentCountryId}&service_id=${currentServiceId}`;
     
+    // MENGAMBIL HARGA DARI DROPDOWN UNTUK DISIMPAN LOKAL
     const select = document.getElementById('countrySelect');
     let selText = select.options[select.selectedIndex]?.text || "";
     let pMatch = selText.match(/Rp\s*([\d.,]+)/);
@@ -361,14 +384,27 @@ window.createNewOrder = async function() {
     
     try {
         const res = await apiCall('/orders', 'POST', params);
+        
         let isSuccess = res.success === true || res.status === "success" || res.status === "ok" || res.id !== undefined || res.order_id !== undefined || (res.data && res.data.id !== undefined);
+        
+        // Pengecekan ekstra: Jika ada data namun API tidak menyatakan success secara eksplisit
+        if (!isSuccess && res.data && typeof res.data === 'object' && Object.keys(res.data).length > 0) {
+            isSuccess = true;
+        }
         
         if (isSuccess) {
             showToast("Pesanan Berhasil Dibuat!", "success");
             
-            let shadowId = res.id || res.order_id || (res.data ? res.data.id : null) || (res.data && res.data.order ? res.data.order.id : null);
-            if (shadowId && orderPrice) {
-                localStorage.setItem(`adaotp_price_${shadowId}`, orderPrice);
+            // Pengekstrak ID Mutlak
+            let trueId = res.id || res.order_id || (res.data ? res.data.id : null);
+            if (!trueId) {
+                let extracted = extractOrdersSafe(res);
+                if (extracted.length > 0) trueId = extracted[0].id;
+            }
+            
+            // Simpan Harga pada Brankas Harga dengan mengikatnya pada True ID
+            if (trueId && orderPrice) {
+                localStorage.setItem(`adaotp_price_${trueId}`, orderPrice);
             }
             
             syncBalanceRobust(); 
@@ -464,7 +500,8 @@ function renderActiveOrders() {
             let phoneNumber = order.phone || order.number || order.phone_number || "Memproses...";
             let opName = guessOperator(phoneNumber);
             
-            let savedPrice = order.price || order.cost || localStorage.getItem(`adaotp_price_${order.id}`) || "";
+            // PRIORITAS HARGA LOKAL: Memaksa menggunakan harga dari dropdown yang disimpan, mengabaikan harga dari server
+            let savedPrice = localStorage.getItem(`adaotp_price_${order.id}`) || order.price || order.cost || "";
             let priceBadge = savedPrice ? `<span style="font-size:10px; font-weight:900; background:rgba(0,230,118,0.15); color:var(--success-color); border:1px dashed var(--success-color); padding:2px 6px; border-radius:6px; margin-left:6px; display:inline-block; transform:translateY(-1px);">Rp ${savedPrice}</span>` : "";
             
             const card = document.createElement("div"); 
@@ -613,7 +650,7 @@ window.cancelOrder = async function(orderId) {
         renderActiveOrders();
         
         if(orderTimestamps[orderId]) { delete orderTimestamps[orderId]; localStorage.setItem('adaotp_order_times', JSON.stringify(orderTimestamps)); }
-        localStorage.removeItem(`adaotp_price_${orderId}`);
+        localStorage.removeItem(`adaotp_price_${orderId}`); // Hapus harga lokal yang tersimpan
 
         syncBalanceRobust(); 
     } else {
@@ -634,7 +671,7 @@ window.finishOrder = async function(orderId) {
         renderActiveOrders(); 
         
         if(orderTimestamps[orderId]) { delete orderTimestamps[orderId]; localStorage.setItem('adaotp_order_times', JSON.stringify(orderTimestamps)); }
-        localStorage.removeItem(`adaotp_price_${orderId}`);
+        localStorage.removeItem(`adaotp_price_${orderId}`); // Hapus harga lokal yang tersimpan
 
         syncBalanceRobust(); 
     } else {
