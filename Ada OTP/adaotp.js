@@ -2,6 +2,14 @@ const API_BASE_URL = "https://adaotp.com/api/v1";
 const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ"; 
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
+
+// PENGUNCIAN DEFAULT KE SHOPEE UNTUK PENGGUNAAN PERTAMA
+if (!localStorage.getItem('adaotp_shopee_forced_v1')) {
+    localStorage.removeItem('adaotp_service_id');
+    localStorage.removeItem('adaotp_service_name');
+    localStorage.setItem('adaotp_shopee_forced_v1', 'true');
+}
+
 let activeOrders = []; 
 let orderHistory = JSON.parse(localStorage.getItem('adaotp_history')) || [];
 let allServices = [];
@@ -50,8 +58,11 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     }
 }
 
+// Inisialisasi Paralel (Mencegah Antrian Crash)
 window.onload = () => {
     if (currentServiceName) { document.getElementById('btnServiceSelectText').innerHTML = currentServiceName; }
+    startPolling();
+    startTimerTick();
     initApp();
 };
 
@@ -69,47 +80,66 @@ async function saveSettings() {
     let inputKey = document.getElementById('settingsApiKey').value.trim();
     apiKey = inputKey ? inputKey : DEFAULT_API_KEY;
     localStorage.setItem('adaotp_api_key', apiKey); 
-    
     closeSettingsModal(); 
     showToast(inputKey ? "API Key Tersimpan!" : "Menggunakan API Bawaan!"); 
     initApp();
 }
 
 async function initApp() {
-    await fetchProfile();
+    fetchProfile(); 
     await fetchServices();
-    startPolling();
-    startTimerTick();
 }
 
 async function fetchProfile() {
-    const res = await apiCall('/profile', 'GET');
-    if (res.success && res.data) {
-        document.getElementById('currentAccountEmail').innerText = res.data.user.email;
-        document.getElementById('balanceDisplay').innerText = res.data.user.balance;
-    } else {
-        document.getElementById('balanceDisplay').innerText = "Error API";
-        if (res.message) showToast(res.message, "error");
+    try {
+        const res = await apiCall('/profile', 'GET');
+        if (res.success && res.data) {
+            document.getElementById('currentAccountEmail').innerText = res.data.user.email;
+            document.getElementById('balanceDisplay').innerText = res.data.user.balance;
+        } else {
+            document.getElementById('balanceDisplay').innerText = "Error API";
+        }
+    } catch (e) {
+        document.getElementById('balanceDisplay').innerText = "Gagal Terhubung";
     }
 }
 
 async function fetchServices() {
     document.getElementById('btnServiceSelectText').innerText = "Memuat...";
-    const res = await apiCall('/services', 'GET');
-    if (res.success && res.data) {
-        allServices = res.data.sort((a, b) => String(a.text).localeCompare(String(b.text)));
-        
-        // 1. LOGIKA DEFAULT LAYANAN: JADIKAN SHOPEE SEBAGAI PRIORITAS UTAMA
-        let target = allServices.find(s => s.id == currentServiceId) || allServices.find(s => String(s.text).toLowerCase().includes("shopee")) || allServices[0];
-        
-        if (target) {
-            currentServiceId = target.id;
-            currentServiceName = target.text;
+    try {
+        const res = await apiCall('/services', 'GET');
+        if (res.success && res.data) {
+            // Konversi aman jika API mengembalikan Object alih-alih Array
+            let servicesArray = Array.isArray(res.data) ? res.data : Object.values(res.data);
+            allServices = servicesArray.sort((a, b) => String(a.text || a.name).localeCompare(String(b.text || b.name)));
+            
+            let target = null;
+            if (currentServiceId) {
+                target = allServices.find(s => s.id == currentServiceId);
+            }
+            
+            // JIKA BELUM ADA PILIHAN LOKAL (ATAU TELAH DI-RESET KE SHOPEE)
+            if (!target) {
+                target = allServices.find(s => {
+                    let name = String(s.text || s.name || "").toLowerCase();
+                    return name.includes("shopee");
+                });
+            }
+            
+            if (!target && allServices.length > 0) target = allServices[0];
+            
+            if (target) {
+                currentServiceId = target.id;
+                currentServiceName = target.text || target.name;
+            }
+            
+            updateServiceUI();
+            await fetchCountries();
+        } else {
+            document.getElementById('btnServiceSelectText').innerText = "Gagal Memuat Layanan";
         }
-        updateServiceUI();
-        await fetchCountries();
-    } else {
-        document.getElementById('btnServiceSelectText').innerText = "Gagal Memuat";
+    } catch (e) {
+        document.getElementById('btnServiceSelectText').innerText = "Error Layanan";
     }
 }
 
@@ -119,48 +149,58 @@ function updateServiceUI() {
     localStorage.setItem('adaotp_service_name', currentServiceName);
 }
 
+// LOGIKA PENCARI NEGARA AMAN (ANTI-CRASH)
 async function fetchCountries() {
     const list = document.getElementById('countryList');
     list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3;">Mencari stok Indonesia...</div>';
     document.getElementById('btnOrder').disabled = true;
 
-    if (!currentServiceId) return;
+    if (!currentServiceId) {
+        list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3;">Pilih layanan terlebih dahulu.</div>';
+        return;
+    }
     
-    const res = await apiCall(`/services/${currentServiceId}/countries`, 'GET');
-    if (res.success && res.data) {
-        let fetchedCountries = res.data;
-        
-        let indo = fetchedCountries.find(c => {
-            let cName = String(c.name || c.country || c.country_name || "").toLowerCase();
-            return cName.includes("indonesia") || cName.includes("indo");
-        });
-        
-        list.innerHTML = '';
-        
-        if (indo) {
-            currentCountryId = indo.id; 
-            localStorage.setItem('adaotp_country_id', currentCountryId);
+    try {
+        const res = await apiCall(`/services/${currentServiceId}/countries`, 'GET');
+        if (res.success && res.data) {
             
-            const card = document.createElement("div"); 
-            card.className = "product-card selected"; 
+            // Pelindung Utama: Konversi aman jika data dari API berupa Objek tak terduga
+            let fetchedCountries = Array.isArray(res.data) ? res.data : Object.values(res.data);
             
-            card.style.cursor = "default";
-            card.style.borderColor = "var(--primary-color)";
-            card.style.background = "rgba(138, 43, 226, 0.05)";
+            let indo = fetchedCountries.find(c => {
+                if (!c) return false;
+                let cName = String(c.name || c.country || c.country_name || c.text || "").toLowerCase();
+                return cName.includes("indonesia") || cName.includes("indo");
+            });
             
-            let cName = indo.name || `ID: ${indo.id}`;
-            let priceText = indo.price ? `<div style="color:var(--success-color); font-size:10px;">Rp ${indo.price}</div>` : '';
+            list.innerHTML = '';
             
-            card.innerHTML = `<div class="product-info"><h4>${cName} (Terkunci)</h4>${priceText}</div>`;
-            list.appendChild(card);
-            
-            document.getElementById('btnOrder').disabled = false;
+            if (indo) {
+                currentCountryId = indo.id || indo.country_id || indo.country; 
+                localStorage.setItem('adaotp_country_id', currentCountryId);
+                
+                const card = document.createElement("div"); 
+                card.className = "product-card selected"; 
+                card.style.cursor = "default";
+                card.style.borderColor = "var(--primary-color)";
+                card.style.background = "rgba(138, 43, 226, 0.05)";
+                
+                let cName = indo.name || indo.text || `ID: ${currentCountryId}`;
+                let priceText = indo.price ? `<div style="color:var(--success-color); font-size:10px;">Rp ${indo.price}</div>` : '';
+                
+                card.innerHTML = `<div class="product-info"><h4>${cName} (Terkunci)</h4>${priceText}</div>`;
+                list.appendChild(card);
+                
+                document.getElementById('btnOrder').disabled = false;
+            } else {
+                currentCountryId = "";
+                list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--warning-color);">Stok Nomor Indonesia Kosong Untuk Layanan Ini</div>';
+            }
         } else {
-            currentCountryId = "";
-            list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--warning-color);">Stok Nomor Indonesia Kosong Untuk Layanan Ini</div>';
+            list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--danger-color);">Gagal Mengecek Stok Server</div>';
         }
-    } else {
-        list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--danger-color);">Gagal Mengecek Stok Server</div>';
+    } catch (e) {
+        list.innerHTML = `<div class="status-text-mini" style="grid-column:span 3; color:var(--danger-color);">Gangguan Teknis: Data Server Tidak Sesuai</div>`;
     }
 }
 
@@ -170,7 +210,7 @@ window.filterServices = function() {
     const q = document.getElementById('searchServiceInput').value.toLowerCase();
     const container = document.getElementById('serviceListContainer');
     container.innerHTML = '';
-    const filtered = allServices.filter(s => String(s.text).toLowerCase().includes(q));
+    const filtered = allServices.filter(s => String(s.text || s.name).toLowerCase().includes(q));
     
     if(filtered.length === 0) { container.innerHTML = '<div class="status-text-mini">Tidak ditemukan.</div>'; return; }
 
@@ -181,10 +221,10 @@ window.filterServices = function() {
         
         let iconHtml = svc.icon ? `<img src="${svc.icon}" style="width:24px; height:24px; border-radius:6px; margin-right:10px;">` : `<i class="fas fa-cube" style="margin-right:10px;"></i>`;
         
-        btn.innerHTML = `${iconHtml} <span>${svc.text}</span>`;
+        btn.innerHTML = `${iconHtml} <span>${svc.text || svc.name}</span>`;
         btn.onclick = () => {
             currentServiceId = svc.id; 
-            currentServiceName = svc.text; 
+            currentServiceName = svc.text || svc.name; 
             updateServiceUI(); 
             closeServiceModal();
             fetchCountries(); 
@@ -303,47 +343,51 @@ async function pollActiveOrders() {
     if (isPolling) return;
     isPolling = true;
     
-    const res = await apiCall('/orders/active', 'GET');
-    
-    if (res.success && res.data) {
-        let serverOrders = res.data;
-        const now = Date.now();
+    try {
+        const res = await apiCall('/orders/active', 'GET');
         
-        serverOrders.forEach(so => {
-            let existing = activeOrders.find(lo => lo.id == so.id);
-            if (existing) {
-                so.local_created_at = existing.local_created_at; 
-            } else {
-                so.local_created_at = now; 
-            }
-        });
-        
-        serverOrders.forEach(so => {
-            let oldSmsCount = 0;
-            let existing = activeOrders.find(lo => lo.id == so.id);
+        if (res.success && res.data) {
+            // Pelindung API aman jika me-return Object
+            let serverOrders = Array.isArray(res.data) ? res.data : Object.values(res.data);
+            const now = Date.now();
             
-            if (existing) {
-                let eSms = existing.sms || existing.messages || [];
-                oldSmsCount = typeof eSms === 'string' ? 1 : eSms.length;
-            }
+            serverOrders.forEach(so => {
+                let existing = activeOrders.find(lo => lo.id == so.id);
+                if (existing) {
+                    so.local_created_at = existing.local_created_at; 
+                } else {
+                    so.local_created_at = now; 
+                }
+            });
             
-            let newSmsArray = so.sms || so.messages || [];
-            let newSmsCount = typeof newSmsArray === 'string' ? 1 : newSmsArray.length;
-            
-            if (newSmsCount > oldSmsCount) {
-                try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
-            }
-        });
+            serverOrders.forEach(so => {
+                let oldSmsCount = 0;
+                let existing = activeOrders.find(lo => lo.id == so.id);
+                
+                if (existing) {
+                    let eSms = existing.sms || existing.messages || [];
+                    oldSmsCount = typeof eSms === 'string' ? 1 : eSms.length;
+                }
+                
+                let newSmsArray = so.sms || so.messages || [];
+                let newSmsCount = typeof newSmsArray === 'string' ? 1 : newSmsArray.length;
+                
+                if (newSmsCount > oldSmsCount) {
+                    try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
+                }
+            });
 
-        activeOrders = serverOrders;
-        renderActiveOrders();
+            activeOrders = serverOrders;
+            renderActiveOrders();
+        }
+    } catch (e) {
+        console.error("Polling Terhambat:", e);
+    } finally {
+        isPolling = false;
+        if (pollingTimeout) clearTimeout(pollingTimeout);
+        let nextDelay = activeOrders.length > 0 ? 5000 : 10000;
+        pollingTimeout = setTimeout(pollActiveOrders, nextDelay);
     }
-    
-    isPolling = false;
-    
-    if (pollingTimeout) clearTimeout(pollingTimeout);
-    let nextDelay = activeOrders.length > 0 ? 5000 : 10000;
-    pollingTimeout = setTimeout(pollActiveOrders, nextDelay);
 }
 
 function startPolling() {

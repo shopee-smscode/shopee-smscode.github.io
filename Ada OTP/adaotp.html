@@ -7,10 +7,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
     <style>
-        /* ================= CSS LENGKAP TEMA DARK MODERN (UNGU) ================= */
+        /* ================= CSS TEMA DARK MODERN (VIBRANT PURPLE) ================= */
         :root {
-            /* Warna ungu dari screenshot: BlueViolet #8A2BE2 / RGB 138, 43, 226 */
-            --primary-color: #8A2BE2; 
+            --primary-color: #8A2BE2; /* Warna Ungu Terang Presisi */
             --bg-body: #121212;
             --bg-card: #1e1e1e;
             --bg-card-hover: #2a2a2a;
@@ -30,8 +29,8 @@
         /* TOP BAR */
         .top-bar-modern { display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 12px 16px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid var(--border-color); }
         .dropbtn { background-color: var(--primary-color); color: #ffffff; padding: 8px 14px; font-size: 13px; font-weight: 900; border: none; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 6px; }
-        .dropbtn-icon, .btn-top-action { background-color: transparent; color: var(--text-primary); padding: 8px; font-size: 16px; border: 1px solid var(--border-color); cursor: pointer; border-radius: 8px; transition: 0.2s; }
-        .btn-top-action:hover { border-color: var(--primary-color); color: var(--primary-color); }
+        .dropbtn-icon, .btn-top-action { background-color: transparent; color: var(--text-primary); padding: 8px; font-size: 16px; border: 1px solid var(--border-color); cursor: pointer; border-radius: 8px; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; }
+        .btn-top-action:hover, .dropbtn-icon:hover { border-color: var(--primary-color); color: var(--primary-color); }
         
         .dropdown { position: relative; display: inline-block; }
         .dropdown-content { display: none; position: absolute; background-color: var(--bg-card); min-width: 170px; box-shadow: 0px 8px 16px rgba(0,0,0,0.5); z-index: 999; border-radius: 12px; border: 1px solid var(--border-color); overflow: hidden; top: 44px; left: 0; }
@@ -70,7 +69,6 @@
         .order-card.removing { opacity: 0; transform: scale(0.9); }
         .order-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; border-bottom: 1px dashed var(--border-color); padding-bottom: 10px; }
         .order-id-label { font-size: 13px; font-weight: 800; color: var(--text-primary); }
-        .order-price { font-size: 11px; font-weight: 900; color: var(--success-color); background: rgba(0,230,118,0.1); padding: 2px 6px; border-radius: 4px; display: inline-block; }
         .timer { font-size: 16px; font-weight: 900; letter-spacing: 1px; }
         
         .phone-row { display: flex; align-items: center; justify-content: space-between; background: #000; padding: 12px 16px; border-radius: 10px; margin-bottom: 12px; }
@@ -82,10 +80,8 @@
         .otp-display.success-glow { border: 2px solid var(--primary-color); box-shadow: inset 0 0 15px rgba(138, 43, 226, 0.1); background: rgba(138, 43, 226, 0.05); }
         .otp-title { font-size: 10px; font-weight: 900; color: var(--text-secondary); letter-spacing: 2px; margin-bottom: 4px; }
         
-        /* MULTI-OTP STACK */
         .otp-code-item { font-size: 26px; font-weight: 900; color: var(--primary-color); letter-spacing: 6px; margin: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
         .otp-code-item:last-child { border-bottom: none; }
-        .otp-time { font-size: 10px; letter-spacing: 0; color: var(--text-secondary); font-weight: normal; }
 
         .action-buttons-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .action-buttons-grid button { padding: 12px; border: none; border-radius: 10px; font-weight: 900; font-size: 13px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
@@ -109,7 +105,6 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* LOADING DOTS */
         .waiting-animation { display: flex; justify-content: center; gap: 6px; margin: 10px 0; }
         .dot-pulse { width: 8px; height: 8px; background-color: var(--primary-color); border-radius: 50%; animation: pulse 1.5s infinite ease-in-out; }
         .dot-pulse:nth-child(2) { animation-delay: 0.2s; }
@@ -136,8 +131,8 @@
                         <a href="#" class="active"><i class="fas fa-rocket"></i> Ada OTP</a>
                     </div>
                 </div>
-                <!-- TOMBOL CATATAN -->
-                <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-sticky-note"></i></button>
+                <!-- TOMBOL CATATAN KEMBALI SEPERTI OTP CEPAT -->
+                <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-file-alt"></i></button>
             </div>
             
             <div style="display: flex; gap: 8px; align-items: center;">
