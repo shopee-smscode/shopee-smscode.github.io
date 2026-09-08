@@ -56,8 +56,7 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     }
 }
 
-// ================= MESIN EKSTRAKTOR SUPER (Tahan Banting) =================
-// Menemukan data pesanan yang disembunyikan server seaneh apapun bentuknya
+// MESIN EKSTRAKTOR SUPER (Tahan Banting)
 function extractOrders(obj) {
     let found = [];
     let seen = new Set();
@@ -73,7 +72,6 @@ function extractOrders(obj) {
             let oId = current.id || current.order_id || current.order;
             let oPhone = current.phone || current.number || current.phone_number;
             
-            // Kriteria: Jika objek punya ID dan Nomor HP, ini pasti data Pesanan!
             if (oId !== undefined && oPhone !== undefined && String(oPhone).length > 3) {
                 current.id = oId; 
                 found.push(current);
@@ -85,13 +83,33 @@ function extractOrders(obj) {
     
     search(obj);
     
-    // Hapus duplikat jika data termuat ganda
     let unique = [];
     let map = {};
     found.forEach(o => {
         if(!map[o.id]) { map[o.id] = true; unique.push(o); }
     });
     return unique;
+}
+
+// TEBAK OPERATOR OTOMATIS
+function guessOperator(phone) {
+    let p = String(phone).replace(/\D/g, "");
+    if (p.startsWith("62")) p = "0" + p.substring(2);
+    let prefix = p.substring(0, 4);
+    const telkomsel = ["0811","0812","0813","0821","0822","0823","0851","0852","0853"];
+    const indosat = ["0814","0815","0816","0855","0856","0857","0858"];
+    const xl = ["0817","0818","0819","0859","0877","0878"];
+    const axis = ["0831","0832","0833","0838"];
+    const three = ["0895","0896","0897","0898","0899"];
+    const smartfren = ["0881","0882","0883","0884","0885","0886","0887","0888","0889"];
+    
+    if (telkomsel.includes(prefix)) return "TELKOMSEL";
+    if (indosat.includes(prefix)) return "INDOSAT";
+    if (xl.includes(prefix)) return "XL";
+    if (axis.includes(prefix)) return "AXIS";
+    if (three.includes(prefix)) return "THREE";
+    if (smartfren.includes(prefix)) return "SMARTFREN";
+    return "ACAK"; 
 }
 
 window.onload = () => {
@@ -174,7 +192,6 @@ function updateServiceUI() {
     localStorage.setItem('adaotp_service_name', currentServiceName);
 }
 
-// Pencarian Negara Di Belakang Layar (Tahan Error)
 async function fetchCountries() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true;
@@ -198,7 +215,6 @@ async function fetchCountries() {
                     let strVal = JSON.stringify(current).toLowerCase();
                     if (strVal.includes("indonesia") || strVal.includes("indo")) {
                         foundId = current.id || current.country_id || current.value;
-                        // Jika ID masih kosong, paksa bongkar Object Key
                         if(!foundId) {
                             for(let k in current) {
                                 if(String(current[k]).toLowerCase().includes("indo") || String(k).toLowerCase() === "indonesia") {
@@ -219,9 +235,8 @@ async function fetchCountries() {
             }
         }
     } catch (e) {
-        console.error("Negara gagal di-parse, menggunakan cache terakhir");
+        console.error("Negara gagal di-parse");
     } finally {
-        // Tombol pesan SELALU DIAKTIFKAN agar Anda tidak pernah stuck
         btn.disabled = false;
     }
 }
@@ -255,14 +270,12 @@ window.filterServices = function() {
     });
 }
 
-// LOGIKA PEMESANAN ANTI-BLANK SCREEN
 window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
     
     document.getElementById('activeOrdersContainer').innerHTML = '<div class="status-text-mini">Merespons server...</div>';
     
-    // Jika currentCountryId gagal terbaca, kita paksa kirim 1 sebagai fallback ke server agar tidak error parameter
     const params = `country=${currentCountryId || '1'}&service_id=${currentServiceId}`;
     
     try {
@@ -272,13 +285,12 @@ window.createNewOrder = async function() {
             showToast("Nomor Berhasil Dipesan!");
             fetchProfile(); 
             
-            // INJEKSI LANGSUNG: Cari pesanan baru di respons API dan paksa tampilkan seketika!
             let newOrders = extractOrders(res);
             if (newOrders.length > 0) {
                 let newOrder = newOrders[0];
                 newOrder.local_created_at = Date.now();
                 if(!activeOrders.find(o => o.id == newOrder.id)) {
-                    activeOrders.unshift(newOrder); // Dorong ke memori
+                    activeOrders.unshift(newOrder); 
                 }
             }
         } else {
@@ -287,7 +299,6 @@ window.createNewOrder = async function() {
     } catch(e) {
         showToast("Error Koneksi!", "error");
     } finally {
-        // Apa pun yang terjadi, paksa gambar ulang dari memori dan tarik ulang server
         renderActiveOrders(); 
         if (pollingTimeout) clearTimeout(pollingTimeout);
         pollActiveOrders(); 
@@ -302,7 +313,7 @@ function formatPhoneNumber(phone) {
     return p.replace(/(.{4})/g, '$1 ').trim(); 
 }
 
-// ================= RENDERER TAHAN CRASH =================
+// ================= RENDERER TAHAN CRASH & FIX OBJECT =================
 function renderActiveOrders() {
     const container = document.getElementById('activeOrdersContainer');
     if (!container) return;
@@ -334,20 +345,21 @@ function renderActiveOrders() {
             
             const hasSms = smsArray.length > 0;
             
-            const left = (createdTime + 1200000) - now; 
+            // TIMER DISET KE 80 MENIT (4.800.000 ms)
+            const left = (createdTime + 4800000) - now; 
             let m = Math.floor(Math.max(0, left) / 60000); 
             let s = Math.floor((Math.max(0, left) % 60000) / 1000);
             let timeStr = left > 0 ? `${m}:${s<10?'0':''}${s}` : 'Habis';
             
             if (!hasSms) {
                 if (canCancel) {
-                    cancelBtnHtml = `<button class="btn-danger" onclick="cancelOrder(${order.id})"><i class="fas fa-times"></i> Batal</button>`;
+                    cancelBtnHtml = `<button class="btn-danger" onclick="cancelOrder(${order.id})">BATAL</button>`;
                 } else {
                     let waitSecs = 60 - Math.floor((now - createdTime) / 1000);
-                    cancelBtnHtml = `<button class="btn-danger" disabled><i class="fas fa-lock"></i> Batal (${Math.max(0, waitSecs)}s)</button>`;
+                    cancelBtnHtml = `<button class="btn-danger" disabled>BATAL (${Math.max(0, waitSecs)}s)</button>`;
                 }
             } else {
-                cancelBtnHtml = `<button class="btn-danger" disabled><i class="fas fa-ban"></i> Batal</button>`;
+                cancelBtnHtml = `<button class="btn-danger" disabled>BATAL</button>`;
             }
 
             let otpHtml = "";
@@ -373,13 +385,19 @@ function renderActiveOrders() {
                 otpHtml = `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text" style="font-size:11px; font-weight:800; color:var(--text-secondary); margin-top:8px;">MENUNGGU SMS...</div>`;
             }
             
-            let srvName = order.service || order.service_name || currentServiceName;
+            // PERBAIKAN BUGS [object Object] DAN PENAMBAHAN OPERATOR
+            let srvNameRaw = order.service || order.service_name;
+            let finalSrvName = currentServiceName;
+            if (typeof srvNameRaw === 'string') { finalSrvName = srvNameRaw; }
+            else if (typeof srvNameRaw === 'object' && srvNameRaw !== null) { finalSrvName = srvNameRaw.name || srvNameRaw.text || currentServiceName; }
+            
             let phoneNumber = order.phone || order.number || order.phone_number || "";
+            let opName = guessOperator(phoneNumber);
             
             card.innerHTML = `
                 <div class="order-header">
                     <div>
-                        <div class="order-id-label">#${order.id} (${srvName})</div>
+                        <div class="order-id-label">#${order.id} (${String(finalSrvName).toUpperCase()} • ${opName})</div>
                     </div>
                     <span class="timer" id="timer-${order.id}">${timeStr}</span>
                 </div>
@@ -391,7 +409,7 @@ function renderActiveOrders() {
                 
                 <div class="action-buttons-grid">
                     ${cancelBtnHtml}
-                    <button class="btn-success" onclick="finishOrder(${order.id})" ${hasSms ? '' : 'disabled'}><i class="fas fa-check-double"></i> Selesai (Manual)</button>
+                    <button class="btn-success" onclick="finishOrder(${order.id})" ${hasSms ? '' : 'disabled'}>SELESAI</button>
                 </div>
             `;
             container.appendChild(card);
@@ -401,7 +419,7 @@ function renderActiveOrders() {
     });
 }
 
-// SINKRONISASI SERVER PINTAR
+// LOGIKA SINKRONISASI ANTI-HILANG SEBELUM 80 MENIT
 async function pollActiveOrders() {
     if (isPolling) return;
     isPolling = true;
@@ -410,25 +428,27 @@ async function pollActiveOrders() {
         const res = await apiCall('/orders/active', 'GET');
         
         if (res.success && res.data) {
-            // Gunakan ekstraktor super untuk menyapu bersih data dari server
             let serverOrders = extractOrders(res);
-
+            let mergedOrders = [...activeOrders];
             const now = Date.now();
+
             serverOrders.forEach(so => {
-                let existing = activeOrders.find(lo => lo.id == so.id);
-                if (existing) { so.local_created_at = existing.local_created_at; } 
-                else { so.local_created_at = now; }
-            });
-            
-            serverOrders.forEach(so => {
+                let existingIdx = mergedOrders.findIndex(lo => lo.id == so.id);
+                if (existingIdx !== -1) {
+                    so.local_created_at = mergedOrders[existingIdx].local_created_at;
+                    mergedOrders[existingIdx] = so;
+                } else {
+                    so.local_created_at = now;
+                    mergedOrders.push(so);
+                }
+                
+                // Cek suara SMS baru
                 let oldSmsCount = 0;
                 let existing = activeOrders.find(lo => lo.id == so.id);
-                
                 if (existing) {
                     let eSms = existing.sms || existing.messages || [];
                     oldSmsCount = typeof eSms === 'string' ? 1 : eSms.length;
                 }
-                
                 let newSmsArray = so.sms || so.messages || [];
                 let newSmsCount = typeof newSmsArray === 'string' ? 1 : newSmsArray.length;
                 
@@ -436,12 +456,16 @@ async function pollActiveOrders() {
                     try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
                 }
             });
+            
+            // Pertahankan pesanan secara lokal hingga 80 Menit (Meskipun server sudah membuangnya dari daftar)
+            mergedOrders = mergedOrders.filter(o => {
+                let cTime = o.created_at ? new Date(o.created_at).getTime() : (o.local_created_at || now);
+                if(isNaN(cTime)) cTime = now;
+                return (now - cTime) < 4800000; 
+            });
 
-            activeOrders = serverOrders;
+            activeOrders = mergedOrders;
             renderActiveOrders();
-        } else {
-            // Jika sukses adalah false tapi tidak catch, pulihkan UI
-            if (activeOrders.length === 0) renderActiveOrders();
         }
     } catch (e) {
         console.error("Polling Terhambat:", e);
@@ -466,7 +490,8 @@ window.cancelOrder = async function(orderId) {
     if (res.success) {
         showToast("Pesanan Dibatalkan");
         saveToHistory(orderId, "BATAL");
-        pollActiveOrders(); 
+        activeOrders = activeOrders.filter(o => o.id != orderId); // Hapus manual dari memori lokal
+        renderActiveOrders();
         fetchProfile(); 
     } else {
         showToast(res.message || "Gagal membatalkan", "error");
@@ -482,7 +507,8 @@ window.finishOrder = async function(orderId) {
     if (res.success) {
         showToast("Siklus OTP Selesai!");
         saveToHistory(orderId, "SELESAI");
-        pollActiveOrders(); 
+        activeOrders = activeOrders.filter(o => o.id != orderId); // Hapus manual dari memori lokal
+        renderActiveOrders(); 
     } else {
         showToast(res.message || "Gagal Finish", "error");
         if(card) card.style.opacity = '1';
@@ -494,14 +520,24 @@ function startTimerTick() {
         let needsRender = false;
         const now = Date.now();
         
-        for (let i = 0; i < activeOrders.length; i++) {
+        // Cek kadaluarsa 80 menit lokal dan sisa cooldown tombol Batal
+        for (let i = activeOrders.length - 1; i >= 0; i--) {
             let o = activeOrders[i];
             let cTime = o.created_at ? new Date(o.created_at).getTime() : (o.local_created_at || now);
             if(isNaN(cTime)) cTime = now;
             
+            // 80 Menit = 4.800.000 ms
+            const left = (cTime + 4800000) - now; 
+            
+            if (left <= 0) {
+                // Hapus jika sudah melewati 80 menit
+                activeOrders.splice(i, 1);
+                needsRender = true;
+                continue;
+            }
+            
             const timerEl = document.getElementById(`timer-${o.id}`);
             if (timerEl) {
-                const left = (cTime + 1200000) - now; 
                 let m = Math.floor(Math.max(0, left) / 60000); 
                 let s = Math.floor((Math.max(0, left) % 60000) / 1000);
                 timerEl.innerText = left > 0 ? `${m}:${s<10?'0':''}${s}` : 'Habis';
@@ -540,7 +576,12 @@ function saveToHistory(orderId, finalStatus) {
     
     let smsArray = order.sms || order.messages || [];
     let lastOtp = typeof smsArray === 'string' ? smsArray : (smsArray.length > 0 ? smsArray[smsArray.length-1] : "-");
-    let srv = order.service || order.service_name || currentServiceName;
+    
+    let srvNameRaw = order.service || order.service_name;
+    let srv = currentServiceName;
+    if (typeof srvNameRaw === 'string') { srv = srvNameRaw; }
+    else if (typeof srvNameRaw === 'object' && srvNameRaw !== null) { srv = srvNameRaw.name || srvNameRaw.text || currentServiceName; }
+            
     let ph = order.phone || order.number || order.phone_number || "";
     
     const historyItem = { id: order.id, phone: ph, serviceName: srv, otp: lastOtp, status: finalStatus, date: Date.now() }; 

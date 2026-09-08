@@ -77,12 +77,16 @@
         .otp-code-item { font-size: 26px; font-weight: 900; color: var(--primary-color); letter-spacing: 6px; margin: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
         .otp-code-item:last-child { border-bottom: none; }
 
+        /* ACTION BUTTONS (SOLID ABSOLUTE) */
         .action-buttons-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .action-buttons-grid button { padding: 12px; border: none; border-radius: 10px; font-weight: 900; font-size: 13px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
-        .btn-danger { background-color: rgba(255, 77, 77, 0.1); color: var(--danger-color); border: 1px solid rgba(255, 77, 77, 0.3) !important; }
-        .btn-danger:not(:disabled):hover { background-color: var(--danger-color); color: #fff; }
-        .btn-success { background-color: rgba(0, 230, 118, 0.1); color: var(--success-color); border: 1px solid rgba(0, 230, 118, 0.3) !important; }
-        .btn-success:not(:disabled):hover { background-color: var(--success-color); color: #000; }
+        .action-buttons-grid button { padding: 12px; border: none !important; border-radius: 10px; font-weight: 900; font-size: 13px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .btn-danger { background-color: var(--danger-color); color: #ffffff; }
+        .btn-danger:not(:disabled):hover { filter: brightness(1.1); box-shadow: 0 4px 10px rgba(255, 77, 77, 0.3); }
+        
+        .btn-success { background-color: var(--success-color); color: #000000; }
+        .btn-success:not(:disabled):hover { filter: brightness(1.1); box-shadow: 0 4px 10px rgba(0, 230, 118, 0.3); }
+        
         .action-buttons-grid button:disabled { opacity: 0.4; cursor: not-allowed; }
 
         /* MODALS */
