@@ -3,10 +3,10 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-if (!localStorage.getItem('adaotp_shopee_forced_v1.6')) {
+if (!localStorage.getItem('adaotp_shopee_forced_v1.7')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v1.6', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v1.7', 'true');
 }
 
 let activeOrders = []; 
@@ -59,6 +59,7 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     }
 }
 
+// MESIN EKSTRAKTOR DILONGGARKAN AGAR WEB-ORDER MASUK
 function extractOrders(obj) {
     let found = [];
     let seen = new Set();
@@ -72,9 +73,9 @@ function extractOrders(obj) {
             current.forEach(search);
         } else {
             let oId = current.id || current.order_id || current.order;
-            let oPhone = current.phone || current.number || current.phone_number;
             
-            if (oId !== undefined && oPhone !== undefined && String(oPhone).length > 3) {
+            // Aturan Longgar: Asal ada ID pesanan dan indikasi kuat bahwa ini adalah data pesanan
+            if (oId !== undefined && (current.phone !== undefined || current.number !== undefined || current.service !== undefined || current.status !== undefined || current.sms !== undefined)) {
                 current.id = oId; 
                 found.push(current);
             } else {
@@ -94,6 +95,7 @@ function extractOrders(obj) {
 }
 
 function guessOperator(phone) {
+    if (!phone || String(phone).trim() === "") return "MENCARI...";
     let p = String(phone).replace(/\D/g, "");
     if (p.startsWith("62")) p = "0" + p.substring(2);
     let prefix = p.substring(0, 4);
@@ -124,6 +126,24 @@ document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") { startPolling(); startTimerTick(); }
 });
 window.addEventListener('online', () => { showToast("🌐 Online", "success"); startPolling(); });
+
+// TOMBOL SINKRONISASI MANUAL (REFRESH)
+window.forceRefresh = async function() {
+    const icon = document.getElementById('refreshIcon');
+    if(icon) icon.classList.add('fa-spin');
+    
+    showToast("Menarik data terbaru...", "warning");
+    
+    // Matikan kunci polling sementara
+    isPolling = false;
+    if (pollingTimeout) clearTimeout(pollingTimeout);
+    
+    await fetchProfile();
+    await pollActiveOrders(true);
+    
+    if(icon) icon.classList.remove('fa-spin');
+    showToast("Sinkronisasi Selesai!", "success");
+}
 
 function openSettingsModal() { 
     document.getElementById('settingsApiKey').value = apiKey === DEFAULT_API_KEY ? "" : apiKey; 
@@ -345,7 +365,6 @@ function renderActiveOrders() {
             if (!order || !order.id) return; 
             
             const now = Date.now();
-            // Memaksa penggunakan stopwatch lokal untuk menghindari bug zona waktu server
             let cTime = order.local_created_at || now; 
             
             let canCancel = (now - cTime) >= 60000;
@@ -401,7 +420,7 @@ function renderActiveOrders() {
             if (typeof srvNameRaw === 'string') { finalSrvName = srvNameRaw; }
             else if (typeof srvNameRaw === 'object' && srvNameRaw !== null) { finalSrvName = srvNameRaw.name || srvNameRaw.text || currentServiceName; }
             
-            let phoneNumber = order.phone || order.number || order.phone_number || "";
+            let phoneNumber = order.phone || order.number || order.phone_number || "Menunggu...";
             let opName = guessOperator(phoneNumber);
             
             card.innerHTML = `
@@ -429,8 +448,8 @@ function renderActiveOrders() {
     });
 }
 
-async function pollActiveOrders() {
-    if (isPolling) return;
+async function pollActiveOrders(isManual = false) {
+    if (isPolling && !isManual) return;
     isPolling = true;
     
     try {
@@ -456,7 +475,6 @@ async function pollActiveOrders() {
                 so.normalized_sms = soSmsArray;
 
                 if (existingIdx !== -1) {
-                    // Mempertahankan umur pesanan lokal agar tidak reset dan tidak kadaluarsa instan
                     so.local_created_at = mergedOrders[existingIdx].local_created_at;
                     
                     let oldSmsArray = mergedOrders[existingIdx].normalized_sms || [];
@@ -468,9 +486,8 @@ async function pollActiveOrders() {
                     
                     mergedOrders[existingIdx] = so; 
                 } else {
-                    // PESANAN BARU DARI WEBSITE TERDETEKSI DI SINI!
                     so.local_created_at = now;
-                    mergedOrders.unshift(so); // Dorong ke urutan paling atas
+                    mergedOrders.unshift(so); 
                     isChanged = true;
                     if (soSmsArray.length > 0) {
                         try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (vErr) {}
@@ -479,7 +496,6 @@ async function pollActiveOrders() {
                 }
             });
             
-            // Filter 80 menit MUTLAK menggunakan waktu saat aplikasi melihatnya
             mergedOrders = mergedOrders.filter(o => {
                 let cTime = o.local_created_at || now;
                 return (now - cTime) < 4800000; 
