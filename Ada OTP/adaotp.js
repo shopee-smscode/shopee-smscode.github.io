@@ -3,11 +3,11 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-// Pemaksaan Versi v1.9
-if (!localStorage.getItem('adaotp_shopee_forced_v1.9')) {
+// Pemaksaan reset ke versi paling stabil (v1.10)
+if (!localStorage.getItem('adaotp_shopee_forced_v1.10')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v1.9', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v1.10', 'true');
 }
 
 let activeOrders = []; 
@@ -42,6 +42,7 @@ function copyToClipboard(t) {
 async function apiCall(endpoint, method = 'GET', urlParams = "") {
     if (!apiKey) return { success: false, message: "API Key Kosong" };
     
+    // Cache-buster wajib agar data pesanan tidak nyangkut di memori browser
     let cacheBuster = `_t=${Date.now()}`;
     let finalParams = urlParams ? `${urlParams}&${cacheBuster}` : cacheBuster;
     
@@ -60,47 +61,39 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     }
 }
 
-// ================= MESIN EKSTRAKTOR SUPER TAHAN BANTING (Recursive Deep-Scan) =================
-// Menemukan data pesanan seaneh apapun formatnya dari server AdaOTP (berfungsi untuk POST order baru dan GET order aktif).
-function extractOrdersRobust(obj) {
-    let found = [];
-    let seen = new Set();
+// ================= MESIN SAFE-EXTRACT V1.10 =================
+// Dijamin tidak akan menolak data pesanan apapun bentuk dari server
+function extractOrdersSafe(res) {
+    if (!res) return [];
     
-    function search(current) {
-        if (!current || typeof current !== 'object') return;
-        if (seen.has(current)) return;
-        seen.add(current);
-        
-        if (Array.isArray(current)) {
-            current.forEach(search);
+    // Bongkar bungkusan data dari server
+    let data = res.data !== undefined ? res.data : res;
+    if (data && data.data !== undefined) data = data.data; 
+    if (data && data.orders !== undefined) data = data.orders; 
+    
+    let results = [];
+    
+    if (Array.isArray(data)) {
+        results = data;
+    } else if (typeof data === 'object' && data !== null) {
+        // Cek apakah ini objek 1 pesanan (hasil dari klik tombol Pesan Nomor Baru)
+        if (data.id !== undefined || data.order_id !== undefined || data.order !== undefined) {
+            results = [data]; 
         } else {
-            // Kriteria Data Pesanan Mutlak: Memiliki ID dan Nomor Telepon
-            let oId = current.id || current.order_id || current.order;
-            let oPhone = current.number || current.phone || current.phone_number;
-            
-            if (oId !== undefined && oPhone !== undefined && String(oPhone).length > 3) {
-                current.id = oId; // Normalisasi ID
-                found.push(current);
-            } else {
-                // Terus cari di dalam objek
-                Object.values(current).forEach(search);
-            }
+            // Jika bukan, mungkin itu kumpulan pesanan dalam bentuk dictionary
+            results = Object.values(data); 
         }
     }
-    
-    search(obj);
-    
-    // Hapus duplikat berdasarkan ID
-    let unique = [];
-    let map = {};
-    found.forEach(o => {
-        if(!map[o.id]) { map[o.id] = true; unique.push(o); }
+
+    // Filter mutlak: Asal ada ID, itu pasti pesanan. Masukkan ke layar!
+    return results.filter(o => o && typeof o === 'object' && (o.id !== undefined || o.order_id !== undefined || o.order !== undefined)).map(o => {
+        o.id = o.id || o.order_id || o.order;
+        return o;
     });
-    return unique;
 }
 
 function guessOperator(phone) {
-    if (!phone || String(phone).trim() === "") return "MENCARI...";
+    if (!phone || String(phone).trim() === "" || String(phone).includes("Menyiapkan")) return "MENCARI...";
     let p = String(phone).replace(/\D/g, "");
     if (p.startsWith("62")) p = "0" + p.substring(2);
     let prefix = p.substring(0, 4);
@@ -132,11 +125,12 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener('online', () => { showToast("🌐 Online", "success"); startPolling(); });
 
+// TOMBOL SINKRONISASI MANUAL (REFRESH)
 window.forceRefresh = async function() {
     const icon = document.getElementById('refreshIcon');
     if(icon) icon.classList.add('fa-spin');
     
-    showToast("Sinkronisasi manual...", "warning");
+    showToast("Menarik data terbaru...", "warning");
     
     isPolling = false;
     if (pollingTimeout) clearTimeout(pollingTimeout);
@@ -170,9 +164,9 @@ async function initApp() {
 async function fetchProfile() {
     try {
         const res = await apiCall('/profile', 'GET');
-        if (res.success && res.data) {
-            document.getElementById('currentAccountEmail').innerText = res.data.user.email;
-            document.getElementById('balanceDisplay').innerText = res.data.user.balance;
+        if ((res.success || res.status) && res.data) {
+            document.getElementById('currentAccountEmail').innerText = res.data.user ? res.data.user.email : "Akun Aktif";
+            document.getElementById('balanceDisplay').innerText = res.data.user ? res.data.user.balance : res.data.balance || "Rp -";
         } else {
             document.getElementById('balanceDisplay').innerText = "Error API";
         }
@@ -185,7 +179,7 @@ async function fetchServices() {
     document.getElementById('btnServiceSelectText').innerText = "Memuat...";
     try {
         const res = await apiCall('/services', 'GET');
-        if (res.success && res.data) {
+        if (res.success || res.status) {
             let dataTarget = res.data.data ? res.data.data : res.data;
             let servicesArray = Array.isArray(dataTarget) ? dataTarget : Object.values(dataTarget);
             allServices = servicesArray.sort((a, b) => String(a.text || a.name).localeCompare(String(b.text || b.name)));
@@ -226,7 +220,7 @@ async function fetchCountries() {
     
     try {
         const res = await apiCall(`/services/${currentServiceId}/countries`, 'GET');
-        if (res.success && res.data) {
+        if (res.success || res.status) {
             let foundId = "";
             let foundPrice = "";
             let seen = new Set();
@@ -256,7 +250,7 @@ async function fetchCountries() {
                     if(!foundId) { Object.values(current).forEach(searchCountry); }
                 }
             }
-            searchCountry(res.data);
+            searchCountry(res.data || res);
             
             if (foundId) {
                 currentCountryId = foundId; 
@@ -309,6 +303,7 @@ window.filterServices = function() {
     });
 }
 
+// LOGIKA PEMESANAN AMAN TERKENDALI
 window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
@@ -320,18 +315,21 @@ window.createNewOrder = async function() {
     try {
         const res = await apiCall('/orders', 'POST', params);
         
-        if (res.success) {
+        // Pengecekan status yang lebih ramah (mengantisipasi res.status === true)
+        if (res.success || res.status) {
             showToast("Nomor Berhasil Dipesan!");
             fetchProfile(); 
             
-            // GUNAKAN EKSTRAKTOR BARU UNTUK POST RESPONSE
-            let newOrders = extractOrdersRobust(res);
+            let newOrders = extractOrdersSafe(res);
             if (newOrders.length > 0) {
                 let newOrder = newOrders[0];
                 newOrder.local_created_at = Date.now();
                 if(!activeOrders.find(o => String(o.id) === String(newOrder.id))) {
                     activeOrders.unshift(newOrder); 
                 }
+            } else {
+                // BACKUP: Jika data POST sangat aneh, langsung tarik paksa dari server detik itu juga!
+                await pollActiveOrders(true); 
             }
         } else {
             showToast(res.message || "Gagal memesan nomor", "error");
@@ -347,7 +345,7 @@ window.createNewOrder = async function() {
 }
 
 function formatPhoneNumber(phone) { 
-    if (!phone) return "Memproses..."; 
+    if (!phone || String(phone).trim() === "") return "Menyiapkan Nomor..."; 
     let p = String(phone).replace(/\D/g, "");
     if (p.startsWith("62")) { p = "0" + p.substring(2); } 
     return p.replace(/(.{4})/g, '$1 ').trim(); 
@@ -424,7 +422,7 @@ function renderActiveOrders() {
             if (typeof srvNameRaw === 'string') { finalSrvName = srvNameRaw; }
             else if (typeof srvNameRaw === 'object' && srvNameRaw !== null) { finalSrvName = srvNameRaw.name || srvNameRaw.text || currentServiceName; }
             
-            let phoneNumber = order.phone || order.number || order.phone_number || "Menunggu...";
+            let phoneNumber = order.phone || order.number || order.phone_number || "";
             let opName = guessOperator(phoneNumber);
             
             card.innerHTML = `
@@ -452,7 +450,6 @@ function renderActiveOrders() {
     });
 }
 
-// ================= LOKAL KEEPER v1.9 (80 MENIT MUTLAK DENGAN REKURSIVE SCAN) =================
 async function pollActiveOrders(isManual = false) {
     if (isPolling && !isManual) return;
     isPolling = true;
@@ -460,17 +457,15 @@ async function pollActiveOrders(isManual = false) {
     try {
         const res = await apiCall('/orders/active', 'GET');
         
-        if (res.success && res.data) {
-            // GUNAKAN EKSTRAKTOR TAHAN BANTING BARU UNTUK POLLING
-            let serverOrders = extractOrdersRobust(res);
-            let now = Date.now();
+        if (res.success || res.status) {
+            let serverOrders = extractOrdersSafe(res);
+            let prevIds = activeOrders.map(o => String(o.id));
+            let mergedOrders = [...activeOrders];
+            const now = Date.now();
             let isChanged = false;
-            
-            let newActiveOrders = [];
 
-            // 1. Proses Semua Pesanan dari Server (Sinkronisasi Utama)
             serverOrders.forEach(so => {
-                let existing = activeOrders.find(lo => String(lo.id) === String(so.id));
+                let existingIdx = mergedOrders.findIndex(lo => String(lo.id) === String(so.id));
                 
                 let rawSoSms = so.sms || so.messages || so.received_sms || [];
                 let soSmsArray = [];
@@ -481,47 +476,41 @@ async function pollActiveOrders(isManual = false) {
                 }
                 so.normalized_sms = soSmsArray;
 
-                if (existing) {
-                    so.local_created_at = existing.local_created_at;
-                    let oldSmsArray = existing.normalized_sms || [];
+                if (existingIdx !== -1) {
+                    so.local_created_at = mergedOrders[existingIdx].local_created_at;
+                    
+                    let oldSmsArray = mergedOrders[existingIdx].normalized_sms || [];
                     if (soSmsArray.length > oldSmsArray.length) {
                         isChanged = true;
                         try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (vErr) {}
                         try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
                     }
+                    
+                    mergedOrders[existingIdx] = so; 
                 } else {
-                    // Pesanan Baru dari WebTerdeteksi
                     so.local_created_at = now;
+                    mergedOrders.unshift(so); 
                     isChanged = true;
                     if (soSmsArray.length > 0) {
                         try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (vErr) {}
                         try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
                     }
                 }
-                newActiveOrders.push(so);
             });
-
-            // 2. Pertahankan Pesanan Lokal yang Dihapus Sepihak oleh Server (Perisai 80 Menit)
-            activeOrders.forEach(lo => {
-                let existsInServer = newActiveOrders.find(so => String(so.id) === String(lo.id));
-                if (!existsInServer) {
-                    let cTime = lo.local_created_at || now;
-                    // Tahan selama kurang dari 80 Menit (4.800.000 milidetik)
-                    if ((now - cTime) < 4800000) {
-                        newActiveOrders.push(lo);
-                    }
-                }
-            });
-
-            // Urutkan berdasarkan waktu agar yang terbaru di atas
-            newActiveOrders.sort((a, b) => b.local_created_at - a.local_created_at);
             
-            let oldIds = activeOrders.map(o => String(o.id));
-            let newIds = newActiveOrders.map(o => String(o.id));
-            let hasRemoved = oldIds.some(id => !newIds.includes(id));
-            if (hasRemoved || isChanged) fetchProfile();
+            mergedOrders = mergedOrders.filter(o => {
+                let cTime = o.local_created_at || now;
+                return (now - cTime) < 4800000; 
+            });
 
-            activeOrders = newActiveOrders;
+            activeOrders = mergedOrders;
+            
+            let currentIds = activeOrders.map(o => String(o.id));
+            let hasRemoved = prevIds.some(id => !currentIds.includes(id));
+            if (hasRemoved || isChanged) {
+                fetchProfile();
+            }
+
             renderActiveOrders();
         }
     } catch (e) {
@@ -544,7 +533,7 @@ window.cancelOrder = async function(orderId) {
     if(card) card.style.opacity = '0.5';
     
     const res = await apiCall(`/orders/${orderId}`, 'DELETE');
-    if (res.success) {
+    if (res.success || res.status) {
         showToast("Pesanan Dibatalkan");
         saveToHistory(orderId, "BATAL");
         activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); 
@@ -561,7 +550,7 @@ window.finishOrder = async function(orderId) {
     if(card) card.style.opacity = '0.5';
     
     const res = await apiCall(`/orders/${orderId}/finish`, 'POST');
-    if (res.success) {
+    if (res.success || res.status) {
         showToast("Siklus OTP Selesai!");
         saveToHistory(orderId, "SELESAI");
         activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); 
@@ -584,7 +573,6 @@ function startTimerTick() {
             
             const left = (cTime + 4800000) - now; 
             
-            // Eksekutor Penghapus Mutlak 80 Menit
             if (left <= 0) {
                 activeOrders.splice(i, 1);
                 needsRender = true;
