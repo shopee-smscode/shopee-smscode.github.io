@@ -3,10 +3,10 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-if (!localStorage.getItem('adaotp_shopee_forced_v1.2')) {
+if (!localStorage.getItem('adaotp_shopee_forced_v1.3')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v1.2', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v1.3', 'true');
 }
 
 let activeOrders = []; 
@@ -54,6 +54,44 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     } catch (err) { 
         return { success: false, message: "Koneksi terputus: " + err.message }; 
     }
+}
+
+// ================= MESIN EKSTRAKTOR SUPER (Tahan Banting) =================
+// Menemukan data pesanan yang disembunyikan server seaneh apapun bentuknya
+function extractOrders(obj) {
+    let found = [];
+    let seen = new Set();
+    
+    function search(current) {
+        if (!current || typeof current !== 'object') return;
+        if (seen.has(current)) return;
+        seen.add(current);
+        
+        if (Array.isArray(current)) {
+            current.forEach(search);
+        } else {
+            let oId = current.id || current.order_id || current.order;
+            let oPhone = current.phone || current.number || current.phone_number;
+            
+            // Kriteria: Jika objek punya ID dan Nomor HP, ini pasti data Pesanan!
+            if (oId !== undefined && oPhone !== undefined && String(oPhone).length > 3) {
+                current.id = oId; 
+                found.push(current);
+            } else {
+                Object.values(current).forEach(search);
+            }
+        }
+    }
+    
+    search(obj);
+    
+    // Hapus duplikat jika data termuat ganda
+    let unique = [];
+    let map = {};
+    found.forEach(o => {
+        if(!map[o.id]) { map[o.id] = true; unique.push(o); }
+    });
+    return unique;
 }
 
 window.onload = () => {
@@ -136,54 +174,55 @@ function updateServiceUI() {
     localStorage.setItem('adaotp_service_name', currentServiceName);
 }
 
-// Pencarian Negara Di Belakang Layar (Tombol Langsung Aktif)
+// Pencarian Negara Di Belakang Layar (Tahan Error)
 async function fetchCountries() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true;
-    btn.innerText = "MENGUNCI NEGARA...";
 
     if (!currentServiceId) return;
     
     try {
         const res = await apiCall(`/services/${currentServiceId}/countries`, 'GET');
         if (res.success && res.data) {
-            let dataTarget = res.data;
-            if (dataTarget.data) dataTarget = dataTarget.data;
-            if (dataTarget.countries) dataTarget = dataTarget.countries;
-
-            let indoId = "";
-            let found = false;
-
-            if (Array.isArray(dataTarget)) {
-                let target = dataTarget.find(c => JSON.stringify(c).toLowerCase().includes("indonesia") || JSON.stringify(c).toLowerCase().includes("indo"));
-                if (target) {
-                    found = true;
-                    indoId = typeof target === 'object' ? (target.id || target.country_id || target.value || target.country) : target;
-                }
-            } else if (typeof dataTarget === 'object') {
-                for (let [key, val] of Object.entries(dataTarget)) {
-                    let strVal = JSON.stringify(val).toLowerCase();
-                    if (strVal.includes("indonesia") || strVal.includes("indo") || String(key).toLowerCase().includes("indo")) {
-                        found = true;
-                        indoId = typeof val === 'object' ? (val.id || val.country_id || key) : key;
-                        break;
-                    }
-                }
-            }
+            let foundId = "";
+            let seen = new Set();
             
-            if (found && indoId) {
-                currentCountryId = indoId; 
-                localStorage.setItem('adaotp_country_id', currentCountryId);
-                btn.disabled = false;
-                btn.innerText = "PESAN NOMOR BARU";
-            } else {
-                btn.innerText = "STOK ID KOSONG";
+            function searchCountry(current) {
+                if (!current || typeof current !== 'object') return;
+                if (seen.has(current)) return;
+                seen.add(current);
+                
+                if (Array.isArray(current)) {
+                    current.forEach(searchCountry);
+                } else {
+                    let strVal = JSON.stringify(current).toLowerCase();
+                    if (strVal.includes("indonesia") || strVal.includes("indo")) {
+                        foundId = current.id || current.country_id || current.value;
+                        // Jika ID masih kosong, paksa bongkar Object Key
+                        if(!foundId) {
+                            for(let k in current) {
+                                if(String(current[k]).toLowerCase().includes("indo") || String(k).toLowerCase() === "indonesia") {
+                                    foundId = current.id || k;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if(!foundId) { Object.values(current).forEach(searchCountry); }
+                }
             }
-        } else {
-            btn.innerText = "GAGAL CEK NEGARA";
+            searchCountry(res.data);
+            
+            if (foundId) {
+                currentCountryId = foundId; 
+                localStorage.setItem('adaotp_country_id', currentCountryId);
+            }
         }
     } catch (e) {
-        btn.innerText = "ERROR NEGARA";
+        console.error("Negara gagal di-parse, menggunakan cache terakhir");
+    } finally {
+        // Tombol pesan SELALU DIAKTIFKAN agar Anda tidak pernah stuck
+        btn.disabled = false;
     }
 }
 
@@ -216,29 +255,44 @@ window.filterServices = function() {
     });
 }
 
+// LOGIKA PEMESANAN ANTI-BLANK SCREEN
 window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
     
-    // UI Feedback langsung agar tidak blank selama menunggu API
-    document.getElementById('activeOrdersContainer').innerHTML = '<div class="status-text-mini">Menarik pesanan dari server...</div>';
+    document.getElementById('activeOrdersContainer').innerHTML = '<div class="status-text-mini">Merespons server...</div>';
     
-    const params = `country=${currentCountryId}&service_id=${currentServiceId}`;
-    const res = await apiCall('/orders', 'POST', params);
+    // Jika currentCountryId gagal terbaca, kita paksa kirim 1 sebagai fallback ke server agar tidak error parameter
+    const params = `country=${currentCountryId || '1'}&service_id=${currentServiceId}`;
     
-    if (res.success) {
-        showToast("Nomor Berhasil Dipesan!");
-        fetchProfile(); 
+    try {
+        const res = await apiCall('/orders', 'POST', params);
         
-        // Memaksa polling langsung berjalan 
+        if (res.success) {
+            showToast("Nomor Berhasil Dipesan!");
+            fetchProfile(); 
+            
+            // INJEKSI LANGSUNG: Cari pesanan baru di respons API dan paksa tampilkan seketika!
+            let newOrders = extractOrders(res);
+            if (newOrders.length > 0) {
+                let newOrder = newOrders[0];
+                newOrder.local_created_at = Date.now();
+                if(!activeOrders.find(o => o.id == newOrder.id)) {
+                    activeOrders.unshift(newOrder); // Dorong ke memori
+                }
+            }
+        } else {
+            showToast(res.message || "Gagal memesan nomor", "error");
+        }
+    } catch(e) {
+        showToast("Error Koneksi!", "error");
+    } finally {
+        // Apa pun yang terjadi, paksa gambar ulang dari memori dan tarik ulang server
+        renderActiveOrders(); 
         if (pollingTimeout) clearTimeout(pollingTimeout);
         pollActiveOrders(); 
-    } else {
-        showToast(res.message || "Gagal memesan nomor", "error");
-        renderActiveOrders(); // Kembalikan UI jika gagal
+        btn.disabled = false; btn.innerText = "PESAN NOMOR BARU";
     }
-    
-    btn.disabled = false; btn.innerText = "PESAN NOMOR BARU";
 }
 
 function formatPhoneNumber(phone) { 
@@ -248,7 +302,7 @@ function formatPhoneNumber(phone) {
     return p.replace(/(.{4})/g, '$1 ').trim(); 
 }
 
-// ================= ANTI-CRASH RENDERER =================
+// ================= RENDERER TAHAN CRASH =================
 function renderActiveOrders() {
     const container = document.getElementById('activeOrdersContainer');
     if (!container) return;
@@ -262,7 +316,7 @@ function renderActiveOrders() {
     
     [...activeOrders].reverse().forEach(order => {
         try {
-            if (!order || !order.id) return; // Lewati jika data cacat
+            if (!order || !order.id) return; 
             
             const now = Date.now();
             let createdTime = order.created_at ? new Date(order.created_at).getTime() : now; 
@@ -341,12 +395,13 @@ function renderActiveOrders() {
                 </div>
             `;
             container.appendChild(card);
-        } catch (cardError) {
-            console.error("Gagal menggambar satu kartu pesanan", cardError);
+        } catch (err) {
+            console.error("Gagal menggambar satu kotak", err);
         }
     });
 }
 
+// SINKRONISASI SERVER PINTAR
 async function pollActiveOrders() {
     if (isPolling) return;
     isPolling = true;
@@ -355,17 +410,8 @@ async function pollActiveOrders() {
         const res = await apiCall('/orders/active', 'GET');
         
         if (res.success && res.data) {
-            let dataTarget = res.data.data ? res.data.data : res.data;
-            let rawOrders = Array.isArray(dataTarget) ? dataTarget : Object.values(dataTarget);
-            
-            // Validasi ketat membuang data sampah dari API
-            let serverOrders = [];
-            rawOrders.forEach(o => {
-                if (typeof o === 'object' && o !== null && (o.id || o.order_id)) {
-                    o.id = o.id || o.order_id;
-                    serverOrders.push(o);
-                }
-            });
+            // Gunakan ekstraktor super untuk menyapu bersih data dari server
+            let serverOrders = extractOrders(res);
 
             const now = Date.now();
             serverOrders.forEach(so => {
@@ -394,8 +440,8 @@ async function pollActiveOrders() {
             activeOrders = serverOrders;
             renderActiveOrders();
         } else {
-            // Jika API gagal tapi tidak error fetch
-            if (!activeOrders || activeOrders.length === 0) renderActiveOrders();
+            // Jika sukses adalah false tapi tidak catch, pulihkan UI
+            if (activeOrders.length === 0) renderActiveOrders();
         }
     } catch (e) {
         console.error("Polling Terhambat:", e);
