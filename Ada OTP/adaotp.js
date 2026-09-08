@@ -3,11 +3,11 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-// Pemaksaan reset ke versi paling mutlak
-if (!localStorage.getItem('adaotp_shopee_forced_v2.1')) {
+// Reset ke versi paling stabil
+if (!localStorage.getItem('adaotp_shopee_forced_v3.0')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v2.1', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v3.0', 'true');
 }
 
 let activeOrders = []; 
@@ -56,58 +56,12 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
         const response = await fetch(url, options);
         return await response.json(); 
     } catch (err) { 
-        return { success: false, message: "Koneksi terputus: " + err.message }; 
+        return { success: false, message: "Koneksi API terputus" }; 
     }
-}
-
-// ================= MESIN EKSTRAKTOR ABSOLUT =================
-// Mengekstrak data pesanan dalam bentuk apa pun, sedalam apa pun
-function extractAnyOrder(res) {
-    let orders = [];
-    let seenIds = new Set();
-
-    function traverse(node, parentKey) {
-        if (!node || typeof node !== 'object') return;
-        
-        let oId = node.id || node.order_id || node.order;
-        let oPhone = node.phone || node.number || node.phone_number;
-        let oSms = node.sms || node.messages || node.status;
-        
-        let hasTraits = (oPhone !== undefined || oSms !== undefined || node.service !== undefined);
-        
-        if (oId !== undefined && hasTraits) {
-            if (!seenIds.has(String(oId))) {
-                seenIds.add(String(oId));
-                node.id = oId;
-                orders.push(node);
-            }
-        } else if (parentKey !== null && !isNaN(parentKey) && hasTraits) {
-            if (!seenIds.has(String(parentKey))) {
-                seenIds.add(String(parentKey));
-                node.id = parentKey;
-                orders.push(node);
-            }
-        }
-        
-        for (let k in node) {
-            if (typeof node[k] === 'object') {
-                traverse(node[k], k);
-            } else if (typeof node[k] === 'string' && !isNaN(k) && node[k].length >= 10) {
-                // Menangkap objek aneh {"19027911": "083131805642"}
-                if (!seenIds.has(String(k))) {
-                    seenIds.add(String(k));
-                    orders.push({ id: k, phone: node[k] });
-                }
-            }
-        }
-    }
-    
-    traverse(res, null);
-    return orders;
 }
 
 function guessOperator(phone) {
-    if (!phone || String(phone).trim() === "" || String(phone).includes("Menyiapkan")) return "MENCARI...";
+    if (!phone || String(phone).trim() === "" || String(phone).includes("Memproses")) return "MENCARI...";
     let p = String(phone).replace(/\D/g, "");
     if (p.startsWith("62")) p = "0" + p.substring(2);
     let prefix = p.substring(0, 4);
@@ -177,14 +131,15 @@ async function initApp() {
 async function fetchProfile() {
     try {
         const res = await apiCall('/profile', 'GET');
-        if ((res.success || res.status) && res.data) {
+        // Pengecekan ketat untuk success
+        if (res.success === true && res.data) {
             document.getElementById('currentAccountEmail').innerText = res.data.user ? res.data.user.email : "Akun Aktif";
-            document.getElementById('balanceDisplay').innerText = res.data.user ? res.data.user.balance : res.data.balance || "Rp -";
+            document.getElementById('balanceDisplay').innerText = res.data.user ? res.data.user.balance : "Rp -";
         } else {
-            document.getElementById('balanceDisplay').innerText = "Error API";
+            document.getElementById('balanceDisplay').innerText = "Gagal Cek Saldo";
         }
     } catch (e) {
-        document.getElementById('balanceDisplay').innerText = "Gagal Terhubung";
+        document.getElementById('balanceDisplay').innerText = "Koneksi Terputus";
     }
 }
 
@@ -192,10 +147,9 @@ async function fetchServices() {
     document.getElementById('btnServiceSelectText').innerText = "Memuat...";
     try {
         const res = await apiCall('/services', 'GET');
-        if (res.success || res.status) {
-            let dataTarget = res.data.data ? res.data.data : res.data;
-            let servicesArray = Array.isArray(dataTarget) ? dataTarget : Object.values(dataTarget);
-            allServices = servicesArray.sort((a, b) => String(a.text || a.name).localeCompare(String(b.text || b.name)));
+        if (res.success === true) {
+            let dataArr = Array.isArray(res.data) ? res.data : Object.values(res.data || {});
+            allServices = dataArr.sort((a, b) => String(a.text || a.name).localeCompare(String(b.text || b.name)));
             
             let target = null;
             if (currentServiceId) target = allServices.find(s => String(s.id) === String(currentServiceId));
@@ -223,7 +177,7 @@ function updateServiceUI() {
     localStorage.setItem('adaotp_service_name', currentServiceName);
 }
 
-// LOGIKA NEGARA: Jika kosong, paksa ke Mode Otomatis tanpa menyebabkan Error!
+// ================= LOGIKA NEGARA & HARGA (PANTI-ERROR) =================
 async function fetchCountries() {
     const btn = document.getElementById('btnOrder');
     const priceBox = document.getElementById('servicePriceBox');
@@ -234,39 +188,60 @@ async function fetchCountries() {
     
     try {
         const res = await apiCall(`/services/${currentServiceId}/countries`, 'GET');
-        let foundId = "";
-        let foundPrice = "";
-        
-        if (res.success || res.status) {
-            let dataArr = Array.isArray(res.data) ? res.data : Object.values(res.data || {});
-            for (let c of dataArr) {
-                let strVal = JSON.stringify(c).toLowerCase();
-                if (strVal.includes("indonesia") || strVal.includes("indo")) {
-                    foundId = c.id || c.country_id || c.value;
-                    foundPrice = c.price || c.cost || "";
+        if (res.success === true || Array.isArray(res.data) || typeof res.data === 'object') {
+            let foundId = "";
+            let foundPrice = "";
+            
+            let dataList = [];
+            let rawData = res.data || res;
+            
+            // Format data universal
+            if (Array.isArray(rawData)) {
+                dataList = rawData;
+            } else if (typeof rawData === 'object' && rawData !== null) {
+                for (let k in rawData) {
+                    let item = rawData[k];
+                    if (typeof item === 'object') {
+                        item._fallbackId = k;
+                        dataList.push(item);
+                    } else if (typeof item === 'string') {
+                        dataList.push({ id: k, name: item });
+                    }
+                }
+            }
+            
+            // Cari Indonesia
+            for (let c of dataList) {
+                if (JSON.stringify(c).toLowerCase().includes("indo")) {
+                    foundId = c.id || c.country_id || c.value || c._fallbackId;
+                    foundPrice = c.price || c.cost || c.rate || "";
                     break;
                 }
             }
-        }
-        
-        if (foundId) {
-            currentCountryId = foundId; 
-            localStorage.setItem('adaotp_country_id', currentCountryId);
-            priceBox.innerText = foundPrice ? `Rp ${foundPrice}` : "Tersedia";
-            priceBox.style.color = "var(--success-color)";
+            
+            // JIKA INDONESIA KOSONG, CEGAH ERROR DENGAN MENGAMBIL NEGARA PERTAMA YANG TERSEDIA
+            if (!foundId && dataList.length > 0) {
+                let first = dataList[0];
+                foundId = first.id || first.country_id || first.value || first._fallbackId;
+                foundPrice = first.price || first.cost || first.rate || "";
+            }
+            
+            if (foundId) {
+                currentCountryId = foundId; 
+                localStorage.setItem('adaotp_country_id', currentCountryId);
+                priceBox.innerText = foundPrice ? `Rp ${foundPrice}` : "Tersedia";
+                priceBox.style.color = "var(--success-color)";
+                btn.disabled = false; // Aktifkan tombol karena ID valid didapat
+            } else {
+                priceBox.innerText = "Stok Kosong";
+                priceBox.style.color = "var(--danger-color)";
+                btn.disabled = true; // Matikan tombol agar tidak terjadi error API
+            }
         } else {
-            // JIKA SERVER MENGHAPUS NAMA INDONESIA, KITA PAKSA ID 1
-            currentCountryId = "1"; 
-            localStorage.setItem('adaotp_country_id', currentCountryId);
-            priceBox.innerText = "Coba Otomatis";
-            priceBox.style.color = "var(--warning-color)";
+            priceBox.innerText = "Error API";
         }
     } catch (e) {
-        currentCountryId = "1";
-        priceBox.innerText = "Fallback";
-    } finally {
-        // Tombol selalu aktif agar Anda bisa terus order!
-        btn.disabled = false;
+        priceBox.innerText = "Koneksi Error";
     }
 }
 
@@ -299,50 +274,37 @@ window.filterServices = function() {
     });
 }
 
-// ================= INJEKSI PAKSA LOKAL (ANTI-BLANK MUTLAK) =================
+// ================= LOGIKA PESANAN ANTI-BOHONG =================
 window.createNewOrder = async function() {
     const btn = document.getElementById('btnOrder');
     btn.disabled = true; btn.innerText = "MEMPROSES...";
     
-    document.getElementById('activeOrdersContainer').innerHTML = '<div class="status-text-mini">Memaksa masuk ke layar...</div>';
+    document.getElementById('activeOrdersContainer').innerHTML = '<div class="status-text-mini">Merespons server...</div>';
     
-    const params = `country=${currentCountryId || '1'}&service_id=${currentServiceId}`;
+    const params = `country=${currentCountryId}&service_id=${currentServiceId}`;
     
     try {
         const res = await apiCall('/orders', 'POST', params);
         
-        if (res.success || res.status || res.id || (res.data && res.data.id)) {
-            showToast("Nomor Berhasil Dipesan!");
+        // PENGECEKAN KETAT: Mencegah 'status: error' terdeteksi sebagai sukses!
+        let isSuccess = res.success === true || res.status === "success" || res.status === "ok" || res.id !== undefined || res.order_id !== undefined;
+        
+        if (isSuccess) {
+            showToast("Pesanan Berhasil Dibuat!", "success");
             fetchProfile(); 
             
-            let newOrders = extractAnyOrder(res);
-            
-            // LOGIKA INJEKSI PAKSA:
-            if (newOrders.length > 0) {
-                newOrders[0].local_created_at = Date.now();
-                if(!activeOrders.find(o => String(o.id) === String(newOrders[0].id))) {
-                    activeOrders.unshift(newOrders[0]); 
-                }
-            } else {
-                // JIKA DATA DARI SERVER BENAR-BENAR RUSAK, KITA BUAT DATA PALSU SEMENTARA AGAR LAYAR TIDAK KOSONG
-                let fallbackId = res.id || (res.data ? res.data.id : null) || res.order_id || Date.now();
-                let fallbackPhone = res.phone || res.number || (res.data ? (res.data.phone || res.data.number) : "") || "Menyiapkan...";
-                
-                activeOrders.unshift({
-                    id: fallbackId,
-                    phone: fallbackPhone,
-                    local_created_at: Date.now(),
-                    normalized_sms: []
-                });
-            }
+            // JANGAN DITEBAK, LANGSUNG MINTA SERVER MEMBERIKAN DAFTAR PESANAN AKTIF
+            await pollActiveOrders(true);
         } else {
-            showToast(res.message || "Gagal memesan nomor", "error");
+            // Tampilkan pesan error ASLI dari server ADAOTP
+            let errMsg = res.message || res.msg || res.error || "Gagal memesan nomor dari server";
+            showToast(errMsg, "error");
+            renderActiveOrders(); 
         }
     } catch(e) {
-        showToast("Error Koneksi!", "error");
+        showToast("Error Koneksi: " + e.message, "error");
+        renderActiveOrders();
     } finally {
-        // PAKSA MENGGAMBAR LAYAR DETIK ITU JUGA SEBELUM POLLING
-        renderActiveOrders(); 
         if (pollingTimeout) clearTimeout(pollingTimeout);
         pollActiveOrders(); 
         btn.disabled = false; btn.innerText = "PESAN NOMOR BARU";
@@ -350,7 +312,7 @@ window.createNewOrder = async function() {
 }
 
 function formatPhoneNumber(phone) { 
-    if (!phone || String(phone).trim() === "") return "Menyiapkan Nomor..."; 
+    if (!phone || String(phone).trim() === "") return "Memproses Nomor..."; 
     let p = String(phone).replace(/\D/g, "");
     if (p.startsWith("62")) { p = "0" + p.substring(2); } 
     return p.replace(/(.{4})/g, '$1 ').trim(); 
@@ -427,7 +389,7 @@ function renderActiveOrders() {
             if (typeof srvNameRaw === 'string') { finalSrvName = srvNameRaw; }
             else if (typeof srvNameRaw === 'object' && srvNameRaw !== null) { finalSrvName = srvNameRaw.name || srvNameRaw.text || currentServiceName; }
             
-            let phoneNumber = order.phone || order.number || order.phone_number || "Menyiapkan Nomor...";
+            let phoneNumber = order.phone || order.number || order.phone_number || "Memproses...";
             let opName = guessOperator(phoneNumber);
             
             card.innerHTML = `
@@ -450,7 +412,7 @@ function renderActiveOrders() {
             `;
             container.appendChild(card);
         } catch (err) {
-            console.error("Gagal menggambar satu kotak", err);
+            console.error("Gagal menggambar kotak", err);
         }
     });
 }
@@ -462,68 +424,78 @@ async function pollActiveOrders(isManual = false) {
     try {
         const res = await apiCall('/orders/active', 'GET');
         
-        if (res.success || res.status || res.data !== undefined) {
-            let serverOrders = extractAnyOrder(res);
-            let prevIds = activeOrders.map(o => String(o.id));
-            let mergedOrders = [...activeOrders];
-            const now = Date.now();
-            let isChanged = false;
-
-            serverOrders.forEach(so => {
-                let existingIdx = mergedOrders.findIndex(lo => String(lo.id) === String(so.id));
-                
-                let rawSoSms = so.sms || so.messages || so.received_sms || [];
-                let soSmsArray = [];
-                if (Array.isArray(rawSoSms)) {
-                    soSmsArray = rawSoSms;
-                } else if (typeof rawSoSms === 'string' && rawSoSms.trim() !== '') {
-                    soSmsArray = rawSoSms.includes(',') ? rawSoSms.split(',').map(s=>s.trim()) : [rawSoSms.trim()];
-                }
-                so.normalized_sms = soSmsArray;
-
-                if (existingIdx !== -1) {
-                    so.local_created_at = mergedOrders[existingIdx].local_created_at;
-                    
-                    let oldSmsArray = mergedOrders[existingIdx].normalized_sms || [];
-                    if (soSmsArray.length > oldSmsArray.length) {
-                        isChanged = true;
-                        try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (vErr) {}
-                        try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
-                    }
-                    
-                    // Jangan timpa data lokal jika data server tidak punya nomor telepon
-                    if(so.phone || so.number) {
-                        mergedOrders[existingIdx] = so; 
-                    } else {
-                        mergedOrders[existingIdx].normalized_sms = so.normalized_sms;
-                    }
-                    
-                } else {
-                    so.local_created_at = now;
-                    mergedOrders.unshift(so); 
-                    isChanged = true;
-                    if (soSmsArray.length > 0) {
-                        try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (vErr) {}
-                        try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
+        let ordersExtracted = [];
+        let rawData = res.data !== undefined ? res.data : res;
+        
+        if (Array.isArray(rawData)) {
+            ordersExtracted = rawData;
+        } else if (typeof rawData === 'object' && rawData !== null) {
+            if (rawData.orders && Array.isArray(rawData.orders)) {
+                ordersExtracted = rawData.orders;
+            } else if (rawData.data && Array.isArray(rawData.data)) {
+                ordersExtracted = rawData.data;
+            } else {
+                for (let k in rawData) {
+                    let item = rawData[k];
+                    if (typeof item === 'object' && item !== null) {
+                        item.id = item.id || item.order_id || k;
+                        ordersExtracted.push(item);
                     }
                 }
-            });
-            
-            mergedOrders = mergedOrders.filter(o => {
-                let cTime = o.local_created_at || now;
-                return (now - cTime) < 4800000; 
-            });
-
-            activeOrders = mergedOrders;
-            
-            let currentIds = activeOrders.map(o => String(o.id));
-            let hasRemoved = prevIds.some(id => !currentIds.includes(id));
-            if (hasRemoved || isChanged) {
-                fetchProfile();
             }
-
-            renderActiveOrders();
         }
+        
+        // HANYA TERIMA PESANAN YANG PUNYA ID VALID
+        let validOrders = ordersExtracted.filter(o => o && typeof o === 'object' && (o.id !== undefined || o.order_id !== undefined));
+
+        let prevIds = activeOrders.map(o => String(o.id));
+        let mergedOrders = [...activeOrders];
+        const now = Date.now();
+        let isChanged = false;
+
+        validOrders.forEach(so => {
+            so.id = so.id || so.order_id;
+            
+            let rawSoSms = so.sms || so.messages || so.received_sms || [];
+            let soSmsArray = Array.isArray(rawSoSms) ? rawSoSms : (typeof rawSoSms === 'string' && rawSoSms.trim() !== '' ? rawSoSms.split(',').map(s=>s.trim()) : []);
+            so.normalized_sms = soSmsArray;
+
+            let existingIdx = mergedOrders.findIndex(lo => String(lo.id) === String(so.id));
+            if (existingIdx !== -1) {
+                so.local_created_at = mergedOrders[existingIdx].local_created_at;
+                
+                let oldSmsArray = mergedOrders[existingIdx].normalized_sms || [];
+                if (soSmsArray.length > oldSmsArray.length) {
+                    isChanged = true;
+                    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+                    try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (e) {}
+                }
+                
+                mergedOrders[existingIdx] = so; 
+            } else {
+                so.local_created_at = now;
+                mergedOrders.unshift(so); 
+                isChanged = true;
+                if (soSmsArray.length > 0) {
+                    try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) {}
+                    try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (e) {}
+                }
+            }
+        });
+        
+        mergedOrders = mergedOrders.filter(o => {
+            let cTime = o.local_created_at || now;
+            return (now - cTime) < 4800000; 
+        });
+
+        activeOrders = mergedOrders;
+        
+        let currentIds = activeOrders.map(o => String(o.id));
+        let hasRemoved = prevIds.some(id => !currentIds.includes(id));
+        if (hasRemoved || isChanged) fetchProfile();
+
+        renderActiveOrders();
+        
     } catch (e) {
         console.error("Polling Terhambat:", e);
     } finally {
@@ -544,7 +516,7 @@ window.cancelOrder = async function(orderId) {
     if(card) card.style.opacity = '0.5';
     
     const res = await apiCall(`/orders/${orderId}`, 'DELETE');
-    if (res.success || res.status) {
+    if (res.success === true || res.status === "success" || res.status === "ok") {
         showToast("Pesanan Dibatalkan");
         saveToHistory(orderId, "BATAL");
         activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); 
@@ -561,7 +533,7 @@ window.finishOrder = async function(orderId) {
     if(card) card.style.opacity = '0.5';
     
     const res = await apiCall(`/orders/${orderId}/finish`, 'POST');
-    if (res.success || res.status) {
+    if (res.success === true || res.status === "success" || res.status === "ok") {
         showToast("Siklus OTP Selesai!");
         saveToHistory(orderId, "SELESAI");
         activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId)); 
