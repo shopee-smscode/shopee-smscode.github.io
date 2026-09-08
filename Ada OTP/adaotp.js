@@ -3,11 +3,11 @@ const DEFAULT_API_KEY = "4qtZsbiCYc9fjVenBVVV2CWAlEW0ISzQ";
 
 let apiKey = localStorage.getItem('adaotp_api_key') || DEFAULT_API_KEY; 
 
-// PENGUNCIAN DEFAULT KE SHOPEE UNTUK PENGGUNAAN PERTAMA
-if (!localStorage.getItem('adaotp_shopee_forced_v1')) {
+// PENGUNCIAN DEFAULT KE SHOPEE UNTUK PENGGUNAAN PERTAMA (V1.2)
+if (!localStorage.getItem('adaotp_shopee_forced_v1.2')) {
     localStorage.removeItem('adaotp_service_id');
     localStorage.removeItem('adaotp_service_name');
-    localStorage.setItem('adaotp_shopee_forced_v1', 'true');
+    localStorage.setItem('adaotp_shopee_forced_v1.2', 'true');
 }
 
 let activeOrders = []; 
@@ -58,7 +58,7 @@ async function apiCall(endpoint, method = 'GET', urlParams = "") {
     }
 }
 
-// Inisialisasi Paralel (Mencegah Antrian Crash)
+// INISIALISASI PARALEL ANTI-CRASH
 window.onload = () => {
     if (currentServiceName) { document.getElementById('btnServiceSelectText').innerHTML = currentServiceName; }
     startPolling();
@@ -109,8 +109,9 @@ async function fetchServices() {
     try {
         const res = await apiCall('/services', 'GET');
         if (res.success && res.data) {
-            // Konversi aman jika API mengembalikan Object alih-alih Array
-            let servicesArray = Array.isArray(res.data) ? res.data : Object.values(res.data);
+            // Deteksi array vs object dengan aman
+            let dataTarget = res.data.data ? res.data.data : res.data;
+            let servicesArray = Array.isArray(dataTarget) ? dataTarget : Object.values(dataTarget);
             allServices = servicesArray.sort((a, b) => String(a.text || a.name).localeCompare(String(b.text || b.name)));
             
             let target = null;
@@ -118,7 +119,7 @@ async function fetchServices() {
                 target = allServices.find(s => s.id == currentServiceId);
             }
             
-            // JIKA BELUM ADA PILIHAN LOKAL (ATAU TELAH DI-RESET KE SHOPEE)
+            // PAKSA PENCARIAN SHOPEE JIKA KOSONG
             if (!target) {
                 target = allServices.find(s => {
                     let name = String(s.text || s.name || "").toLowerCase();
@@ -149,7 +150,7 @@ function updateServiceUI() {
     localStorage.setItem('adaotp_service_name', currentServiceName);
 }
 
-// LOGIKA PENCARI NEGARA AMAN (ANTI-CRASH)
+// ================= LOGIKA PENCARI NEGARA SUPER BRUTE-FORCE =================
 async function fetchCountries() {
     const list = document.getElementById('countryList');
     list.innerHTML = '<div class="status-text-mini" style="grid-column: span 3;">Mencari stok Indonesia...</div>';
@@ -164,19 +165,54 @@ async function fetchCountries() {
         const res = await apiCall(`/services/${currentServiceId}/countries`, 'GET');
         if (res.success && res.data) {
             
-            // Pelindung Utama: Konversi aman jika data dari API berupa Objek tak terduga
-            let fetchedCountries = Array.isArray(res.data) ? res.data : Object.values(res.data);
-            
-            let indo = fetchedCountries.find(c => {
-                if (!c) return false;
-                let cName = String(c.name || c.country || c.country_name || c.text || "").toLowerCase();
-                return cName.includes("indonesia") || cName.includes("indo");
-            });
+            // Penyesuaian bersarang JSON API
+            let dataTarget = res.data;
+            if (dataTarget.data) dataTarget = dataTarget.data;
+            if (dataTarget.countries) dataTarget = dataTarget.countries;
+
+            let indoId = "";
+            let indoName = "";
+            let indoPrice = "";
+            let found = false;
+
+            // Mode 1: Jika server merespons dengan Array
+            if (Array.isArray(dataTarget)) {
+                let target = dataTarget.find(c => JSON.stringify(c).toLowerCase().includes("indonesia") || JSON.stringify(c).toLowerCase().includes("indo"));
+                if (target) {
+                    found = true;
+                    if (typeof target === 'object') {
+                        indoId = target.id || target.country_id || target.value || target.country || "";
+                        indoName = target.name || target.text || target.title || "Indonesia";
+                        indoPrice = target.price || target.cost || "";
+                    } else {
+                        indoId = target;
+                        indoName = target;
+                    }
+                }
+            } 
+            // Mode 2: Jika server merespons dengan Object/Dictionary bersarang
+            else if (typeof dataTarget === 'object') {
+                for (let [key, val] of Object.entries(dataTarget)) {
+                    let strVal = JSON.stringify(val).toLowerCase();
+                    if (strVal.includes("indonesia") || strVal.includes("indo") || String(key).toLowerCase().includes("indo")) {
+                        found = true;
+                        if (typeof val === 'object') {
+                            indoId = val.id || val.country_id || key;
+                            indoName = val.name || val.text || val.title || "Indonesia";
+                            indoPrice = val.price || val.cost || "";
+                        } else {
+                            indoId = key;
+                            indoName = val;
+                        }
+                        break;
+                    }
+                }
+            }
             
             list.innerHTML = '';
             
-            if (indo) {
-                currentCountryId = indo.id || indo.country_id || indo.country; 
+            if (found && indoId) {
+                currentCountryId = indoId; 
                 localStorage.setItem('adaotp_country_id', currentCountryId);
                 
                 const card = document.createElement("div"); 
@@ -185,23 +221,65 @@ async function fetchCountries() {
                 card.style.borderColor = "var(--primary-color)";
                 card.style.background = "rgba(138, 43, 226, 0.05)";
                 
-                let cName = indo.name || indo.text || `ID: ${currentCountryId}`;
-                let priceText = indo.price ? `<div style="color:var(--success-color); font-size:10px;">Rp ${indo.price}</div>` : '';
-                
-                card.innerHTML = `<div class="product-info"><h4>${cName} (Terkunci)</h4>${priceText}</div>`;
+                let priceText = indoPrice ? `<div style="color:var(--success-color); font-size:10px;">Rp ${indoPrice}</div>` : '';
+                card.innerHTML = `<div class="product-info"><h4>${indoName} (Terkunci)</h4>${priceText}</div>`;
                 list.appendChild(card);
                 
                 document.getElementById('btnOrder').disabled = false;
             } else {
+                // FALLBACK CERDAS JIKA DETEKSI OTOMATIS GAGAL
                 currentCountryId = "";
-                list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--warning-color);">Stok Nomor Indonesia Kosong Untuk Layanan Ini</div>';
+                list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--warning-color);">Stok ID Indonesia sulit dibaca. Menampilkan semua negara...</div>';
+                setTimeout(() => { renderAllCountriesFallback(dataTarget); }, 1000);
             }
         } else {
-            list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--danger-color);">Gagal Mengecek Stok Server</div>';
+            list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--danger-color);">Stok Kosong / Gagal Mengecek Server</div>';
         }
     } catch (e) {
-        list.innerHTML = `<div class="status-text-mini" style="grid-column:span 3; color:var(--danger-color);">Gangguan Teknis: Data Server Tidak Sesuai</div>`;
+        list.innerHTML = `<div class="status-text-mini" style="grid-column:span 3; color:var(--danger-color);">Gangguan Format JSON Server</div>`;
     }
+}
+
+// ================= FALLBACK RENDER SEMUA NEGARA =================
+// (Dipanggil jika mesin gagal mendeteksi ID spesifik Indonesia)
+function renderAllCountriesFallback(data) {
+    const list = document.getElementById('countryList');
+    list.innerHTML = '';
+    
+    let countries = [];
+    if (Array.isArray(data)) {
+        countries = data.map(c => typeof c === 'object' ? c : {id: c, name: c});
+    } else if (typeof data === 'object') {
+        for (let [key, val] of Object.entries(data)) {
+            countries.push(typeof val === 'object' ? {id: key, ...val} : {id: key, name: val});
+        }
+    }
+    
+    if (countries.length === 0) {
+        list.innerHTML = '<div class="status-text-mini" style="grid-column:span 3; color:var(--danger-color);">Stok Kosong Total</div>';
+        return;
+    }
+
+    countries.forEach(c => {
+        let cid = c.id || c.country_id || c.value || c.country;
+        let cname = c.name || c.text || c.title || cid;
+        let cprice = c.price || c.cost || "";
+        
+        const card = document.createElement("div"); 
+        card.className = "product-card"; 
+        
+        let priceText = cprice ? `<div style="color:var(--success-color); font-size:10px;">Rp ${cprice}</div>` : '';
+        card.innerHTML = `<div class="product-info"><h4>${cname}</h4>${priceText}</div>`;
+        
+        card.onclick = () => { 
+            document.querySelectorAll('.product-card').forEach(el => el.classList.remove('selected')); 
+            card.classList.add('selected'); 
+            currentCountryId = cid; 
+            localStorage.setItem('adaotp_country_id', currentCountryId);
+            document.getElementById('btnOrder').disabled = false;
+        };
+        list.appendChild(card);
+    });
 }
 
 window.openServiceModal = function() { document.getElementById('serviceModal').classList.remove('hidden'); document.getElementById('searchServiceInput').value = ''; filterServices(); }
@@ -347,8 +425,8 @@ async function pollActiveOrders() {
         const res = await apiCall('/orders/active', 'GET');
         
         if (res.success && res.data) {
-            // Pelindung API aman jika me-return Object
-            let serverOrders = Array.isArray(res.data) ? res.data : Object.values(res.data);
+            let dataTarget = res.data.data ? res.data.data : res.data;
+            let serverOrders = Array.isArray(dataTarget) ? dataTarget : Object.values(dataTarget);
             const now = Date.now();
             
             serverOrders.forEach(so => {
