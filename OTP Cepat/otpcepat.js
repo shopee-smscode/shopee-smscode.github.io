@@ -57,7 +57,6 @@ window.onload = () => {
         if (currentServicePrice) document.getElementById('priceDisplayBox').innerText = rpFormatter.format(currentServicePrice);
     }
     
-    // Aplikasi akan langsung memulai karena API key default selalu ada
     initApp();
     renderOrders(); 
     startPolling(); 
@@ -98,7 +97,14 @@ async function apiCall(action, extraParams = "") {
     const timeStamp = new Date().getTime(); 
     const url = `${API_BASE_URL}?api_key=${apiKey}&action=${action}${extraParams}&_t=${timeStamp}`;
     try {
-        const response = await fetch(url);
+        const response = await fetch(url, { 
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        });
         const text = await response.text();
         if (text.includes("STATUS_WAIT_CODE")) return { status: "true", data: { status: "Waiting" } };
         if (text.includes("STATUS_OK")) {
@@ -111,9 +117,7 @@ async function apiCall(action, extraParams = "") {
     } catch (err) { return { status: "false", msg: "Koneksi terputus: " + err.message }; }
 }
 
-// ================= MANAJEMEN API KEY OPSIONAL =================
 function openSettingsModal() { 
-    // Jika masih pakai default, tampilkan input kosong agar user tidak bingung
     document.getElementById('settingsApiKey').value = apiKey === DEFAULT_API_KEY ? "" : apiKey; 
     document.getElementById('settingsApiKey').placeholder = "Default aktif. Isi jika ingin ganti...";
     document.getElementById('settingsModal').classList.remove('hidden'); 
@@ -125,7 +129,6 @@ function closeSettingsModal() {
 
 async function saveSettings() {
     let inputKey = document.getElementById('settingsApiKey').value.trim();
-    // Jika input dikosongkan, kembali gunakan API bawaan
     apiKey = inputKey ? inputKey : DEFAULT_API_KEY;
     localStorage.setItem('otp_api_key', apiKey); 
     
@@ -670,9 +673,9 @@ function startPolling() {
         if (isPolling) return;
         isPolling = true;
         let needsRender = false;
+        let ordersToRemove = [];
         
-        for (let i = activeOrders.length - 1; i >= 0; i--) {
-            let o = activeOrders[i];
+        await Promise.all(activeOrders.map(async (o) => {
             if (o.status !== "Recieved" && o.status !== "Done") {
                 try {
                     const res = await apiCall('get_status', `&order_id=${o.id}`);
@@ -699,12 +702,16 @@ function startPolling() {
                             try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
                             
                         } else if (apiStatus.includes("cancel") || apiStatus.includes("failed") || apiStatus.includes("batal") || apiStatus === "3") {
-                            activeOrders.splice(i, 1);
+                            ordersToRemove.push(o.id);
                             needsRender = true;
                         }
                     }
-                } catch (e) { console.error("Polling Error"); }
+                } catch (e) { console.error("Polling API Error untuk order:", o.id); }
             }
+        }));
+        
+        if (ordersToRemove.length > 0) {
+            activeOrders = activeOrders.filter(o => !ordersToRemove.includes(o.id));
         }
         
         if (needsRender) {
