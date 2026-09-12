@@ -1,9 +1,10 @@
 const API_BASE_URL = "https://otp-cepat-proxy.masreno6pro.workers.dev"; 
-const DEFAULT_API_KEY = "69c532208d65442fadbeb05df1ebf0c3"; // Kunci Default Tertanam
+const DEFAULT_API_KEY = "69c532208d65442fadbeb05df1ebf0c3"; 
 
 let apiKey = localStorage.getItem('otp_api_key') || DEFAULT_API_KEY;
 let activeOrders = JSON.parse(localStorage.getItem('otp_active_orders')) || [];
 let orderHistory = JSON.parse(localStorage.getItem('otp_history')) || [];
+let favoriteServices = JSON.parse(localStorage.getItem('otp_favorites')) || [];
 
 let promoServices = [];
 let prioritasServices = [];
@@ -131,7 +132,6 @@ async function saveSettings() {
     let inputKey = document.getElementById('settingsApiKey').value.trim();
     apiKey = inputKey ? inputKey : DEFAULT_API_KEY;
     localStorage.setItem('otp_api_key', apiKey); 
-    
     closeSettingsModal(); 
     showToast(inputKey ? "API Key Disimpan!" : "Kembali ke API Default!"); 
     initApp();
@@ -159,38 +159,57 @@ async function lockCountryToIndonesia() {
 }
 
 function findServiceMatch(list, name) {
-    if (!name || list.length === 0) return null;
+    if (!name || !list || list.length === 0) return null;
     let n = String(name).toLowerCase().trim();
     
     let exact = list.find(s => String(s.serviceName).toLowerCase().trim() === n);
     if (exact) return exact;
-    let inc1 = list.find(s => String(s.serviceName).toLowerCase().includes(n));
-    if (inc1) return inc1;
-    let inc2 = list.find(s => n.includes(String(s.serviceName).toLowerCase()));
-    if (inc2) return inc2;
-    
-    let firstWord = n.split(/[\s\/\-]+/)[0];
-    if (firstWord.length > 2) {
-        let inc3 = list.find(s => String(s.serviceName).toLowerCase().includes(firstWord));
-        if (inc3) return inc3;
-    }
+
+    let cleanN = n.replace(/\s*\([^)]*\)/g, '').trim();
+    let cleanExact = list.find(s => String(s.serviceName).toLowerCase().replace(/\s*\([^)]*\)/g, '').trim() === cleanN);
+    if (cleanExact) return cleanExact;
+
+    let inc = list.find(s => String(s.serviceName).toLowerCase().includes(cleanN) || cleanN.includes(String(s.serviceName).toLowerCase()));
+    if (inc) return inc;
+
     return null;
+}
+
+function isFavorite(serviceName) {
+    const normName = String(serviceName).toLowerCase().trim();
+    return favoriteServices.includes(normName);
+}
+
+window.toggleFavorite = function(serviceName, e) {
+    if (e) e.stopPropagation();
+    const normName = String(serviceName).toLowerCase().trim();
+    const index = favoriteServices.indexOf(normName);
+    
+    if (index > -1) {
+        favoriteServices.splice(index, 1);
+        showToast("Dihapus dari Favorit", "warning");
+    } else {
+        favoriteServices.push(normName);
+        showToast("Ditambahkan ke Favorit");
+    }
+    
+    localStorage.setItem('otp_favorites', JSON.stringify(favoriteServices));
+    filterServices();
 }
 
 window.onCategoryChanged = async function() {
     currentCategory = document.getElementById('categorySelect').value;
     localStorage.setItem('otp_category', currentCategory);
-    document.getElementById('btnServiceSelectText').innerText = "Memperbarui...";
     
     let listToSearch = currentCategory === "promo" ? promoServices : prioritasServices;
     let matched = findServiceMatch(listToSearch, currentServiceName);
+    
     if (matched) {
         currentServiceId = matched.serviceID;
-        currentServiceName = matched.serviceName;
         currentServicePrice = matched.price;
     }
     
-    allServices = listToSearch.sort((a, b) => String(a.serviceName).localeCompare(String(b.serviceName)));
+    allServices = [...listToSearch];
     updateServiceButtonUI();
     checkCategoryAvailability();
     await fetchOperators();
@@ -216,10 +235,9 @@ async function fetchServices() {
         localStorage.setItem('otp_category', currentCategory);
     }
 
-    allServices = listToSearch.sort((a, b) => String(a.serviceName).localeCompare(String(b.serviceName)));
+    allServices = [...listToSearch];
     
-    let matched = findServiceMatch(listToSearch, currentServiceName) || findServiceMatch(listToSearch, "shopee") || listToSearch[0];
-    
+    let matched = findServiceMatch(listToSearch, currentServiceName) || listToSearch[0];
     if (matched) {
         currentServiceId = matched.serviceID;
         currentServiceName = matched.serviceName;
@@ -237,13 +255,9 @@ function checkCategoryAvailability() {
     let hasPrioritas = findServiceMatch(prioritasServices, currentServiceName) !== null;
     
     const sel = document.getElementById('categorySelect');
-    sel.options[0].disabled = !hasPromo; 
-    sel.options[1].disabled = !hasPrioritas; 
-    
-    if (currentCategory === "promo" && !hasPromo && hasPrioritas) {
-        sel.value = "prioritas"; window.onCategoryChanged();
-    } else if (currentCategory === "prioritas" && !hasPrioritas && hasPromo) {
-        sel.value = "promo"; window.onCategoryChanged();
+    if (sel && sel.options.length >= 2) {
+        sel.options[0].disabled = !hasPromo; 
+        sel.options[1].disabled = !hasPrioritas; 
     }
 }
 
@@ -255,22 +269,54 @@ function updateServiceButtonUI() {
     localStorage.setItem('otp_service_price', currentServicePrice);
 }
 
-window.openServiceModal = function() { document.getElementById('serviceModal').classList.remove('hidden'); document.getElementById('searchServiceInput').value = ''; filterServices(); }
+window.openServiceModal = function() { 
+    document.getElementById('serviceModal').classList.remove('hidden'); 
+    const input = document.getElementById('searchServiceInput');
+    if (input) {
+        input.value = '';
+        setTimeout(() => input.focus(), 100);
+    }
+    filterServices(); 
+}
+
 window.closeServiceModal = function() { document.getElementById('serviceModal').classList.add('hidden'); }
 
 window.filterServices = function() {
     const query = document.getElementById('searchServiceInput').value.toLowerCase();
     const container = document.getElementById('serviceListContainer');
     container.innerHTML = '';
-    const filtered = allServices.filter(s => String(s.serviceName).toLowerCase().includes(query));
+    
+    let filtered = allServices.filter(s => String(s.serviceName).toLowerCase().includes(query));
+    
+    filtered.sort((a, b) => {
+        const isFavA = isFavorite(a.serviceName) ? 1 : 0;
+        const isFavB = isFavorite(b.serviceName) ? 1 : 0;
+        if (isFavA !== isFavB) return isFavB - isFavA;
+        return String(a.serviceName).localeCompare(String(b.serviceName));
+    });
+
     if(filtered.length === 0) { container.innerHTML = '<div class="status-text-mini">Tidak ditemukan.</div>'; return; }
 
     filtered.forEach(svc => {
         const isActive = (String(svc.serviceID) === String(currentServiceId));
+        const fav = isFavorite(svc.serviceName);
         const btn = document.createElement('div');
         let formattedPrice = rpFormatter.format(svc.price);
+        
         btn.style = `width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 13px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);`;
-        btn.innerHTML = `<div style="flex:1;">${svc.serviceName}</div><div style="font-size:11px; color: ${isActive ? 'var(--primary-color)' : 'var(--success-color)'}; font-weight: 900;">${formattedPrice}</div>`;
+        
+        const safeName = svc.serviceName.replace(/'/g, "\\'");
+        const starColor = fav ? '#ffc107' : 'var(--text-secondary)';
+        const starClass = fav ? 'fas fa-star' : 'far fa-star';
+
+        btn.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+                <i class="${starClass}" style="color: ${starColor}; font-size: 16px; cursor: pointer; padding: 4px;" onclick="toggleFavorite('${safeName}', event)"></i>
+                <span>${svc.serviceName}</span>
+            </div>
+            <div style="font-size:11px; color: ${isActive ? 'var(--primary-color)' : 'var(--success-color)'}; font-weight: 900;">${formattedPrice}</div>
+        `;
+        
         btn.onclick = () => {
             currentServiceId = svc.serviceID; 
             currentServiceName = svc.serviceName; 
