@@ -780,7 +780,7 @@ function startPolling() {
                             }
                             
                             let textSms = rawSms || "OTP DITERIMA";
-                            let extracted = textSms.match(/(?:G-)?[a-zA-Z0-9]{4,8}/i);
+                            let extracted = textSms.match(/\d{4,8}/);
                             o.otp = extracted ? extracted[0] : textSms;
                             
                             needsRender = true;
@@ -811,7 +811,7 @@ function startPolling() {
     };
     
     runPoll(); 
-    pollingInterval = setInterval(runPoll, 8000); // Interval diperlambat menjadi 8 detik
+    pollingInterval = setInterval(runPoll, 8000);
 }
 
 function saveToHistory(order, finalStatus) { 
