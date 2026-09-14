@@ -204,7 +204,7 @@
 
     <div class="app-container">
         <div class="shopee-header">
-            <h1 id="appTitleHeader">Catatan Affiliate</h1>
+            <h1 id="appTitleHeader">Catatan</h1>
         </div>
 
         <div class="section-card">
@@ -359,7 +359,7 @@
             if(currentDb) {
                 activeProductsName = currentDb.name;
                 localStorage.setItem('shopee_custom_product_name', activeProductsName);
-                document.getElementById('appTitleHeader').innerText = `Catatan Affiliate (${activeProductsName})`;
+                document.getElementById('appTitleHeader').innerText = `Catatan (${activeProductsName})`;
             }
 
             if(!document.getElementById('adminFeatureModal').classList.contains('hidden')){
