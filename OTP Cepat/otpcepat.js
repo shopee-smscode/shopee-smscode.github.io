@@ -93,7 +93,6 @@ function copyToClipboard(t) {
     } catch(e) { showToast("Gagal menyalin.", "error"); }
 }
 
-// PERBAIKAN 3: Dibuat sangat ringan tanpa header yang memicu CORS Preflight Request
 async function apiCall(action, extraParams = "") {
     if (!apiKey) return { status: "false", msg: "API Key Kosong" };
     const timeStamp = new Date().getTime(); 
@@ -106,9 +105,18 @@ async function apiCall(action, extraParams = "") {
         try { 
             return JSON.parse(text); 
         } catch (jsonErr) { 
-            return { status: "false", msg: "Respons API cacat" }; 
+            console.error("Gagal parse JSON. Respons mentah dari server:", text);
+            
+            // Menyembunyikan toast error jika masalah terjadi saat background polling
+            if (action === 'get_status') {
+                return { status: "false", msg: "silent_error" };
+            }
+            return { status: "false", msg: "Respons API cacat/Server sibuk." }; 
         }
     } catch (err) { 
+        if (action === 'get_status') {
+            return { status: "false", msg: "silent_error" };
+        }
         return { status: "false", msg: "Koneksi terputus: " + err.message }; 
     }
 }
@@ -427,7 +435,6 @@ function createOrderCard(order) {
         ? `<div class="otp-title">KODE OTP</div><div class="otp-code" style="margin:0 !important; letter-spacing: 4px !important;">${order.otp}</div><button class="btn-copy" onclick="copyToClipboard('${order.otp}')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: #000000; color: #ffcc00; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><i class="fas fa-copy"></i></button>` 
         : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text" style="font-size:11px; font-weight:800; color:var(--text-secondary); margin-top:8px;">MENUNGGU SMS...</div>`;
         
-    // PERBAIKAN 2: Penanganan tombol BATAL & ULANG yang benar
     let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
     
     if (isSuccess) {
@@ -437,7 +444,6 @@ function createOrderCard(order) {
         replaceBtnAttr = "disabled"; 
     } else {
         if (order.isResent) {
-            // Jika status ULANG: Tombol batal dimatikan karena API melarang cancel saat minta ulang
             cancelBtnAttr = "disabled"; 
             replaceBtnAttr = "disabled"; 
             resendBtnAttr = "disabled"; 
@@ -594,7 +600,6 @@ function startTimerTick() {
     timerWorker.postMessage('start');
 }
 
-// PERBAIKAN 1A: Pencegahan hilangnya order sebelum server menyatakan sukses
 window.setOrderStatus = async function(orderId, statusCode) {
     const btnId = statusCode === 2 ? `btn-cancel-${orderId}` : `btn-finish-${orderId}`;
     const btn = document.getElementById(btnId);
@@ -607,7 +612,6 @@ window.setOrderStatus = async function(orderId, statusCode) {
     try {
         const res = await apiCall('set_status', `&order_id=${orderId}&status=${statusCode}`);
         
-        // HANYA hapus lokal jika server mengkonfirmasi kesuksesan
         if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
             if (statusCode === 2) saveToHistory(orderToSave, "BATAL");
             if (statusCode === 4) saveToHistory(orderToSave, "SELESAI");
@@ -623,7 +627,6 @@ window.setOrderStatus = async function(orderId, statusCode) {
                 renderOrders();
             }, 300);
         } else {
-            // JIKA GAGAL, KEMBALIKAN TOMBOL & JANGAN HAPUS PESANAN
             showToast(res.msg || "Gagal mengubah status di server", "error");
             if(btn) { btn.disabled = false; btn.innerHTML = statusCode === 2 ? '<i class="fas fa-times"></i> Batal' : '<i class="fas fa-check"></i> Selesai'; }
         }
@@ -714,7 +717,6 @@ window.replaceSpecificOrder = async function(id) {
     finally { saveActiveOrders(); fetchBalance(); renderOrders(); }
 }
 
-// PERBAIKAN 1B: Batal massal difilter berdasarkan yang sukses di API
 window.cancelAllOldOrders = async function() {
     if (activeOrders.length <= 1) return;
     const oldOrders = activeOrders.slice(1);
@@ -778,7 +780,6 @@ function startPolling() {
                             }
                             
                             let textSms = rawSms || "OTP DITERIMA";
-                            // PERBAIKAN 4: Regex mendeteksi kode alfanumerik (seperti G-123456 atau a1b2c3d)
                             let extracted = textSms.match(/(?:G-)?[a-zA-Z0-9]{4,8}/i);
                             o.otp = extracted ? extracted[0] : textSms;
                             
@@ -794,7 +795,6 @@ function startPolling() {
         }));
         
         if (ordersToRemove.length > 0) {
-            // PERBAIKAN DATA: Jika server membatalkan diam-diam, rekam ke riwayat lokal
             ordersToRemove.forEach(id => {
                 let or = activeOrders.find(x => x.id === id);
                 if(or) saveToHistory(or, "BATAL SERVER");
@@ -811,7 +811,7 @@ function startPolling() {
     };
     
     runPoll(); 
-    pollingInterval = setInterval(runPoll, 4000); 
+    pollingInterval = setInterval(runPoll, 8000); // Interval diperlambat menjadi 8 detik
 }
 
 function saveToHistory(order, finalStatus) { 
