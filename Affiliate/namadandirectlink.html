@@ -210,7 +210,7 @@
 
     <div class="app-container">
         <div class="shopee-header">
-            <h1>Catatan Affiliate (15 Devices Sync)</h1>
+            <h1 id="appTitleHeader">Catatan Affiliate (15 Devices Sync)</h1>
         </div>
 
         <div class="section-card">
@@ -246,6 +246,38 @@
         </div>
     </div>
 
+    <!-- TOMBOL MELAYANG ADMIN (FLOATING BUTTON) -->
+    <button onclick="openAdminFeatureModal()" style="position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; border-radius: 50%; background: var(--shopee-orange); color: white; border: none; font-size: 20px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 1200; display: flex; align-items: center; justify-content: center;" title="Panel Admin Affiliate Baru"><i class="fas fa-user-shield"></i></button>
+
+    <!-- MODAL PANEL ADMIN -->
+    <div id="adminFeatureModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 400px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--shopee-orange); padding-bottom: 10px; margin-bottom: 15px;">
+                <h3 style="margin:0; font-size: 16px; color: var(--shopee-orange);">🔒 Panel Admin Affiliate Baru</h3>
+                <button onclick="closeAdminFeatureModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--danger-red);">✖</button>
+            </div>
+            
+            <div id="adminLoginForm">
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Masukkan sandi admin untuk membuat atau beralih ke tampilan affiliate baru:</div>
+                <input type="password" id="adminPasswordInput" placeholder="Masukkan Sandi..." style="width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none;">
+                <button class="btn-main-large" style="background: var(--shopee-orange); padding: 12px; margin-bottom: 10px; font-size: 13px;" onclick="verifyAdminPassword()">MASUK ADMIN</button>
+            </div>
+
+            <div id="adminPanelContent" style="display: none;">
+                <div style="font-size: 13px; color: var(--success-green); font-weight: bold; margin-bottom: 10px;">✅ Akses Diterima! Pilih Mode:</div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-size: 12px; font-weight: bold; color: var(--text-main); display: block; margin-bottom: 5px;">ID / Nama Jalur Database Affiliate:</label>
+                    <input type="text" id="targetAffiliatePathInput" value="products_db" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; font-size: 13px;">
+                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 3px;">Ganti teks (misal: <code>products_db_user2</code>) untuk membuat tampilan baru dengan data produk yang berbeda, namun generator alamat tetap sama.</div>
+                </div>
+
+                <button class="btn-main-large" style="background: var(--success-green); padding: 12px; margin-bottom: 10px; font-size: 13px;" onclick="applyNewAffiliatePath()">TERAPKAN TAMPILAN INI</button>
+                <button class="btn-main-large" style="background: var(--text-muted); padding: 10px; font-size: 12px;" onclick="resetToDefaultAffiliatePath()">Kembali ke Default Utama</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL PENGATURAN WILAYAH (ALAMAT) -->
     <div id="addressSettingsModal" class="modal hidden">
         <div class="modal-content">
@@ -254,7 +286,7 @@
                 <button onclick="closeAddressSettingsModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--danger-red);">✖</button>
             </div>
             
-            <div style="text-align: left; font-size: 12px; color: var(--text-muted); margin-bottom: 10px; font-weight: 500;">Aktifkan provinsi yang ingin digunakan saat mengacak alamat (Tersinkronisasi 15 HP):</div>
+            <div style="text-align: left; font-size: 12px; color: var(--text-muted); margin-bottom: 10px; font-weight: 500;">Aktifkan provinsi yang ingin digunakan saat mengacak alamat (Tersinkronisasi 15 HP)[span_3](start_span)[span_3](end_span):</div>
             
             <div id="provinceTogglesContainer" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; padding-right: 4px;">
             </div>
@@ -307,6 +339,66 @@
         };
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.database();
+
+        // Variabel Jalur Database Produk Aktif (Bisa Diubah via Panel Admin)
+        let activeProductsNode = localStorage.getItem('shopee_custom_product_node') || 'products_db';
+
+        // ================= LOGIKA PANEL ADMIN BARU =================
+        window.openAdminFeatureModal = function() {
+            document.getElementById('adminFeatureModal').classList.remove('hidden');
+            document.getElementById('adminPasswordInput').value = '';
+            document.getElementById('adminLoginForm').style.display = 'block';
+            document.getElementById('adminPanelContent').style.display = 'none';
+        }
+
+        window.closeAdminFeatureModal = function() {
+            document.getElementById('adminFeatureModal').classList.add('hidden');
+        }
+
+        window.verifyAdminPassword = function() {
+            const pass = document.getElementById('adminPasswordInput').value;
+            if (pass === "Aku123..") {
+                document.getElementById('adminLoginForm').style.display = 'none';
+                document.getElementById('adminPanelContent').style.display = 'block';
+                document.getElementById('targetAffiliatePathInput').value = activeProductsNode;
+                tampilkanToast("✅ Sandi Admin Benar!");
+            } else {
+                tampilkanToast("❌ Sandi Salah!");
+            }
+        }
+
+        window.applyNewAffiliatePath = function() {
+            let newNode = document.getElementById('targetAffiliatePathInput').value.trim();
+            if(!newNode) {
+                tampilkanToast("⚠️ Nama jalur tidak boleh kosong!");
+                return;
+            }
+            activeProductsNode = newNode;
+            localStorage.setItem('shopee_custom_product_node', activeProductsNode);
+            
+            // Perbarui header agar tahu sedang di jalur mana
+            document.getElementById('appTitleHeader').innerText = `Catatan Affiliate (${activeProductsNode})`;
+            
+            closeAdminFeatureModal();
+            tampilkanToast(`✅ Beralih ke data: ${activeProductsNode}`);
+            
+            // Muat ulang pendengar database produk untuk jalur baru
+            initProductsSync();
+        }
+
+        window.resetToDefaultAffiliatePath = function() {
+            activeProductsNode = 'products_db';
+            localStorage.setItem('shopee_custom_product_node', activeProductsNode);
+            document.getElementById('appTitleHeader').innerText = "Catatan Affiliate (15 Devices Sync)";
+            closeAdminFeatureModal();
+            tampilkanToast("✅ Kembali ke jalur default utama");
+            initProductsSync();
+        }
+
+        // Set judul awal jika ada custom tersimpan
+        if(activeProductsNode !== 'products_db') {
+            document.getElementById('appTitleHeader').innerText = `Catatan Affiliate (${activeProductsNode})`;
+        }
 
         // ================= LOGIKA PENGATURAN WILAYAH ALAMAT =================
         const ALL_PROVINCES_LIST = [
@@ -478,9 +570,7 @@
         btnGenerate.addEventListener("click", generateCompleteData);
 
         // ================= LOGIKA PRODUK AFFILIATE (TAMPILAN UTAMA) =================
-        const productsRef = db.ref('shopee_affiliate/products_db');
-        const flagRef = db.ref('shopee_affiliate/flagged_links');
-        const usedLinksRef = db.ref('shopee_affiliate/used_links');
+        let productsRef, flagRef, usedLinksRef;
         
         const productList = document.getElementById('productList');
         const statusDiv = document.getElementById('status');
@@ -494,7 +584,6 @@
         let pendingFlagId = null;
         let pendingFlagTimer = null;
         
-        // Perekam Jejak Buka/Tutup di Layar Utama
         let expandedMainStores = {}; 
 
         function encodeFirebaseKey(str) { 
@@ -522,6 +611,18 @@
         }
         
         function initProductsSync() {
+            // Putus koneksi listener sebelumnya agar tidak numpuk
+            if(productsRef) productsRef.off();
+            if(flagRef) flagRef.off();
+            if(usedLinksRef) usedLinksRef.off();
+
+            productsRef = db.ref(`shopee_affiliate/${activeProductsNode}`);
+            flagRef = db.ref(`shopee_affiliate/${activeProductsNode}_flagged_links`);
+            usedLinksRef = db.ref(`shopee_affiliate/${activeProductsNode}_used_links`);
+
+            statusDiv.style.display = 'block';
+            statusDiv.innerText = 'Memuat produk dari Firebase...';
+
             productsRef.on('value', snap => {
                 statusDiv.style.display = 'none';
                 groupedProducts = snap.val() || [];
@@ -546,6 +647,9 @@
                 renderColumns();
                 updateProgressBar(); 
             });
+
+            listenToFlags();
+            listenToProgress();
         }
 
         function listenToFlags() {
@@ -689,7 +793,6 @@
                             <button class="${flagBtnClass}" onclick="toggleFlag('${linkKey}', ${isFlagged})">${isFlagged ? '❌' : (isPending ? '✖' : '✖')}</button>
                         `;
 
-                        // PISAHKAN PRODUK KE-6 DAN SETERUSNYA (Tampilan Utama)
                         if (pIdx < 5) {
                             columnLi.appendChild(prodDiv);
                         } else {
@@ -698,7 +801,6 @@
                         }
                     });
 
-                    // TAMBAHKAN TOMBOL TOGGLE JIKA ADA PRODUK TERSEMBUNYI
                     if (hasHidden) {
                         columnLi.appendChild(hiddenContainer);
                         
@@ -706,7 +808,6 @@
                         let isExpanded = !!expandedMainStores[index];
                         toggleBtn.innerHTML = isExpanded ? '<i class="fas fa-chevron-up"></i> Sembunyikan' : `<i class="fas fa-chevron-down"></i> Tampilkan ${sortedProducts.length - 5} Lainnya`;
                         
-                        // Gaya tombol dropdown di layar utama
                         toggleBtn.style.cssText = "width: 100%; padding: 10px; border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer; text-align: center; margin-top: 5px; border: 1px dashed #ccc; background: transparent; color: var(--text-muted); transition: 0.2s;";
                         
                         toggleBtn.onclick = () => {
@@ -754,7 +855,7 @@
             
             let percentage = (sisa / activeLinksTotal) * 100;
             document.getElementById('progressBar').style.width = percentage + '%';
-            document.getElementById('progressText').innerText = `Tersisa ${sisa} dari ${activeLinksTotal} Link Aktif (Sync 15 HP)`;
+            document.getElementById('progressText').innerText = `Tersisa ${sisa} dari ${activeLinksTotal} Link Aktif (${activeProductsNode})`;
         }
 
         function listenToProgress() {
@@ -1122,8 +1223,6 @@
 
         // ================= EKSEKUSI AWAL =================
         initProductsSync();
-        listenToFlags();
-        listenToProgress();
     </script>
 </body>
 </html>
