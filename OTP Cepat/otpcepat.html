@@ -180,16 +180,24 @@
             if (app && app.classList.contains('show')) app.classList.remove('show');
             document.getElementById("menuDropdown").classList.toggle("show");
         }
+        
+        // Pembaruan event listener untuk menutup semua dropdown saat di klik area luar
         window.onclick = function(event) {
             if (!event.target.matches('.dropbtn') && !event.target.closest('.dropbtn') && 
                 !event.target.matches('.dropbtn-icon') && !event.target.closest('.dropbtn-icon')) {
+                
                 var dropdowns = document.getElementsByClassName("dropdown-content");
                 for (var i = 0; i < dropdowns.length; i++) {
-                    var openDropdown = dropdowns[i];
-                    if (openDropdown.classList.contains('show')) openDropdown.classList.remove('show');
+                    if (dropdowns[i].classList.contains('show')) dropdowns[i].classList.remove('show');
+                }
+                
+                var appDropdowns = document.getElementsByClassName("app-dropdown-menu");
+                for (var j = 0; j < appDropdowns.length; j++) {
+                    if (appDropdowns[j].classList.contains('show')) appDropdowns[j].classList.remove('show');
                 }
             }
         }
+        
         function openIframeNoteModal() { document.getElementById('iframeNoteModal').classList.remove('hidden'); }
         function closeIframeNoteModal() { document.getElementById('iframeNoteModal').classList.add('hidden'); }
     </script>

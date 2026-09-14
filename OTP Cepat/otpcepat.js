@@ -93,29 +93,24 @@ function copyToClipboard(t) {
     } catch(e) { showToast("Gagal menyalin.", "error"); }
 }
 
+// PERBAIKAN 3: Dibuat sangat ringan tanpa header yang memicu CORS Preflight Request
 async function apiCall(action, extraParams = "") {
     if (!apiKey) return { status: "false", msg: "API Key Kosong" };
     const timeStamp = new Date().getTime(); 
     const url = `${API_BASE_URL}?api_key=${apiKey}&action=${action}${extraParams}&_t=${timeStamp}`;
+    
     try {
-        const response = await fetch(url, { 
-            cache: 'no-store',
-            headers: {
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0'
-            }
-        });
+        const response = await fetch(url, { cache: 'no-store' });
         const text = await response.text();
-        if (text.includes("STATUS_WAIT_CODE")) return { status: "true", data: { status: "Waiting" } };
-        if (text.includes("STATUS_OK")) {
-            let codeParts = text.split(":");
-            let code = codeParts.length > 1 ? codeParts[1] : "OTP DITERIMA";
-            return { status: "true", data: { status: "Done", otp: code, sms: code } };
+        
+        try { 
+            return JSON.parse(text); 
+        } catch (jsonErr) { 
+            return { status: "false", msg: "Respons API cacat" }; 
         }
-        if (text.includes("STATUS_CANCEL")) return { status: "true", data: { status: "Cancel" } };
-        try { return JSON.parse(text); } catch (jsonErr) { return { status: "false", msg: "Respons API cacat" }; }
-    } catch (err) { return { status: "false", msg: "Koneksi terputus: " + err.message }; }
+    } catch (err) { 
+        return { status: "false", msg: "Koneksi terputus: " + err.message }; 
+    }
 }
 
 function openSettingsModal() { 
@@ -432,9 +427,28 @@ function createOrderCard(order) {
         ? `<div class="otp-title">KODE OTP</div><div class="otp-code" style="margin:0 !important; letter-spacing: 4px !important;">${order.otp}</div><button class="btn-copy" onclick="copyToClipboard('${order.otp}')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: #000000; color: #ffcc00; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><i class="fas fa-copy"></i></button>` 
         : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text" style="font-size:11px; font-weight:800; color:var(--text-secondary); margin-top:8px;">MENUNGGU SMS...</div>`;
         
+    // PERBAIKAN 2: Penanganan tombol BATAL & ULANG yang benar
     let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
-    if (isSuccess) { finishBtnAttr = ""; resendBtnAttr = ""; cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; } 
-    else { cancelBtnAttr = ""; replaceBtnAttr = ""; resendBtnAttr = "disabled"; } 
+    
+    if (isSuccess) {
+        finishBtnAttr = ""; 
+        resendBtnAttr = ""; 
+        cancelBtnAttr = "disabled"; 
+        replaceBtnAttr = "disabled"; 
+    } else {
+        if (order.isResent) {
+            // Jika status ULANG: Tombol batal dimatikan karena API melarang cancel saat minta ulang
+            cancelBtnAttr = "disabled"; 
+            replaceBtnAttr = "disabled"; 
+            resendBtnAttr = "disabled"; 
+            finishBtnAttr = "disabled";
+        } else {
+            cancelBtnAttr = ""; 
+            replaceBtnAttr = ""; 
+            resendBtnAttr = "disabled";
+            finishBtnAttr = "disabled";
+        }
+    } 
     
     let headerLogoUrl = getOperatorLogo(order.operatorName); 
     let fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
@@ -580,6 +594,7 @@ function startTimerTick() {
     timerWorker.postMessage('start');
 }
 
+// PERBAIKAN 1A: Pencegahan hilangnya order sebelum server menyatakan sukses
 window.setOrderStatus = async function(orderId, statusCode) {
     const btnId = statusCode === 2 ? `btn-cancel-${orderId}` : `btn-finish-${orderId}`;
     const btn = document.getElementById(btnId);
@@ -591,25 +606,30 @@ window.setOrderStatus = async function(orderId, statusCode) {
 
     try {
         const res = await apiCall('set_status', `&order_id=${orderId}&status=${statusCode}`);
-        if (res.status !== "true" && res.status !== true && res.status != 1 && String(res.status).toLowerCase() !== "success") {
-            console.warn("API Menolak Status " + statusCode, res);
+        
+        // HANYA hapus lokal jika server mengkonfirmasi kesuksesan
+        if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
+            if (statusCode === 2) saveToHistory(orderToSave, "BATAL");
+            if (statusCode === 4) saveToHistory(orderToSave, "SELESAI");
+            
+            const card = document.getElementById(`order-card-${orderId}`);
+            if (card) card.classList.add('removing');
+            
+            setTimeout(() => {
+                activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId));
+                saveActiveOrders();
+                fetchBalance();
+                showToast(statusCode === 2 ? "Pesanan Dibatalkan" : "Pesanan Selesai");
+                renderOrders();
+            }, 300);
+        } else {
+            // JIKA GAGAL, KEMBALIKAN TOMBOL & JANGAN HAPUS PESANAN
+            showToast(res.msg || "Gagal mengubah status di server", "error");
+            if(btn) { btn.disabled = false; btn.innerHTML = statusCode === 2 ? '<i class="fas fa-times"></i> Batal' : '<i class="fas fa-check"></i> Selesai'; }
         }
-    } catch (e) { console.error("Gagal", e); } 
-    finally {
-        if (statusCode === 2) saveToHistory(orderToSave, "BATAL");
-        if (statusCode === 4) saveToHistory(orderToSave, "SELESAI");
-        
-        const card = document.getElementById(`order-card-${orderId}`);
-        if (card) card.classList.add('removing');
-        
-        setTimeout(() => {
-            activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId));
-            saveActiveOrders();
-            fetchBalance();
-            if (statusCode === 2) showToast("Pesanan Dibatalkan");
-            if (statusCode === 4) showToast("Pesanan Selesai");
-            renderOrders();
-        }, 300);
+    } catch (e) { 
+        showToast("Gagal memproses permintaan", "error"); 
+        if(btn) { btn.disabled = false; btn.innerHTML = statusCode === 2 ? '<i class="fas fa-times"></i> Batal' : '<i class="fas fa-check"></i> Selesai'; }
     }
 }
 
@@ -651,63 +671,80 @@ window.replaceSpecificOrder = async function(id) {
         const oldOrder = activeOrders.find(o => String(o.id) === String(id));
         if (!oldOrder) return;
 
-        await apiCall('set_status', `&order_id=${id}&status=2`);
-        saveToHistory(oldOrder, "GANTI");
-        activeOrders = activeOrders.filter(o => String(o.id) !== String(id));
-        showToast("Mencari nomor pengganti...");
-        
-        let opCode = oldOrder.operatorName === "ACAK" ? "random" : String(oldOrder.operatorName).toLowerCase();
-        const res = await apiCall('get_order', `&operator_id=${opCode}&service_id=${currentServiceId}&country_id=${currentCountryId}`);
-        
-        if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
-            const orderData = res.data || res;
-            let oId = orderData.order_id || orderData.id;
-            let oPhone = orderData.number || orderData.phone || orderData.phone_number;
-            let finalPrice = orderData.price || currentServicePrice;
+        let cancelRes = await apiCall('set_status', `&order_id=${id}&status=2`);
+        if (cancelRes.status === "true" || cancelRes.status === true || cancelRes.status == 1 || String(cancelRes.status).toLowerCase() === "success") {
+            saveToHistory(oldOrder, "GANTI");
+            activeOrders = activeOrders.filter(o => String(o.id) !== String(id));
+            showToast("Mencari nomor pengganti...");
             
-            if (oId && oPhone) {
-                let serverOperator = orderData.operator || orderData.operator_name || orderData.operator_id;
-                let opNameDisplay = oldOrder.operatorName;
-                if (oldOrder.operatorName === "ACAK" || currentOperator === "random") {
-                    if (serverOperator && String(serverOperator).toLowerCase() !== "random" && String(serverOperator).toLowerCase() !== "any") { opNameDisplay = serverOperator; } 
-                    else { opNameDisplay = guessOperator(oPhone); }
-                }
+            let opCode = oldOrder.operatorName === "ACAK" ? "random" : String(oldOrder.operatorName).toLowerCase();
+            const res = await apiCall('get_order', `&operator_id=${opCode}&service_id=${currentServiceId}&country_id=${currentCountryId}`);
+            
+            if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
+                const orderData = res.data || res;
+                let oId = orderData.order_id || orderData.id;
+                let oPhone = orderData.number || orderData.phone || orderData.phone_number;
+                let finalPrice = orderData.price || currentServicePrice;
                 
-                const nowStamp = Date.now();
-                activeOrders.unshift({ 
-                    id: oId, phone: oPhone, serviceName: currentServiceName, operatorName: opNameDisplay, price: finalPrice, 
-                    otp: null, status: "Waiting SMS", 
-                    createdAt: nowStamp, 
-                    expiresAt: nowStamp + (20 * 60 * 1000), 
-                    originalExpiresAt: nowStamp + (20 * 60 * 1000),
-                    hasReceivedOTP: false,
-                    isResent: false
-                });
-                copyToClipboard(oPhone); showToast("Berhasil mendapat nomor baru!");
-            }
-        } else { showToast("Gagal mencari ganti: " + (res.msg || "Stok Kosong"), "error"); }
+                if (oId && oPhone) {
+                    let serverOperator = orderData.operator || orderData.operator_name || orderData.operator_id;
+                    let opNameDisplay = oldOrder.operatorName;
+                    if (oldOrder.operatorName === "ACAK" || currentOperator === "random") {
+                        if (serverOperator && String(serverOperator).toLowerCase() !== "random" && String(serverOperator).toLowerCase() !== "any") { opNameDisplay = serverOperator; } 
+                        else { opNameDisplay = guessOperator(oPhone); }
+                    }
+                    
+                    const nowStamp = Date.now();
+                    activeOrders.unshift({ 
+                        id: oId, phone: oPhone, serviceName: currentServiceName, operatorName: opNameDisplay, price: finalPrice, 
+                        otp: null, status: "Waiting SMS", 
+                        createdAt: nowStamp, 
+                        expiresAt: nowStamp + (20 * 60 * 1000), 
+                        originalExpiresAt: nowStamp + (20 * 60 * 1000),
+                        hasReceivedOTP: false,
+                        isResent: false
+                    });
+                    copyToClipboard(oPhone); showToast("Berhasil mendapat nomor baru!");
+                }
+            } else { showToast("Gagal mencari ganti: " + (res.msg || "Stok Kosong"), "error"); }
+        } else {
+            showToast("Gagal membatalkan nomor lama di server", "error");
+        }
     } catch (e) { showToast("Error sistem: " + e.message, "error"); } 
     finally { saveActiveOrders(); fetchBalance(); renderOrders(); }
 }
 
+// PERBAIKAN 1B: Batal massal difilter berdasarkan yang sukses di API
 window.cancelAllOldOrders = async function() {
     if (activeOrders.length <= 1) return;
     const oldOrders = activeOrders.slice(1);
     const btnAll = document.getElementById("btn-cancel-all-old");
     if(btnAll) { btnAll.disabled = true; btnAll.innerHTML = '<div class="loader" style="border-top-color:var(--danger-color); border-width: 2px; width: 14px; height: 14px;"></div>'; }
-    showToast(`Membatalkan ${oldOrders.length} pesanan lama...`, "warning");
+    showToast(`Memproses ${oldOrders.length} pesanan lama...`, "warning");
     
     const cancelPromises = oldOrders.map(async (order) => {
-        try { await apiCall('set_status', `&order_id=${order.id}&status=2`); } catch(e) {}
-        saveToHistory(order, "BATAL"); 
-        return order.id; 
+        try { 
+            let res = await apiCall('set_status', `&order_id=${order.id}&status=2`); 
+            if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
+                saveToHistory(order, "BATAL");
+                return order.id;
+            }
+        } catch(e) {}
+        return null; 
     });
     
     const results = await Promise.all(cancelPromises);
-    results.forEach(id => { activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); });
+    const successfulIds = results.filter(id => id !== null);
     
-    saveActiveOrders(); fetchBalance();
-    showToast(`${results.length} pesanan lama dibersihkan.`, "success");
+    if (successfulIds.length > 0) {
+        activeOrders = activeOrders.filter(o => !successfulIds.includes(o.id));
+        saveActiveOrders(); fetchBalance();
+        showToast(`${successfulIds.length} pesanan berhasil dibatalkan.`, "success");
+    } else {
+        showToast("Gagal. Pesanan mungkin error di server atau sudah selesai.", "error");
+    }
+    
+    if(btnAll) { btnAll.disabled = false; btnAll.innerHTML = `<i class="fas fa-trash-alt"></i> Batalkan Semua Pesanan Lama`; }
     if (activeOrders.length <= 1) isDroplistOpen = false;
     renderOrders();
 };
@@ -741,11 +778,11 @@ function startPolling() {
                             }
                             
                             let textSms = rawSms || "OTP DITERIMA";
-                            let extracted = textSms.match(/\b\d{4,8}\b/);
+                            // PERBAIKAN 4: Regex mendeteksi kode alfanumerik (seperti G-123456 atau a1b2c3d)
+                            let extracted = textSms.match(/(?:G-)?[a-zA-Z0-9]{4,8}/i);
                             o.otp = extracted ? extracted[0] : textSms;
                             
                             needsRender = true;
-                            try { if (typeof notifSound !== 'undefined') { notifSound.play().catch(e=>{}); } } catch (sndErr) {}
                             
                         } else if (apiStatus.includes("cancel") || apiStatus.includes("failed") || apiStatus.includes("batal") || apiStatus === "3") {
                             ordersToRemove.push(o.id);
@@ -757,6 +794,11 @@ function startPolling() {
         }));
         
         if (ordersToRemove.length > 0) {
+            // PERBAIKAN DATA: Jika server membatalkan diam-diam, rekam ke riwayat lokal
+            ordersToRemove.forEach(id => {
+                let or = activeOrders.find(x => x.id === id);
+                if(or) saveToHistory(or, "BATAL SERVER");
+            });
             activeOrders = activeOrders.filter(o => !ordersToRemove.includes(o.id));
         }
         
@@ -794,7 +836,7 @@ function renderHistory() {
         card.style = "background: var(--bg-card); padding: 10px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 11px;";
         let statusColor = "var(--text-secondary)"; 
         if (item.status === "SELESAI") statusColor = "var(--success-color)"; 
-        if (item.status === "BATAL") statusColor = "var(--danger-color)";
+        if (item.status.includes("BATAL")) statusColor = "var(--danger-color)";
         const dt = new Date(item.date); 
         const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
         
