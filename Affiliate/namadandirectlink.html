@@ -45,7 +45,7 @@
         .shopee-header {
             background-color: var(--shopee-orange);
             color: white;
-            padding: 16px 60px 16px 60px; /* Padding kiri-kanan ditambah agar teks tidak tertutup ikon */
+            padding: 16px 60px 16px 60px;
             text-align: center;
             position: sticky;
             top: 0;
@@ -244,7 +244,7 @@
     <div id="adminFeatureModal" class="modal hidden">
         <div class="modal-content" style="max-width: 400px;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--shopee-orange); padding-bottom: 10px; margin-bottom: 15px;">
-                <h3 style="margin:0; font-size: 16px; color: var(--shopee-orange);">🔒 Panel Admin Affiliate Baru</h3>
+                <h3 style="margin:0; font-size: 16px; color: var(--shopee-orange);">🔒 Panel Admin Database</h3>
                 <button onclick="closeAdminFeatureModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--danger-red);">✖</button>
             </div>
             
@@ -257,12 +257,15 @@
             <div id="adminPanelContent" style="display: none;">
                 <div style="font-size: 13px; color: var(--success-green); font-weight: bold; margin-bottom: 10px;">✅ Akses Diterima!</div>
                 
-                <!-- BUAT DATABASE BARU -->
+                <!-- BUAT / HUBUNGKAN DATABASE BARU -->
                 <div style="margin-bottom: 15px; background: #f9f9f9; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-                    <label style="font-size: 12px; font-weight: bold; color: var(--text-main); display: block; margin-bottom: 8px;">Tambah Database Baru:</label>
-                    <div style="display: flex; gap: 8px;">
-                        <input type="text" id="newDbNameInput" placeholder="Nama Database..." style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; font-size: 13px; outline: none;">
-                        <button style="background: var(--success-green); color: white; border: none; padding: 0 15px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold;" onclick="addDatabase()">BUAT</button>
+                    <label style="font-size: 12px; font-weight: bold; color: var(--text-main); display: block; margin-bottom: 8px;">Tambah / Hubungkan Database:</label>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <input type="text" id="newDbNameInput" placeholder="Nama Database (Cth: Cadangan)..." style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; font-size: 13px; outline: none;">
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="newDbIdInput" placeholder="ID (Opsional, Cth: products_db_2)..." style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; font-size: 13px; outline: none;">
+                            <button style="background: var(--success-green); color: white; border: none; padding: 0 15px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold;" onclick="addDatabase()">SIMPAN</button>
+                        </div>
                     </div>
                 </div>
 
@@ -294,7 +297,7 @@
         </div>
     </div>
 
-    <!-- MODAL KELOLA DATABASE PRODUK (DIUBAH KE HORIZONTAL) -->
+    <!-- MODAL KELOLA DATABASE PRODUK -->
     <div id="editorModal" class="modal hidden">
         <div class="modal-content" style="height: 85vh;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--shopee-orange); padding-bottom: 10px; margin-bottom: 10px; flex-shrink: 0;">
@@ -307,7 +310,6 @@
             </div>
 
             <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0;">
-                <!-- Petunjuk Geser Samping -->
                 <div style="text-align: center; font-size: 11px; color: var(--text-muted); font-weight: bold; animation: pulse 2s infinite;">
                     <i class="fas fa-chevron-left"></i> Geser layar ke samping untuk toko lainnya <i class="fas fa-chevron-right"></i>
                 </div>
@@ -343,7 +345,6 @@
         let databaseList = [];
         const dbListRef = db.ref('shopee_affiliate/database_list');
 
-        // Set judul awal dari localstorage
         document.getElementById('appTitleHeader').innerText = `Catatan Affiliate (${activeProductsName})`;
 
         dbListRef.on('value', snap => {
@@ -354,7 +355,6 @@
                 dbListRef.set(databaseList);
             }
             
-            // Sync nama database aktif ke Header jika ada perubahan nama dari admin
             let currentDb = databaseList.find(dbItem => dbItem.id === activeProductsNode);
             if(currentDb) {
                 activeProductsName = currentDb.name;
@@ -415,21 +415,27 @@
         }
 
         window.addDatabase = function() {
-            const input = document.getElementById('newDbNameInput');
-            const name = input.value.trim();
+            const name = document.getElementById('newDbNameInput').value.trim();
+            const customId = document.getElementById('newDbIdInput').value.trim();
+            
             if(!name) return tampilkanToast("⚠️ Nama tidak boleh kosong!");
             
-            // Random ID Generator for New DB
-            const newId = 'products_db_' + Date.now();
+            const newId = customId ? customId : 'products_db_' + Date.now();
+            
+            if(databaseList.some(db => db.id === newId)) {
+                return tampilkanToast("⚠️ ID Database sudah ada di list!");
+            }
+
             databaseList.push({id: newId, name: name});
             dbListRef.set(databaseList);
             
-            input.value = '';
-            tampilkanToast("✅ Database baru berhasil dibuat!");
+            document.getElementById('newDbNameInput').value = '';
+            document.getElementById('newDbIdInput').value = '';
+            tampilkanToast("✅ Database berhasil ditambahkan/dihubungkan!");
         }
 
         window.switchDatabase = function(id, name) {
-            if(activeProductsNode === id) return; // Jika sudah aktif, hiraukan
+            if(activeProductsNode === id) return;
             
             activeProductsNode = id;
             activeProductsName = name;
@@ -437,10 +443,9 @@
             localStorage.setItem('shopee_custom_product_name', name);
             
             document.getElementById('appTitleHeader').innerText = `Catatan Affiliate (${name})`;
-            renderDatabaseList(); // Refresh tampilan list (Update border yg aktif)
+            renderDatabaseList();
             tampilkanToast(`✅ Beralih ke: ${name}`);
             
-            // Muat ulang listener database produk untuk ID baru
             initProductsSync();
         }
 
@@ -459,17 +464,15 @@
                 return tampilkanToast("⚠️ Database Utama tidak boleh dihapus!");
             }
             
-            const pass = prompt(`⚠️ PERHATIAN!\n\nMasukkan sandi admin untuk MENGHAPUS database "${dbItem.name}" beserta seluruh isinya:`);
+            const pass = prompt(`⚠️ PERHATIAN!\n\nMasukkan sandi admin untuk MENGHAPUS database "${dbItem.name}" beserta daftar list produknya:`);
             
             if (pass === "Aku123..") {
                 const dbId = dbItem.id;
                 
-                // Hapus data produk dari firebase untuk pembersihan memori
+                // Menghapus data produk, tetapi TIDAK menghapus data FLAG
+                // Agar status flag produk tetap aman secara global
                 db.ref(`shopee_affiliate/${dbId}`).remove();
-                db.ref(`shopee_affiliate/${dbId}_flagged_links`).remove();
-                db.ref(`shopee_affiliate/${dbId}_used_links`).remove();
 
-                // Jika database yang dihapus sedang dipakai/aktif, paksa beralih ke Default Utama
                 if (activeProductsNode === dbId) {
                     switchDatabase('products_db', databaseList[0].name);
                 }
@@ -693,14 +696,18 @@
         }
         
         function initProductsSync() {
-            // Putus koneksi listener sebelumnya agar tidak numpuk
             if(productsRef) productsRef.off();
             if(flagRef) flagRef.off();
             if(usedLinksRef) usedLinksRef.off();
 
+            // Produk dinamis sesuai database yang dipilih (activeProductsNode)
             productsRef = db.ref(`shopee_affiliate/${activeProductsNode}`);
-            flagRef = db.ref(`shopee_affiliate/${activeProductsNode}_flagged_links`);
-            usedLinksRef = db.ref(`shopee_affiliate/${activeProductsNode}_used_links`);
+            
+            // FLAG DIBUAT GLOBAL (Berdasarkan node master products_db)
+            // Ini memastikan status flag dan timer tersimpan secara permanen 
+            // di semua database buatan Anda.
+            flagRef = db.ref(`shopee_affiliate/products_db_flagged_links`);
+            usedLinksRef = db.ref(`shopee_affiliate/products_db_used_links`);
 
             statusDiv.style.display = 'block';
             statusDiv.innerText = `Memuat data (${activeProductsName}) ...`;
@@ -910,6 +917,18 @@
             
             if (wrapper) wrapper.scrollLeft = currentScrollLeft;
         }
+
+        // ================= TIMER LATAR BELAKANG (LIVE TIMER) =================
+        // Menjalankan pengecekan setiap 30 detik tanpa reload halaman 
+        // sehingga warna hijau (24 jam) akan otomatis muncul saat waktunya tiba.
+        setInterval(() => {
+            if (groupedProducts && groupedProducts.length > 0) {
+                renderColumns();
+                if(!document.getElementById('editorModal').classList.contains('hidden')) {
+                    renderEditorUI();
+                }
+            }
+        }, 30000);
 
         window.salinAcakDariGrup = function(groupIndex) {
             const group = groupedProducts[groupIndex];
