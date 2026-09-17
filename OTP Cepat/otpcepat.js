@@ -107,7 +107,6 @@ async function apiCall(action, extraParams = "") {
         } catch (jsonErr) { 
             console.error("Gagal parse JSON. Respons mentah dari server:", text);
             
-            // Menyembunyikan toast error jika masalah terjadi saat background polling
             if (action === 'get_status') {
                 return { status: "false", msg: "silent_error" };
             }
@@ -447,7 +446,7 @@ function createOrderCard(order) {
             cancelBtnAttr = "disabled"; 
             replaceBtnAttr = "disabled"; 
             resendBtnAttr = "disabled"; 
-            finishBtnAttr = "disabled";
+            finishBtnAttr = ""; // Perbaikan: Tombol selesai tetap aktif saat Resent
         } else {
             cancelBtnAttr = ""; 
             replaceBtnAttr = ""; 
@@ -653,11 +652,7 @@ window.resendSpecificOrder = async function(id) {
                 activeOrders[idx].hasReceivedOTP = false; 
                 activeOrders[idx].isResent = true; 
                 
-                if (activeOrders[idx].originalExpiresAt) {
-                    activeOrders[idx].expiresAt = activeOrders[idx].originalExpiresAt; 
-                } else if (activeOrders[idx].createdAt) {
-                    activeOrders[idx].expiresAt = activeOrders[idx].createdAt + (20 * 60 * 1000);
-                }
+                // Perbaikan: Hapus logika manipulasi batas waktu agar timer terus berjalan
                 
                 saveActiveOrders();
             }
@@ -775,8 +770,7 @@ function startPolling() {
                             
                             if (!o.hasReceivedOTP) {
                                 o.hasReceivedOTP = true;
-                                o.originalExpiresAt = o.expiresAt; 
-                                o.expiresAt = Date.now() + (10 * 60 * 1000); 
+                                // Perbaikan: Hapus logika yang merubah limit timer ke 10 menit
                             }
                             
                             let textSms = rawSms || "OTP DITERIMA";
