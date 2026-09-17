@@ -446,7 +446,7 @@ function createOrderCard(order) {
             cancelBtnAttr = "disabled"; 
             replaceBtnAttr = "disabled"; 
             resendBtnAttr = "disabled"; 
-            finishBtnAttr = ""; // Perbaikan: Tombol selesai tetap aktif saat Resent
+            finishBtnAttr = ""; // Tombol selesai tetap aktif saat Resent
         } else {
             cancelBtnAttr = ""; 
             replaceBtnAttr = ""; 
@@ -652,7 +652,7 @@ window.resendSpecificOrder = async function(id) {
                 activeOrders[idx].hasReceivedOTP = false; 
                 activeOrders[idx].isResent = true; 
                 
-                // Perbaikan: Hapus logika manipulasi batas waktu agar timer terus berjalan
+                // Hapus manipulasi batas waktu agar timer terus berjalan tanpa reset
                 
                 saveActiveOrders();
             }
@@ -675,8 +675,8 @@ window.replaceSpecificOrder = async function(id) {
             activeOrders = activeOrders.filter(o => String(o.id) !== String(id));
             showToast("Mencari nomor pengganti...");
             
-            let opCode = oldOrder.operatorName === "ACAK" ? "random" : String(oldOrder.operatorName).toLowerCase();
-            const res = await apiCall('get_order', `&operator_id=${opCode}&service_id=${currentServiceId}&country_id=${currentCountryId}`);
+            // Sekarang memanggil get_order menggunakan currentOperator yang aktif dipilih di UI
+            const res = await apiCall('get_order', `&operator_id=${currentOperator}&service_id=${currentServiceId}&country_id=${currentCountryId}`);
             
             if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
                 const orderData = res.data || res;
@@ -686,10 +686,14 @@ window.replaceSpecificOrder = async function(id) {
                 
                 if (oId && oPhone) {
                     let serverOperator = orderData.operator || orderData.operator_name || orderData.operator_id;
-                    let opNameDisplay = oldOrder.operatorName;
-                    if (oldOrder.operatorName === "ACAK" || currentOperator === "random") {
-                        if (serverOperator && String(serverOperator).toLowerCase() !== "random" && String(serverOperator).toLowerCase() !== "any") { opNameDisplay = serverOperator; } 
-                        else { opNameDisplay = guessOperator(oPhone); }
+                    
+                    // Menyesuaikan nama operator dengan pilihan UI saat ini
+                    let opNameDisplay = currentOperator;
+                    
+                    if (serverOperator && String(serverOperator).toLowerCase() !== "random" && String(serverOperator).toLowerCase() !== "any") {
+                        opNameDisplay = serverOperator;
+                    } else if (currentOperator === "random") {
+                        opNameDisplay = guessOperator(oPhone);
                     }
                     
                     const nowStamp = Date.now();
@@ -770,7 +774,7 @@ function startPolling() {
                             
                             if (!o.hasReceivedOTP) {
                                 o.hasReceivedOTP = true;
-                                // Perbaikan: Hapus logika yang merubah limit timer ke 10 menit
+                                // Hapus logika yang merubah limit timer ke 10 menit
                             }
                             
                             let textSms = rawSms || "OTP DITERIMA";
