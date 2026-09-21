@@ -84,12 +84,28 @@ function showToast(pesan, type = "success") {
     t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 3000); 
 }
 
-function copyToClipboard(t) { 
+// PERUBAHAN: Fungsi salin modern untuk menangani asinkronisasi dari fetch API
+function copyToClipboard(t, customSuccessMsg = "Berhasil disalin!") {
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(t).then(() => {
+            showToast(customSuccessMsg);
+        }).catch(() => {
+            fallbackCopy(t, customSuccessMsg);
+        });
+    } else {
+        fallbackCopy(t, customSuccessMsg);
+    }
+}
+
+function fallbackCopy(t, customSuccessMsg) {
     try {
         const ta = document.createElement("textarea"); ta.value = t; 
-        ta.style.position = "absolute"; ta.style.left = "-9999px"; 
-        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); 
-        showToast("Berhasil disalin!"); document.body.removeChild(ta); 
+        ta.style.position = "fixed"; ta.style.opacity = "0"; 
+        document.body.appendChild(ta); ta.focus(); ta.select(); 
+        let success = document.execCommand('copy');
+        if(success) showToast(customSuccessMsg);
+        else showToast("Gagal menyalin.", "error");
+        document.body.removeChild(ta); 
     } catch(e) { showToast("Gagal menyalin.", "error"); }
 }
 
@@ -408,9 +424,13 @@ window.onOrderButtonClicked = async function() {
                     isResent: false
                 });
                 
-                saveActiveOrders(); renderOrders(); fetchBalance(); copyToClipboard(oPhone);
+                // PERUBAHAN: Render layar dulu, baru jalankan proses salin & munculkan notifikasi
+                saveActiveOrders(); 
+                fetchBalance();
+                renderOrders(); 
+                
+                copyToClipboard(oPhone, "Pesanan Berhasil & Disalin!");
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-                showToast("Pesanan Berhasil!");
             } else { showToast("Format respons server tidak lengkap.", "error"); }
         } else { showToast(res.msg || "Gagal memesan nomor.", "error"); }
     } catch (e) { showToast("Error Eksekusi: " + e.message, "error");
@@ -446,7 +466,7 @@ function createOrderCard(order) {
             cancelBtnAttr = "disabled"; 
             replaceBtnAttr = "disabled"; 
             resendBtnAttr = "disabled"; 
-            finishBtnAttr = ""; // Tombol selesai tetap aktif saat Resent
+            finishBtnAttr = ""; 
         } else {
             cancelBtnAttr = ""; 
             replaceBtnAttr = ""; 
@@ -652,8 +672,6 @@ window.resendSpecificOrder = async function(id) {
                 activeOrders[idx].hasReceivedOTP = false; 
                 activeOrders[idx].isResent = true; 
                 
-                // Hapus manipulasi batas waktu agar timer terus berjalan tanpa reset
-                
                 saveActiveOrders();
             }
         } else { showToast("Gagal resend: " + (res.msg || "Error"), "error"); }
@@ -675,7 +693,6 @@ window.replaceSpecificOrder = async function(id) {
             activeOrders = activeOrders.filter(o => String(o.id) !== String(id));
             showToast("Mencari nomor pengganti...");
             
-            // Sekarang memanggil get_order menggunakan currentOperator yang aktif dipilih di UI
             const res = await apiCall('get_order', `&operator_id=${currentOperator}&service_id=${currentServiceId}&country_id=${currentCountryId}`);
             
             if (res.status === "true" || res.status === true || res.status == 1 || String(res.status).toLowerCase() === "success") {
@@ -686,8 +703,6 @@ window.replaceSpecificOrder = async function(id) {
                 
                 if (oId && oPhone) {
                     let serverOperator = orderData.operator || orderData.operator_name || orderData.operator_id;
-                    
-                    // Menyesuaikan nama operator dengan pilihan UI saat ini
                     let opNameDisplay = currentOperator;
                     
                     if (serverOperator && String(serverOperator).toLowerCase() !== "random" && String(serverOperator).toLowerCase() !== "any") {
@@ -706,14 +721,20 @@ window.replaceSpecificOrder = async function(id) {
                         hasReceivedOTP: false,
                         isResent: false
                     });
-                    copyToClipboard(oPhone); showToast("Berhasil mendapat nomor baru!");
+                    
+                    // PERUBAHAN: Render layar dulu, baru jalankan proses salin & munculkan notifikasi
+                    saveActiveOrders();
+                    fetchBalance();
+                    renderOrders();
+                    
+                    copyToClipboard(oPhone, "Berhasil mendapat nomor baru & disalin!");
                 }
             } else { showToast("Gagal mencari ganti: " + (res.msg || "Stok Kosong"), "error"); }
         } else {
             showToast("Gagal membatalkan nomor lama di server", "error");
         }
     } catch (e) { showToast("Error sistem: " + e.message, "error"); } 
-    finally { saveActiveOrders(); fetchBalance(); renderOrders(); }
+    finally { renderOrders(); }
 }
 
 window.cancelAllOldOrders = async function() {
@@ -774,7 +795,6 @@ function startPolling() {
                             
                             if (!o.hasReceivedOTP) {
                                 o.hasReceivedOTP = true;
-                                // Hapus logika yang merubah limit timer ke 10 menit
                             }
                             
                             let textSms = rawSms || "OTP DITERIMA";
