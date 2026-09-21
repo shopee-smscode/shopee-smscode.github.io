@@ -41,7 +41,7 @@
             padding-bottom: 40px;
         }
 
-        /* Header Tema Shopee (Padding disesuaikan untuk tombol admin di kanan atas) */
+        /* Header Tema Shopee */
         .shopee-header {
             background-color: var(--shopee-orange);
             color: white;
@@ -204,7 +204,7 @@
 
     <div class="app-container">
         <div class="shopee-header">
-            <h1 id="appTitleHeader">Catatan</h1>
+            <h1 id="appTitleHeader">Catatan Affiliate</h1>
         </div>
 
         <div class="section-card">
@@ -359,7 +359,7 @@
             if(currentDb) {
                 activeProductsName = currentDb.name;
                 localStorage.setItem('shopee_custom_product_name', activeProductsName);
-                document.getElementById('appTitleHeader').innerText = `Catatan (${activeProductsName})`;
+                document.getElementById('appTitleHeader').innerText = `Catatan Affiliate (${activeProductsName})`;
             }
 
             if(!document.getElementById('adminFeatureModal').classList.contains('hidden')){
@@ -469,8 +469,6 @@
             if (pass === "Aku123..") {
                 const dbId = dbItem.id;
                 
-                // Menghapus data produk, tetapi TIDAK menghapus data FLAG
-                // Agar status flag produk tetap aman secara global
                 db.ref(`shopee_affiliate/${dbId}`).remove();
 
                 if (activeProductsNode === dbId) {
@@ -502,7 +500,7 @@
 
         activeProvincesRef.on('value', snap => {
             if(snap.exists()) {
-                activeProvinces = snap.val();
+                activeProvinces = snap.val() || DEFAULT_PROVINCES;
             } else {
                 activeProvinces = DEFAULT_PROVINCES;
             }
@@ -617,7 +615,22 @@
                 const allProvinces = await resProv.json();
 
                 const targetProvinces = activeProvinces; 
-                const validProvincesPool = allProvinces.filter(p => targetProvinces.some(target => p.nama.toUpperCase().includes(target)));
+                
+                // PERBAIKAN LOGIKA FILTER PROVINSI 
+                // Menggunakan exact match untuk menghindari Riau tercampur dengan Kepulauan Riau
+                const validProvincesPool = allProvinces.filter(p => {
+                    let apiName = p.nama.toUpperCase().trim();
+                    return targetProvinces.some(target => {
+                        let t = target.toUpperCase().trim();
+                        // 1. Cocokkan nama persis (Cth: BANTEN === BANTEN)
+                        if (apiName === t) return true;
+                        // 2. Cocokkan dengan menghapus awalan wilayah di API (Cth: DKI JAKARTA -> JAKARTA)
+                        if (apiName.replace(/^(DKI|DI|PROVINSI)\s+/, '') === t) return true;
+                        // 3. Kasus Khusus Bangka Belitung
+                        if (t.includes('BANGKA BELITUNG') && apiName.includes('BANGKA BELITUNG')) return true;
+                        return false;
+                    });
+                });
                 
                 let finalPool = validProvincesPool.length > 0 ? validProvincesPool : allProvinces; 
                 const randomProv = getRandomItem(finalPool);
@@ -700,12 +713,7 @@
             if(flagRef) flagRef.off();
             if(usedLinksRef) usedLinksRef.off();
 
-            // Produk dinamis sesuai database yang dipilih (activeProductsNode)
             productsRef = db.ref(`shopee_affiliate/${activeProductsNode}`);
-            
-            // FLAG DIBUAT GLOBAL (Berdasarkan node master products_db)
-            // Ini memastikan status flag dan timer tersimpan secara permanen 
-            // di semua database buatan Anda.
             flagRef = db.ref(`shopee_affiliate/products_db_flagged_links`);
             usedLinksRef = db.ref(`shopee_affiliate/products_db_used_links`);
 
@@ -918,9 +926,6 @@
             if (wrapper) wrapper.scrollLeft = currentScrollLeft;
         }
 
-        // ================= TIMER LATAR BELAKANG (LIVE TIMER) =================
-        // Menjalankan pengecekan setiap 30 detik tanpa reload halaman 
-        // sehingga warna hijau (24 jam) akan otomatis muncul saat waktunya tiba.
         setInterval(() => {
             if (groupedProducts && groupedProducts.length > 0) {
                 renderColumns();
