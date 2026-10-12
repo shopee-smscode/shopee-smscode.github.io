@@ -110,22 +110,24 @@
         .scroll-wrapper { width: 100%; overflow-x: auto; display: flex; padding-bottom: 12px; scroll-snap-type: x mandatory; align-items: flex-start; }
         .note-list { display: flex; gap: 12px; padding: 0; margin: 0; list-style-type: none; width: 100%; }
 
-        /* Tiap Kolom (Toko) */
+        /* Tiap Kolom (Toko) - DIUBAH MENJADI 3 KOLOM */
         .product-column {
-            display: flex; flex-direction: column; flex: 0 0 calc(50% - 6px); max-width: calc(50% - 6px);
-            background: #fff; border-radius: 12px; padding: 12px 6px; border: 1px solid var(--border-color);
+            display: flex; flex-direction: column; 
+            flex: 0 0 calc(33.333% - 8px); 
+            max-width: calc(33.333% - 8px);
+            background: #fff; border-radius: 12px; padding: 10px 4px; border: 1px solid var(--border-color);
             box-shadow: 0 4px 6px rgba(0,0,0,0.03); box-sizing: border-box; scroll-snap-align: start; 
         }
 
-        .column-header { display: flex; flex-direction: column; align-items: center; margin-bottom: 12px; border-bottom: 2px solid var(--shopee-orange); padding-bottom: 12px; gap: 10px; }
-        .column-number { font-size: 16px; font-weight: 800; color: var(--shopee-orange); text-align: center; }
+        .column-header { display: flex; flex-direction: column; align-items: center; margin-bottom: 12px; border-bottom: 2px solid var(--shopee-orange); padding-bottom: 10px; gap: 8px; }
+        .column-number { font-size: 13px; font-weight: 800; color: var(--shopee-orange); text-align: center; }
 
-        .btn-open-column { width: 100%; background-color: var(--action-blue); color: white; border: none; padding: 14px 4px; border-radius: 8px; font-size: 13px; font-weight: 800; cursor: pointer; text-transform: uppercase; box-shadow: 0 3px 6px rgba(52, 152, 219, 0.3); }
+        .btn-open-column { width: 100%; background-color: var(--action-blue); color: white; border: none; padding: 10px 2px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; text-transform: uppercase; box-shadow: 0 3px 6px rgba(52, 152, 219, 0.3); }
         .btn-open-column:active { background-color: #2980b9; transform: scale(0.96); }
 
         /* ITEM PRODUK & FLAGGING */
         .product-item { display: flex; align-items: stretch; width: 100%; margin-bottom: 10px; position: relative; gap: 4px; }
-        .btn-product-link { flex: 1; box-sizing: border-box; min-height: 65px; border: 1px solid rgba(0,0,0,0.08); color: var(--text-main); padding: 10px; border-radius: 10px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.03); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; transition: 0.1s; }
+        .btn-product-link { flex: 1; box-sizing: border-box; min-height: 60px; border: 1px solid rgba(0,0,0,0.08); color: var(--text-main); padding: 6px; border-radius: 10px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.03); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; transition: 0.1s; }
         .btn-product-link:active:not(.flagged):not(.flagged-green) { transform: translateY(2px); filter: brightness(0.95); border-color: var(--shopee-orange); }
         
         .btn-product-link.flagged { background-color: #f1f1f1 !important; filter: grayscale(100%); opacity: 0.5; cursor: not-allowed; border: 1px dashed #ccc; }
@@ -137,11 +139,11 @@
             opacity: 0.9;
         }
 
-        .product-title { font-size: 13px; font-weight: 700; text-align: center; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 0; width: 100%; color: #2c3e50; }
-        .product-price { font-size: 12px; font-weight: 800; color: var(--shopee-orange); margin: 0; background: rgba(238, 77, 45, 0.1); padding: 3px 8px; border-radius: 4px; }
+        .product-title { font-size: 11px; font-weight: 700; text-align: center; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin: 0; width: 100%; color: #2c3e50; }
+        .product-price { font-size: 11px; font-weight: 800; color: var(--shopee-orange); margin: 0; background: rgba(238, 77, 45, 0.1); padding: 3px 6px; border-radius: 4px; }
 
         /* TOMBOL X (FLAGGING) */
-        .btn-flag { width: 30px; border-radius: 8px; border: 1px solid #ffcdd2; background: #fff5f5; color: var(--danger-red); font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .btn-flag { width: 26px; border-radius: 8px; border: 1px solid #ffcdd2; background: #fff5f5; color: var(--danger-red); font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; font-size: 12px; }
         .btn-flag:active { transform: scale(0.9); }
         .btn-flag.active { background: var(--danger-red); color: white; border-color: var(--danger-red); }
         .btn-flag.pending { background: var(--warning-orange); color: white; border-color: var(--warning-orange); }
@@ -345,7 +347,7 @@
         let databaseList = [];
         const dbListRef = db.ref('shopee_affiliate/database_list');
 
-        document.getElementById('appTitleHeader').innerText = `Catatan Affiliate (${activeProductsName})`;
+        document.getElementById('appTitleHeader').innerText = `Affiliate (${activeProductsName})`;
 
         dbListRef.on('value', snap => {
             if(snap.exists()){
@@ -359,7 +361,7 @@
             if(currentDb) {
                 activeProductsName = currentDb.name;
                 localStorage.setItem('shopee_custom_product_name', activeProductsName);
-                document.getElementById('appTitleHeader').innerText = `Catatan Affiliate (${activeProductsName})`;
+                document.getElementById('appTitleHeader').innerText = `Affiliate (${activeProductsName})`;
             }
 
             if(!document.getElementById('adminFeatureModal').classList.contains('hidden')){
@@ -442,7 +444,7 @@
             localStorage.setItem('shopee_custom_product_node', id);
             localStorage.setItem('shopee_custom_product_name', name);
             
-            document.getElementById('appTitleHeader').innerText = `Catatan Affiliate (${name})`;
+            document.getElementById('appTitleHeader').innerText = `Affiliate (${name})`;
             renderDatabaseList();
             tampilkanToast(`✅ Beralih ke: ${name}`);
             
@@ -617,16 +619,12 @@
                 const targetProvinces = activeProvinces; 
                 
                 // PERBAIKAN LOGIKA FILTER PROVINSI 
-                // Menggunakan exact match untuk menghindari Riau tercampur dengan Kepulauan Riau
                 const validProvincesPool = allProvinces.filter(p => {
                     let apiName = p.nama.toUpperCase().trim();
                     return targetProvinces.some(target => {
                         let t = target.toUpperCase().trim();
-                        // 1. Cocokkan nama persis (Cth: BANTEN === BANTEN)
                         if (apiName === t) return true;
-                        // 2. Cocokkan dengan menghapus awalan wilayah di API (Cth: DKI JAKARTA -> JAKARTA)
                         if (apiName.replace(/^(DKI|DI|PROVINSI)\s+/, '') === t) return true;
-                        // 3. Kasus Khusus Bangka Belitung
                         if (t.includes('BANGKA BELITUNG') && apiName.includes('BANGKA BELITUNG')) return true;
                         return false;
                     });
