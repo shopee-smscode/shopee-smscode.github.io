@@ -17,6 +17,7 @@ let favoriteServices = JSON.parse(localStorage.getItem('smscode_favorites')) || 
 
 let viewingPresenceRef = null;
 let activeAccountName = null;
+let currentBalanceValue = 0;
 let activeOrders = [];
 let availableProducts = [];
 let cachedOperatorsList = [];
@@ -35,7 +36,6 @@ let isPolling = false;
 let isDroplistOpen = false;
 let orderHistory = [];
 let usedNumbersDB = new Set();
-let isUsedNumbersLoaded = false; 
 
 const currentAccountName = document.getElementById('currentAccountName');
 const btnOrder = document.getElementById('btnOrder');
@@ -44,12 +44,17 @@ const exitModal = document.getElementById('exitModal');
 
 const idrFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
 
-// === fungsi pembantu kunci penyimpanan lokal khusus perangkat ini ===
 function getDeviceOrdersKey(accName) {
     return `orders_${DEVICE_ID}_${accName}`;
 }
 function getDeviceHistoryKey(accName) {
     return `smscode_history_${DEVICE_ID}_${accName}`;
+}
+
+function updateBalanceDisplayUI(amount) {
+    currentBalanceValue = Number(amount) || 0;
+    const bDisplay = document.getElementById('balanceDisplay');
+    if (bDisplay) bDisplay.innerText = idrFormatter.format(currentBalanceValue);
 }
 
 // === DROPDOWN & MENU LOGIC ===
@@ -89,7 +94,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener('online', () => { showToast("🌐 Koneksi Internet Kembali", "success"); forceCheckOverdueOrders(); startPolling(); });
 window.addEventListener('offline', () => { showToast("⚠️ Tidak ada koneksi internet", "warning"); });
 
-// === FUNGSI API ===
+// === FUNGSI API CEPAT (KEEP-ALIVE) ===
 async function apiCall(endpoint, method = "GET", body = null, customAccount = null) { 
     const targetAccount = customAccount || activeAccountName || "";
     const options = { 
@@ -97,7 +102,7 @@ async function apiCall(endpoint, method = "GET", body = null, customAccount = nu
         headers: { 
             "Content-Type": "application/json", 
             "X-Account-Name": targetAccount 
-        } 
+        }
     }; 
     if (body) options.body = JSON.stringify(body); 
     try {
@@ -177,7 +182,7 @@ window.refreshAllAccountBalances = function() {
     if (icon) icon.classList.add('fa-spin');
     cachedAccounts.forEach(acc => fetchBalanceForAccount(acc));
     fetchBalance();
-    setTimeout(() => { if (icon) icon.classList.remove('fa-spin'); }, 800);
+    setTimeout(() => { if (icon) icon.classList.remove('fa-spin'); }, 600);
 };
 
 function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("0")) { p = "62" + p.substring(1); } return p; }
@@ -228,7 +233,6 @@ function initUsedNumbersSync() {
     db.ref('used_numbers/smscode').on('value', snapshot => {
         usedNumbersDB.clear(); let operatorCounts = {}; let totalBlacklist = 0;
         if (snapshot.exists()) { snapshot.forEach(child => { if (child.val().phone) { let normalPhone = normalizePhone(child.val().phone); usedNumbersDB.add(normalPhone); totalBlacklist++; let op = getProviderName(normalPhone); operatorCounts[op] = (operatorCounts[op] || 0) + 1; } }); }
-        isUsedNumbersLoaded = true;
         if(document.getElementById('blacklistBadge')) document.getElementById('blacklistBadge').innerText = totalBlacklist;
         if(document.getElementById('blacklistDetailCount')) document.getElementById('blacklistDetailCount').innerText = totalBlacklist;
         let breakdownText = "";
@@ -328,6 +332,7 @@ async function fetchBalanceForAccount(accName) {
             if (res.success) { 
                 balEl.innerText = idrFormatter.format(res.data.balance); 
                 balEl.style.color = (accName === activeAccountName) ? "var(--primary-color)" : "var(--text-primary)"; 
+                if (accName === activeAccountName) updateBalanceDisplayUI(res.data.balance);
             } else { 
                 balEl.innerText = "Error API"; 
                 balEl.style.color = "var(--danger-color)"; 
@@ -378,7 +383,7 @@ function showToast(pesan, type = "success") {
     else if (type === "warning") { toast.style.backgroundColor = "var(--warning-color)"; toast.style.color = "#000000"; }
     else { toast.style.backgroundColor = "var(--success-color)"; toast.style.color = "#ffffff"; } 
     toast.classList.add("show"); 
-    setTimeout(() => { toast.classList.remove("show"); }, 3000); 
+    setTimeout(() => { toast.classList.remove("show"); }, 2500); 
 }
 
 function copyToClipboard(text, customMsg = "Berhasil disalin!") { 
@@ -397,15 +402,15 @@ function copyFallback(text, customMsg) {
 async function fetchBalance() { 
     try { 
         const res = await apiCall('/balance'); 
-        const bDisplay = document.getElementById('balanceDisplay'); 
-        if (res.success) { 
-            if (bDisplay) bDisplay.innerText = idrFormatter.format(res.data.balance); 
+        if (res.success && res.data) { 
+            updateBalanceDisplayUI(res.data.balance);
         } else { 
-            if (bDisplay) bDisplay.innerText = "Error API"; 
+            const bDisplay = document.getElementById('balanceDisplay'); 
+            if (bDisplay && !currentBalanceValue) bDisplay.innerText = "Error API"; 
         }
     } catch (error) { 
         const bDisplay = document.getElementById('balanceDisplay'); 
-        if (bDisplay) bDisplay.innerText = "Jaringan Error"; 
+        if (bDisplay && !currentBalanceValue) bDisplay.innerText = "Jaringan Error"; 
     } 
 }
 
@@ -436,7 +441,7 @@ window.openServiceModal = function() {
     const input = document.getElementById('searchServiceInput');
     if (input) {
         input.value = '';
-        setTimeout(() => input.focus(), 100);
+        setTimeout(() => input.focus(), 80);
     }
     filterServices();
 };
@@ -500,7 +505,7 @@ window.filterServices = function() {
     });
 };
 
-// === GRID OPERATOR & DROPDOWN HARGA ===
+// === GRID OPERATOR & DROPDOWN HARGA (ZERO FLICKER) ===
 window.handlePriceChange = function() {
     const selectEl = document.getElementById('priceSelect');
     if (!selectEl) return;
@@ -523,8 +528,8 @@ window.handlePriceChange = function() {
 function renderOperatorGrid(operators, products) {
     const grid = document.getElementById('operatorGrid');
     if (!grid) return;
-    grid.innerHTML = "";
     
+    const fragment = document.createDocumentFragment();
     let renderedCount = 0;
 
     operators.forEach(op => {
@@ -555,7 +560,7 @@ function renderOperatorGrid(operators, products) {
         `;
         
         card.onclick = () => selectOperator(opIdStr, opProducts);
-        grid.appendChild(card);
+        fragment.appendChild(card);
     });
 
     if (renderedCount === 0) {
@@ -565,6 +570,9 @@ function renderOperatorGrid(operators, products) {
         if (btnOrder) btnOrder.disabled = true;
         return;
     }
+    
+    // Ganti isi grid dalam 1 frame tanpa menghilangkan tampilan sebelumnya
+    grid.replaceChildren(fragment);
     
     let savedOp = localStorage.getItem('smscode_selected_op') || "null";
     let initialProducts = products.filter(p => (p.operator_id === null ? "null" : String(p.operator_id)) === savedOp);
@@ -616,7 +624,7 @@ function selectOperator(opIdStr, opProducts) {
     window.handlePriceChange();
 }
 
-// === PEMUATAN KATALOG & LAYANAN CEPAT ===
+// === PEMUATAN KATALOG & REFRESH TANPA MENGHILANGKAN OPERATOR ===
 async function ensureCountryAndServices() {
     if (!currentCountryId) {
         const countriesRes = await apiCall('/catalog/countries'); 
@@ -671,14 +679,24 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
     const refreshIcon = document.getElementById('catalogRefreshIcon');
     if (refreshIcon) refreshIcon.classList.add('fa-spin');
 
+    // JANGAN PERNAH MENGHAPUS KARTU OPERATOR SAAT MEREFRESH!
+    // Jika layanan belum dimuat di memori namun ada di cache lokal, tampilkan dulu cache-nya sambil mengambil data baru
     const localCacheKey = `smscode_cat_${currentServiceId || 'default'}`;
     const savedLocalCat = JSON.parse(localStorage.getItem(localCacheKey));
-    if (!forceRefresh && savedLocalCat && savedLocalCat.operators && savedLocalCat.products) {
+    const hasExistingCards = opGrid && opGrid.querySelector('.operator-card') !== null;
+
+    if (!hasExistingCards) {
+        if (savedLocalCat && savedLocalCat.operators && savedLocalCat.products && savedLocalCat.products.length > 0) {
+            cachedOperatorsList = savedLocalCat.operators;
+            availableProducts = savedLocalCat.products;
+            renderOperatorGrid(cachedOperatorsList, availableProducts);
+        } else if (opGrid) {
+            opGrid.innerHTML = '<div class="status-text-mini" style="grid-column: 1 / -1;">Memuat Operator...</div>';
+        }
+    } else if (!forceRefresh && savedLocalCat && savedLocalCat.operators && savedLocalCat.products) {
         cachedOperatorsList = savedLocalCat.operators;
         availableProducts = savedLocalCat.products;
         renderOperatorGrid(cachedOperatorsList, availableProducts);
-    } else if (opGrid) {
-        opGrid.innerHTML = '<div class="status-text-mini" style="grid-column: 1 / -1;">Memuat Server & Operator...</div>';
     }
 
     isCatalogFetching = true;
@@ -720,10 +738,15 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
             products: availableProducts
         }));
 
+        // Langsung perbarui harga & kartu operator di tempat tanpa berkedip
         renderOperatorGrid(cachedOperatorsList, availableProducts);
+        if (forceRefresh) showToast("Harga & stok diperbarui!");
     } catch (error) { 
-        if (opGrid && availableProducts.length === 0) {
+        const stillHasCards = opGrid && opGrid.querySelector('.operator-card') !== null;
+        if (opGrid && !stillHasCards) {
             opGrid.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color); padding: 8px; border: 1px dashed var(--danger-color); border-radius: 8px; grid-column: 1 / -1;"><b>GAGAL MEMUAT:</b><br>${error.message}</div>`; 
+        } else if (forceRefresh) {
+            showToast("Gagal memperbarui harga", "error");
         }
     } finally {
         isCatalogFetching = false;
@@ -731,10 +754,9 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
     }
 };
 
-// === PEMESANAN NOMOR BARU ===
+// === PEMESANAN NOMOR BARU SUPER CEPAT ===
 if (btnOrder) {
     btnOrder.onclick = async () => {
-        if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
         if (!selectedProductId) return; 
         btnOrder.disabled = true; 
         const originalText = btnOrder.innerText; 
@@ -766,12 +788,17 @@ if (btnOrder) {
                     isAutoCanceling: false,
                     isResent: false
                 });
+                
+                // Optimistic Balance Update (0ms) lalu verifikasi di latar belakang
+                if (currentBalanceValue >= finalPrice) {
+                    updateBalanceDisplayUI(currentBalanceValue - finalPrice);
+                }
+                
                 saveToStorage(); 
+                copyToClipboard(orderData.phone_number, "Pesanan Berhasil & Nomor Disalin!");
                 startPolling(); 
                 startTimerTick();
                 fetchBalance(); 
-                copyToClipboard(orderData.phone_number, "Pesanan Berhasil & Nomor Disalin!");
-                window.scrollTo({ top: 0, behavior: 'smooth' }); 
             } else { 
                 showToast(`Gagal: ${res.error ? res.error.message : 'Stok tidak tersedia'}`, "error"); 
             }
@@ -901,16 +928,16 @@ function createOrderCard(order) {
     return card;
 }
 
-// === RENDER KOTAK UTAMA + MENU PESANAN LAMA (SELALU TAMPIL) ===
+// === RENDER KOTAK UTAMA + MENU PESANAN LAMA (INSTANT REPLACE) ===
 function renderOrders() {
     if (!activeOrdersContainer) return;
-    activeOrdersContainer.innerHTML = ""; 
+    const fragment = document.createDocumentFragment();
 
     if (activeOrders.length === 0) {
         isDroplistOpen = false;
-        activeOrdersContainer.appendChild(createEmptyOrderCard());
+        fragment.appendChild(createEmptyOrderCard());
     } else {
-        activeOrdersContainer.appendChild(createOrderCard(activeOrders[0]));
+        fragment.appendChild(createOrderCard(activeOrders[0]));
     }
 
     const oldOrdersCount = Math.max(0, activeOrders.length - 1);
@@ -950,7 +977,8 @@ function renderOrders() {
         wrapper.appendChild(content); 
     }
 
-    activeOrdersContainer.appendChild(wrapper);
+    fragment.appendChild(wrapper);
+    activeOrdersContainer.replaceChildren(fragment);
 }
 
 // === WEB WORKER TIMER & PENGECEKAN WAKTU HABIS ===
@@ -1033,7 +1061,7 @@ function startTimerTick() {
     timerWorker.postMessage('start');
 }
 
-// === POLLING KHUSUS PESANAN MILIK PERANGKAT INI SAJA ===
+// === POLLING CEPAT KHUSUS PESANAN MILIK PERANGKAT INI ===
 function startPolling() {
     if (pollingInterval) clearInterval(pollingInterval);
     
@@ -1077,57 +1105,77 @@ function startPolling() {
     };
 
     runPoll();
-    pollingInterval = setInterval(runPoll, 6000);
+    pollingInterval = setInterval(runPoll, 4000);
 }
 
-function removeOrderWithAnimation(idStr, callback) { const card = document.getElementById(`order-card-${idStr}`); if (card) { card.classList.add('removing'); setTimeout(() => { callback(); }, 300); } else { callback(); } }
-
-// === AKSI ORDER: GANTI, ULANG, BATAL, BATAL SEMUA, SELESAI ===
+// === AKSI SUPER CEPAT: GANTI, ULANG, BATAL, BATAL SEMUA, SELESAI ===
 window.replaceSpecificOrder = async function(orderId, productId) {
-    if (!isUsedNumbersLoaded) { showToast("Sabar, sedang mensinkronkan database nomor...", "warning"); return; }
     const btn = document.getElementById(`btn-replace-${orderId}`); 
     const targetProductId = selectedProductId || ((productId && productId !== 'null') ? productId : null);
     if (!targetProductId) return showToast("Pilih harga/operator terlebih dahulu.", "error"); 
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
     
     const oldOrder = activeOrders.find(o => String(o.id) === String(orderId)); 
+    const pInfo = availableProducts.find(p => String(p.id) === String(targetProductId));
+    const estimatedPrice = pInfo ? Number(pInfo.price) : 0;
+
     try {
-        const c = await apiCall('/orders/cancel', 'POST', { id: parseInt(orderId) });
-        if (c.success || (c.error && c.error.code === 'NOT_FOUND')) {
-            if (oldOrder) saveToHistory(oldOrder, "GANTI");
-            removeOrderWithAnimation(orderId, async () => {
-                activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId));
-                const n = await apiCall('/orders/create', 'POST', { product_id: parseInt(targetProductId), quantity: 1 });
-                if (n.success && n.data && n.data.orders && n.data.orders.length > 0) {
-                    const od = n.data.orders[0]; 
-                    const pInfo = availableProducts.find(p => String(p.id) === String(targetProductId)); 
-                    const finalPrice = od.amount || od.price || (pInfo ? pInfo.price : 0);
-                    const cancelUnlockMs = od.cancel_available_at ? new Date(od.cancel_available_at).getTime() : Date.now() + (120*1000);
-                    activeOrders.unshift({ 
-                        id: od.id, 
-                        productId: parseInt(targetProductId), 
-                        serviceName: currentServiceName,
-                        operatorName: od.operator_name || getProviderName(od.phone_number),
-                        phone: od.phone_number, 
-                        price: finalPrice, 
-                        otp: null, 
-                        status: "ACTIVE", 
-                        createdAt: Date.now(),
-                        expiresAt: new Date(od.expires_at).getTime(), 
-                        cancelUnlockTime: cancelUnlockMs, 
-                        isAutoCanceling: false,
-                        isResent: false
-                    });
-                    saveToStorage(); startPolling(); startTimerTick(); fetchBalance(); 
-                    copyToClipboard(od.phone_number, "Nomor baru berhasil didapat & disalin!");
-                    window.scrollTo({ top: 0, behavior: 'smooth' }); 
-                } else { 
-                    saveToStorage(); fetchBalance(); 
-                    showToast(n.error ? n.error.message : "Gagal pesan nomor pengganti.", "error"); 
+        let cancelRes, createRes;
+
+        // OPTIMASI KECEPATAN: Jika saldo cukup untuk membeli langsung, jalankan Batal & Pesan Baru secara PARALEL!
+        if (currentBalanceValue >= estimatedPrice && estimatedPrice > 0) {
+            [cancelRes, createRes] = await Promise.all([
+                apiCall('/orders/cancel', 'POST', { id: parseInt(orderId) }),
+                apiCall('/orders/create', 'POST', { product_id: parseInt(targetProductId), quantity: 1 })
+            ]);
+        } else {
+            // Jika saldo pas-pasan, batalkan dulu untuk menerima refund instan, lalu langsung pesan tanpa jeda animasi!
+            cancelRes = await apiCall('/orders/cancel', 'POST', { id: parseInt(orderId) });
+            if (cancelRes.success || (cancelRes.error && cancelRes.error.code === 'NOT_FOUND')) {
+                if (cancelRes.data && typeof cancelRes.data.new_balance === 'number') {
+                    updateBalanceDisplayUI(cancelRes.data.new_balance);
                 }
+                createRes = await apiCall('/orders/create', 'POST', { product_id: parseInt(targetProductId), quantity: 1 });
+            }
+        }
+
+        const isCancelOk = cancelRes && (cancelRes.success || (cancelRes.error && cancelRes.error.code === 'NOT_FOUND'));
+
+        if (isCancelOk) {
+            if (oldOrder) saveToHistory(oldOrder, "GANTI");
+            activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId));
+        }
+
+        if (createRes && createRes.success && createRes.data && createRes.data.orders && createRes.data.orders.length > 0) {
+            const od = createRes.data.orders[0]; 
+            const finalPrice = od.amount || od.price || estimatedPrice;
+            const cancelUnlockMs = od.cancel_available_at ? new Date(od.cancel_available_at).getTime() : Date.now() + (120 * 1000);
+            activeOrders.unshift({ 
+                id: od.id, 
+                productId: parseInt(targetProductId), 
+                serviceName: currentServiceName,
+                operatorName: od.operator_name || getProviderName(od.phone_number),
+                phone: od.phone_number, 
+                price: finalPrice, 
+                otp: null, 
+                status: "ACTIVE", 
+                createdAt: Date.now(),
+                expiresAt: new Date(od.expires_at).getTime(), 
+                cancelUnlockTime: cancelUnlockMs, 
+                isAutoCanceling: false,
+                isResent: false
             });
-        } else { 
-            showToast(c.error ? c.error.message : "Belum mencapai batas waktu batal.", "error"); 
+            saveToStorage(); 
+            copyToClipboard(od.phone_number, "Nomor diganti & disalin!");
+            startPolling(); 
+            startTimerTick(); 
+            fetchBalance(); 
+        } else if (isCancelOk) {
+            saveToStorage();
+            fetchBalance();
+            showToast(createRes && createRes.error ? createRes.error.message : "Nomor lama dibatalkan, gagal pesan baru.", "error");
+        } else {
+            showToast(cancelRes && cancelRes.error ? cancelRes.error.message : "Belum mencapai batas waktu batal.", "error"); 
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } 
         }
     } catch (e) { 
@@ -1138,27 +1186,36 @@ window.replaceSpecificOrder = async function(orderId, productId) {
 
 window.resendSpecificOrder = async function(orderId) {
     const idStr = String(orderId); 
-    const btn = document.getElementById(`btn-resend-${idStr}`); 
-    if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
+    let idx = activeOrders.findIndex(o => String(o.id) === idStr);
+    if (idx === -1) return;
+
+    // OPTIMISTIC UI (0ms): Langsung ubah tampilan ke Menunggu SMS tanpa menunggu server
+    const prevStatus = activeOrders[idx].status;
+    const prevOtp = activeOrders[idx].otp;
+    const prevResent = activeOrders[idx].isResent;
+
+    saveToHistory({ ...activeOrders[idx] }, "MINTA ULANG"); 
+    activeOrders[idx].status = "ACTIVE"; 
+    activeOrders[idx].otp = null; 
+    activeOrders[idx].isResent = true;
+    saveToStorage(); 
+    showToast("Meminta kode SMS baru...");
+
     try {
         const res = await apiCall('/orders/resend', 'POST', { id: parseInt(orderId) });
-        if (res.success) { 
-            showToast("Meminta kode SMS baru..."); 
-            let idx = activeOrders.findIndex(o => String(o.id) === idStr);
-            if (idx !== -1) { 
-                saveToHistory(activeOrders[idx], "MINTA ULANG"); 
-                activeOrders[idx].status = "ACTIVE"; 
-                activeOrders[idx].otp = null; 
-                activeOrders[idx].isResent = true;
-                saveToStorage(); 
+        if (!res.success) { 
+            // Kembalikan state jika ditolak server
+            let curIdx = activeOrders.findIndex(o => String(o.id) === idStr);
+            if (curIdx !== -1) {
+                activeOrders[curIdx].status = prevStatus;
+                activeOrders[curIdx].otp = prevOtp;
+                activeOrders[curIdx].isResent = prevResent;
+                saveToStorage();
             }
-        } else { 
             showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); 
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } 
         }
     } catch (e) { 
-        showToast("Kesalahan jaringan.", "error"); 
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-envelope"></i> Ulang'; } 
+        showToast("Kesalahan jaringan saat minta ulang.", "error"); 
     }
 };
 
@@ -1171,14 +1228,20 @@ window.cancelSpecificOrder = async function(id, auto = false) {
             const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
             if (oldOrder) saveToHistory(oldOrder, "BATAL"); 
             recordStat('failed');
-            removeOrderWithAnimation(id, () => { 
-                activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); 
-                if (activeOrders.length <= 1) isDroplistOpen = false;
-                saveToStorage(); 
-                fetchBalance(); 
-                if (auto) showToast("Otomatis dibatalkan (Waktu Habis)", "error"); 
-                else showToast("Pesanan dibatalkan", "success"); 
-            }); 
+            
+            // Langsung hapus kartu & update saldo dari response new_balance (0ms tanpa animasi lambat)
+            activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); 
+            if (activeOrders.length <= 1) isDroplistOpen = false;
+            saveToStorage(); 
+            
+            if (res.data && typeof res.data.new_balance === 'number') {
+                updateBalanceDisplayUI(res.data.new_balance);
+            } else {
+                fetchBalance();
+            }
+            
+            if (auto) showToast("Otomatis dibatalkan (Waktu Habis)", "error"); 
+            else showToast("Pesanan dibatalkan & dana dikembalikan", "success"); 
         } else { 
             showToast(res.error ? res.error.message : "Gagal dibatalkan.", "error"); 
             if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } 
@@ -1201,6 +1264,9 @@ window.cancelAllOldOrders = async function() {
             if (res.success || (res.error && res.error.code === 'NOT_FOUND')) {
                 saveToHistory(order, "BATAL");
                 recordStat('failed');
+                if (res.data && typeof res.data.new_balance === 'number') {
+                    updateBalanceDisplayUI(res.data.new_balance);
+                }
                 return order.id;
             }
         } catch (e) {}
@@ -1222,19 +1288,18 @@ window.cancelAllOldOrders = async function() {
     }
 };
 
-window.finishSpecificOrder = async function(id) {
-    const btnFinish = document.getElementById(`btn-finish-${id}`); 
-    if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
+window.finishSpecificOrder = function(id) {
+    // OPTIMISTIC UI (0ms): Langsung selesaikan di layar detik itu juga, kirim sinyal ke server di latar belakang
     const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
     if (oldOrder) saveToHistory(oldOrder, "SUKSES");
     recordStat('success');
-    try { await apiCall('/orders/finish', 'POST', { id: parseInt(id) }); } catch (e) {} 
-    removeOrderWithAnimation(id, () => { 
-        activeOrders = activeOrders.filter(o => o.id !== id); 
-        if (activeOrders.length <= 1) isDroplistOpen = false;
-        saveToStorage(); 
-        showToast("Pesanan Selesai!");
-    });
+    
+    activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); 
+    if (activeOrders.length <= 1) isDroplistOpen = false;
+    saveToStorage(); 
+    showToast("Pesanan Selesai!");
+
+    apiCall('/orders/finish', 'POST', { id: parseInt(id) }).catch(() => {}); 
 };
 
 // === INISIALISASI PARALEL TANPA SINKRONISASI ANTAR HP ===
