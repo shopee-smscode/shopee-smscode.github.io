@@ -9,7 +9,7 @@ let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password
 let cachedAccounts = [];
 
 let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null;
-let orderHistory = []; let usedNumbersDB = new Set(); let hiddenBadOrders = []; let isUsedNumbersLoaded = false; 
+let orderHistory = []; let usedNumbersDB = new Set(); let isUsedNumbersLoaded = false; 
 
 const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); 
 
@@ -39,9 +39,9 @@ window.closeIframeNoteModal = function() {
     document.getElementById('iframeNoteModal').classList.add('hidden');
 }
 
-// === FUNGSI API (DENGAN DETEKSI CLOUDFLARE/HTML BLOCKED) ===
+// === FUNGSI API ROBUST (ANTI CRASH / AMAN DARI ERROR HTML CLOUDFLARE) ===
 async function apiCall(endpoint, method = "GET", body = null) { 
-    const options = { method: method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName } }; 
+    const options = { method: method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName || "" } }; 
     if (body) options.body = JSON.stringify(body); 
     try {
         const response = await fetch(`${BASE_URL}${endpoint}`, options); 
@@ -50,11 +50,10 @@ async function apiCall(endpoint, method = "GET", body = null) {
             return JSON.parse(textData); 
         } catch (err) {
             let lowerText = textData.toLowerCase();
-            // DETEKSI CLOUDFLARE ATAU HALAMAN HTML
-            if (lowerText.includes("<html") || lowerText.includes("cloudflare") || lowerText.includes("blocked")) {
-                return { success: false, error: { message: "Akses diblokir (Cloudflare)." } };
+            if (lowerText.includes("<html") || lowerText.includes("cloudflare") || lowerText.includes("500 internal server error")) {
+                return { success: false, error: { message: `Worker Cloudflare Error (Cek Sintaks Worker Anda) | Status: ${response.status}` } };
             }
-            return { success: false, error: { message: `Data tidak valid/Error ${response.status}` } };
+            return { success: false, error: { message: `Respons API Bukan JSON (Status ${response.status})` } };
         }
     } catch (err) { return { success: false, error: { message: "Koneksi Proxy Gagal: " + err.message } }; }
 }
@@ -145,14 +144,27 @@ window.openHistoryModal = function() { document.getElementById('historyModal').c
 window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
 window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`smscode_history_${activeAccountName}`); renderHistory(); } }
 
+// === PERBAIKAN: SAFE BOOT MODE ===
+// Jika Worker Error, tidak akan macet di layar awal
 async function fetchAccounts() {
     try {
-        const res = await fetch(`${BASE_URL}/api/accounts`); const data = await res.json();
-        if (data.accounts && data.accounts.length > 0) {
-            cachedAccounts = data.accounts; let savedAccount = localStorage.getItem('smscode_last_account');
-            let defaultAcc = (savedAccount && cachedAccounts.includes(savedAccount)) ? savedAccount : cachedAccounts[0]; loginAccount(defaultAcc);
-        } else { if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = "Tidak ada"; showToast("Tidak ada akun di Server", "error"); }
-    } catch (error) { if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = "Error"; showToast("Gagal terhubung ke Server", "error"); }
+        const res = await apiCall('/api/accounts'); 
+        if (res && res.success && res.accounts && res.accounts.length > 0) {
+            cachedAccounts = res.accounts; 
+            let savedAccount = localStorage.getItem('smscode_last_account');
+            let defaultAcc = (savedAccount && cachedAccounts.includes(savedAccount)) ? savedAccount : cachedAccounts[0]; 
+            loginAccount(defaultAcc);
+        } else { 
+            throw new Error(res.error ? res.error.message : "Data akun kosong dari server.");
+        }
+    } catch (error) { 
+        if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = "Mode Darurat"; 
+        showToast("Worker Error. Mengaktifkan Mode Darurat...", "error"); 
+        
+        // Memaksa UI berlanjut agar error sesungguhnya terlihat di kotak layanan
+        cachedAccounts = ["Akun Darurat"];
+        loginAccount("Akun Darurat");
+    }
 }
 
 window.openAccountModal = function() {
@@ -170,9 +182,7 @@ window.closeAccountModal = function() { document.getElementById('accountModal').
 
 async function fetchBalanceForAccount(accName) {
     try {
-        const options = { method: "GET", headers: { "Content-Type": "application/json", "X-Account-Name": accName } };
-        const response = await fetch(`${BASE_URL}/balance`, options); 
-        const res = await response.json();
+        const res = await apiCall('/balance', 'GET');
         const balEl = document.getElementById(`bal-${accName}`);
         if (balEl) {
             if (res.success) { 
@@ -181,13 +191,13 @@ async function fetchBalanceForAccount(accName) {
                 balEl.style.color = (accName === activeAccountName) ? "var(--primary-color)" : "var(--text-primary)"; 
             } 
             else { 
-                balEl.innerText = "Key Error"; 
+                balEl.innerText = "Error API"; 
                 balEl.style.color = "var(--danger-color)"; 
             }
         }
     } catch (err) { 
         const balEl = document.getElementById(`bal-${accName}`); 
-        if (balEl) { balEl.innerText = "Gagal API"; balEl.style.color = "var(--danger-color)"; } 
+        if (balEl) { balEl.innerText = "Gagal Terhubung"; balEl.style.color = "var(--danger-color)"; } 
     }
 }
 
@@ -223,7 +233,7 @@ async function fetchBalance() {
             const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); 
             if (bDisplay) bDisplay.innerText = formatter.format(res.data.balance); 
         } else {
-            if (bDisplay) bDisplay.innerText = "Token Error";
+            if (bDisplay) bDisplay.innerText = "Error API";
         }
     } catch (error) { 
         const bDisplay = document.getElementById('balanceDisplay'); 
@@ -234,13 +244,24 @@ async function fetchBalance() {
 async function loadShopeeIndonesia() {
     try {
         if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
-        const countriesRes = await apiCall('/catalog/countries'); 
-        const indo = countriesRes.data.find(c => c.name.toLowerCase() === 'indonesia');
-        const servicesRes = await apiCall(`/catalog/services?country_id=${indo.id}`); 
-        const shopee = servicesRes.data.find(s => s.name.toLowerCase().includes('shopee'));
-        const productsRes = await apiCall(`/catalog/products?country_id=${indo.id}&platform_id=${shopee.id}`);
         
-        if (productsRes.success && productsRes.data.length > 0) {
+        // 1. Dapatkan daftar negara
+        const countriesRes = await apiCall('/catalog/countries'); 
+        if (!countriesRes.success) throw new Error(countriesRes.error.message);
+        const indo = countriesRes.data.find(c => c.name.toLowerCase() === 'indonesia');
+        if (!indo) throw new Error("Negara Indonesia tidak tersedia.");
+
+        // 2. Dapatkan layanan Shopee
+        const servicesRes = await apiCall(`/catalog/services?country_id=${indo.id}`); 
+        if (!servicesRes.success) throw new Error(servicesRes.error.message);
+        const shopee = servicesRes.data.find(s => s.name.toLowerCase().includes('shopee'));
+        if (!shopee) throw new Error("Layanan Shopee tidak tersedia.");
+
+        // 3. Dapatkan produk
+        const productsRes = await apiCall(`/catalog/products?country_id=${indo.id}&platform_id=${shopee.id}`);
+        if (!productsRes.success) throw new Error(productsRes.error.message);
+        
+        if (productsRes.data && productsRes.data.length > 0) {
             availableProducts = productsRes.data.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
             if (productList) productList.innerHTML = ""; 
             if (availableProducts.length > 0) { 
@@ -253,7 +274,7 @@ async function loadShopeeIndonesia() {
             
             const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
             
-            // Mengupdate label harga di sisi kanan "LAYANAN" secara langsung
+            // Mengupdate label harga di header layanan
             const selectedProductInfo = availableProducts.find(p => String(p.id) === String(selectedProductId)) || availableProducts[0];
             const headerPriceEl = document.getElementById('displayHeaderPrice');
             if (headerPriceEl && selectedProductInfo) {
@@ -273,7 +294,6 @@ async function loadShopeeIndonesia() {
                     localStorage.setItem('smscode_selected_server', selectedProductId); 
                     if (btnOrder) btnOrder.disabled = false; 
                     
-                    // Efek dinamis: memperbarui harga di header ketika ditekan
                     if (headerPriceEl) headerPriceEl.innerText = formatter.format(product.price);
                 };
                 if (productList) productList.appendChild(card);
@@ -282,7 +302,8 @@ async function loadShopeeIndonesia() {
             if (productList) productList.innerHTML = '<div class="status-text-mini">Server sedang kosong.</div>'; 
         }
     } catch (error) { 
-        if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color);">Error: ${error.message}</div>`; 
+        // JIka error Cloudflare/Worker, pesan error akan jelas terlihat di sini!
+        if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color); padding: 10px; border: 1px dashed var(--danger-color); border-radius: 8px;"><b>GAGAL MEMUAT:</b><br>${error.message}</div>`; 
     }
 }
 
