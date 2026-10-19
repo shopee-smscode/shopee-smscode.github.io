@@ -94,7 +94,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener('online', () => { showToast("🌐 Koneksi Internet Kembali", "success"); forceCheckOverdueOrders(); startPolling(); });
 window.addEventListener('offline', () => { showToast("⚠️ Tidak ada koneksi internet", "warning"); });
 
-// === FUNGSI API CEPAT ===
+// === FUNGSI API ===
 async function apiCall(endpoint, method = "GET", body = null, customAccount = null) { 
     const targetAccount = customAccount || activeAccountName || "";
     const options = { 
@@ -257,7 +257,8 @@ function loadHistory() {
 }
 function saveToHistory(order, status) {
     if (!order) return;
-    const historyItem = { id: order.id, phone: order.phone, serviceName: order.serviceName || currentServiceName, operatorName: order.operatorName || getProviderName(order.phone), price: order.price, otp: order.otp || "-", status: status, date: Date.now() };
+    const savedOtp = order.otp || order.lastOtp || "-";
+    const historyItem = { id: order.id, phone: order.phone, serviceName: order.serviceName || currentServiceName, operatorName: order.operatorName || getProviderName(order.phone), price: order.price, otp: savedOtp, status: status, date: Date.now() };
     orderHistory.unshift(historyItem); if (orderHistory.length > 50) orderHistory.pop(); 
     localStorage.setItem(getDeviceHistoryKey(activeAccountName), JSON.stringify(orderHistory)); 
     renderHistory();
@@ -269,7 +270,7 @@ function renderHistory() {
     orderHistory.forEach(item => {
         const card = document.createElement('div'); card.style = "background: var(--bg-card); padding: 10px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 11px;";
         let statusColor = "var(--text-secondary)"; let icon = "fa-clock";
-        if (item.status === "SUKSES" || item.status === "SELESAI") { statusColor = "var(--success-color)"; icon = "fa-check-circle"; }
+        if (item.status === "SELESAI" || item.status === "SUKSES") { statusColor = "var(--success-color)"; icon = "fa-check-circle"; }
         if (item.status.includes("BATAL")) { statusColor = "var(--danger-color)"; icon = "fa-times-circle"; }
         if (item.status === "GANTI") { statusColor = "var(--warning-color)"; icon = "fa-sync-alt"; }
         if (item.status === "MINTA ULANG") { statusColor = "var(--info-color)"; icon = "fa-envelope"; }
@@ -277,15 +278,16 @@ function renderHistory() {
         const opTag = item.operatorName || getProviderName(item.phone); 
         const dt = new Date(item.date); 
         const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')} - ${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+        const showOtpBox = (item.status === "SELESAI" || item.status === "SUKSES" || item.status === "MINTA ULANG") && item.otp && item.otp !== "-";
         card.innerHTML = `
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                 <strong style="color: var(--text-primary); font-size: 13px; letter-spacing: 1px;">${formatPhoneNumber(item.phone)} <span style="font-size:9px; font-weight:normal; color:var(--text-secondary);">(${srvTag} • ${String(opTag).toUpperCase()})</span></strong>
                 <span style="color: ${statusColor}; font-weight: 800;"><i class="fas ${icon}"></i> ${item.status}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 10px; margin-bottom: ${item.status === 'SUKSES' || item.status === 'SELESAI' || item.status === 'MINTA ULANG' ? '6px' : '0'};">
+            <div style="display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 10px; margin-bottom: ${showOtpBox ? '6px' : '0'};">
                 <span>ID: #${item.id}</span><span>${timeStr}</span>
             </div>
-            ${item.status === 'SUKSES' || item.status === 'SELESAI' || item.status === 'MINTA ULANG' ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 4px; text-align: center; border-radius: 6px; font-weight: 900; letter-spacing: 2px; font-size: 14px;">${item.otp}</div>` : ''}
+            ${showOtpBox ? `<div style="background: var(--otp-bg); border: 1px dashed ${statusColor}; color: ${statusColor}; padding: 4px; text-align: center; border-radius: 6px; font-weight: 900; letter-spacing: 2px; font-size: 14px;">${item.otp}</div>` : ''}
         `;
         list.appendChild(card);
     });
@@ -750,7 +752,7 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
     }
 };
 
-// === PEMESANAN NOMOR BARU SUPER CEPAT ===
+// === PEMESANAN NOMOR BARU ===
 if (btnOrder) {
     btnOrder.onclick = async () => {
         if (!selectedProductId) return; 
@@ -777,12 +779,16 @@ if (btnOrder) {
                     phone: orderData.phone_number, 
                     price: finalPrice, 
                     otp: null, 
-                    status: "ACTIVE", 
+                    lastOtp: null,
+                    smsRevision: 0,
+                    lastSmsRevision: 0,
+                    status: "Waiting SMS", 
                     createdAt: createdAtMs,
                     expiresAt: expiresAtMs, 
                     cancelUnlockTime: cancelUnlockMs, 
-                    isAutoCanceling: false,
-                    isResent: false
+                    hasReceivedOTP: false,
+                    isResent: false,
+                    isAutoCanceling: false
                 });
                 
                 if (currentBalanceValue >= finalPrice) {
@@ -842,14 +848,14 @@ function createEmptyOrderCard() {
     return card;
 }
 
-// === RENDER KARTU ORDER AKTIF ===
+// === RENDER KARTU ORDER AKTIF (DISESUAIKAN DENGAN OTP CEPAT) ===
 function createOrderCard(order) {
     const now = Date.now();
     const card = document.createElement("div"); 
     card.className = "order-card"; 
     card.id = `order-card-${order.id}`; 
     
-    const isSuccess = (order.status === "OTP_RECEIVED" || Boolean(order.otp)); 
+    const isSuccess = (order.status === "OTP_RECEIVED" || order.status === "Recieved" || order.status === "Done" || Boolean(order.otp)); 
     const wait = (order.cancelUnlockTime || 0) - now;
     
     const srvName = String(order.serviceName || currentServiceName || "SHOPEE").toUpperCase();
@@ -870,20 +876,25 @@ function createOrderCard(order) {
     const passProductId = order.productId ? `'${order.productId}'` : 'null'; 
     let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
     
+    // LOGIKA TOMBOL PERSIS SEPERTI OTP CEPAT:
     if (isSuccess) { 
         finishBtnAttr = ""; 
         resendBtnAttr = ""; 
         cancelBtnAttr = "disabled"; 
         replaceBtnAttr = "disabled"; 
-    } else if (order.isResent) {
-        finishBtnAttr = "";
-        cancelBtnAttr = "disabled";
-        replaceBtnAttr = "disabled";
-        resendBtnAttr = "disabled";
-    } else if (wait <= 0 && !order.isAutoCanceling) { 
-        cancelBtnAttr = ""; 
-        replaceBtnAttr = ""; 
-        resendBtnAttr = "disabled"; 
+    } else {
+        if (order.isResent) {
+            // Jika sudah klik Ulang dan sedang menunggu SMS ke-2, tombol Selesai tetap aktif
+            cancelBtnAttr = "disabled";
+            replaceBtnAttr = "disabled";
+            resendBtnAttr = "disabled";
+            finishBtnAttr = "";
+        } else if (wait <= 0 && !order.isAutoCanceling) { 
+            cancelBtnAttr = ""; 
+            replaceBtnAttr = ""; 
+            resendBtnAttr = "disabled"; 
+            finishBtnAttr = "disabled";
+        }
     }
 
     const left = order.expiresAt - now;
@@ -914,16 +925,16 @@ function createOrderCard(order) {
         </div>
         <div class="otp-display ${isSuccess ? 'success-glow' : ''}">${otpHtml}</div>
         <div class="action-buttons-grid">
-            <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder(${order.id}, ${passProductId})" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button>
-            <button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder(${order.id})" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button>
-            <button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder(${order.id})" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button>
-            <button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder(${order.id})" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button>
+            <button class="btn-replace" id="btn-replace-${order.id}" onclick="replaceSpecificOrder('${order.id}', ${passProductId})" ${replaceBtnAttr}><i class="fas fa-sync-alt"></i> Ganti</button>
+            <button class="btn-resend" id="btn-resend-${order.id}" onclick="resendSpecificOrder('${order.id}')" ${resendBtnAttr}><i class="fas fa-envelope"></i> Ulang</button>
+            <button class="btn-danger" id="btn-cancel-${order.id}" onclick="cancelSpecificOrder('${order.id}')" ${cancelBtnAttr}><i class="fas fa-times"></i> Batal</button>
+            <button class="btn-success" id="btn-finish-${order.id}" onclick="finishSpecificOrder('${order.id}')" ${finishBtnAttr}><i class="fas fa-check"></i> Selesai</button>
         </div>
     `;
     return card;
 }
 
-// === RENDER KOTAK UTAMA + MENU PESANAN LAMA (INSTANT REPLACE) ===
+// === RENDER KOTAK UTAMA + MENU PESANAN LAMA ===
 function renderOrders() {
     if (!activeOrdersContainer) return;
     const fragment = document.createDocumentFragment();
@@ -976,7 +987,7 @@ function renderOrders() {
     activeOrdersContainer.replaceChildren(fragment);
 }
 
-// === WEB WORKER TIMER & PENGECEKAN WAKTU HABIS ===
+// === WEB WORKER TIMER & PENGECEKAN WAKTU HABIS (PERSIS OTP CEPAT) ===
 function forceCheckOverdueOrders() {
     let needsSave = false;
     const now = Date.now();
@@ -984,6 +995,15 @@ function forceCheckOverdueOrders() {
         let o = activeOrders[i];
         const left = o.expiresAt - now;
         if (left <= 0) {
+            if (o.isResent || o.hasReceivedOTP || o.otp) {
+                apiCall('/orders/finish', 'POST', { id: parseInt(o.id) }).catch(() => {});
+                saveToHistory(o, "SELESAI");
+                recordStat('success');
+            } else {
+                apiCall('/orders/cancel', 'POST', { id: parseInt(o.id) }).catch(() => {});
+                saveToHistory(o, "BATAL");
+                recordStat('failed');
+            }
             activeOrders.splice(i, 1);
             needsSave = true;
         }
@@ -1002,6 +1022,15 @@ function startTimerTick() {
             const timerElement = document.getElementById(`timer-${order.id}`);
             
             if (timeLeft <= 0) { 
+                if (order.isResent || order.hasReceivedOTP || order.otp) {
+                    apiCall('/orders/finish', 'POST', { id: parseInt(order.id) }).catch(() => {});
+                    saveToHistory(order, "SELESAI");
+                    recordStat('success');
+                } else {
+                    apiCall('/orders/cancel', 'POST', { id: parseInt(order.id) }).catch(() => {});
+                    saveToHistory(order, "BATAL");
+                    recordStat('failed');
+                }
                 activeOrders.splice(i, 1); 
                 needsSave = true;
                 continue; 
@@ -1016,7 +1045,8 @@ function startTimerTick() {
                 else timerElement.style.color = "var(--text-primary)";
             }
             
-            if (timeLeft <= 600000 && order.status !== "OTP_RECEIVED" && !order.otp && !order.isResent && !order.isAutoCanceling) { 
+            // Auto-cancel pada sisa 10 menit HANYA jika belum pernah dapat OTP dan belum pernah di-Ulang
+            if (timeLeft <= 600000 && !order.hasReceivedOTP && !order.otp && !order.isResent && !order.isAutoCanceling) { 
                 order.isAutoCanceling = true; 
                 cancelSpecificOrder(order.id, true); 
             }
@@ -1026,7 +1056,7 @@ function startTimerTick() {
             const btnReplace = document.getElementById(`btn-replace-${order.id}`); 
             const btnResend = document.getElementById(`btn-resend-${order.id}`); 
             
-            if (order.status !== "OTP_RECEIVED" && !order.otp && !order.isResent && !order.isAutoCanceling) {
+            if (!order.hasReceivedOTP && !order.otp && !order.isResent && !order.isAutoCanceling) {
                 if (wait <= 0) { 
                     if (btnCancel && btnCancel.disabled) btnCancel.disabled = false; 
                     if (btnReplace && btnReplace.disabled && !btnReplace.innerHTML.includes('loader')) btnReplace.disabled = false; 
@@ -1056,7 +1086,7 @@ function startTimerTick() {
     timerWorker.postMessage('start');
 }
 
-// === POLLING CEPAT KHUSUS PESANAN MILIK PERANGKAT INI ===
+// === POLLING CERDAS DENGAN FILTER SMS_REVISION (AGAR TOMBOL ULANG TIDAK BUG) ===
 function startPolling() {
     if (pollingInterval) clearInterval(pollingInterval);
     
@@ -1068,18 +1098,42 @@ function startPolling() {
             if (res.success && Array.isArray(res.data)) {
                 let changed = false;
                 activeOrders.forEach(localOrder => {
-                    const srvOrder = res.data.find(s => s.id === localOrder.id);
+                    // Hanya periksa order yang sedang menunggu SMS
+                    if (localOrder.status === "Recieved" || localOrder.status === "Done" || localOrder.otp) return;
+
+                    const srvOrder = res.data.find(s => String(s.id) === String(localOrder.id));
                     if (srvOrder) {
+                        let rawText = srvOrder.otp_code || srvOrder.otp_message || "";
                         let extractedOtp = srvOrder.otp_code;
-                        if (!extractedOtp && srvOrder.otp_message) {
-                            let match = String(srvOrder.otp_message).match(/\d{4,8}/);
-                            extractedOtp = match ? match[0] : srvOrder.otp_message;
+                        if (!extractedOtp && rawText) {
+                            let match = String(rawText).match(/\d{4,8}/);
+                            extractedOtp = match ? match[0] : rawText;
                         }
 
-                        if ((srvOrder.status === "OTP_RECEIVED" || extractedOtp) && localOrder.otp !== extractedOtp && extractedOtp) {
+                        const srvRev = typeof srvOrder.sms_revision === 'number' ? srvOrder.sms_revision : 0;
+                        let isNewValidOtp = false;
+
+                        if (localOrder.isResent) {
+                            // Jika pesanan baru saja di-Ulang (Resend), abaikan OTP lama dari revisi sebelumnya!
+                            if (srvRev > (localOrder.lastSmsRevision || 1) && extractedOtp) {
+                                isNewValidOtp = true;
+                            } else if (srvOrder.status === "OTP_RECEIVED" && extractedOtp && extractedOtp !== localOrder.lastOtp) {
+                                isNewValidOtp = true;
+                            }
+                        } else {
+                            // Pesanan normal (OTP pertama)
+                            if ((srvOrder.status === "OTP_RECEIVED" || extractedOtp) && extractedOtp) {
+                                isNewValidOtp = true;
+                            }
+                        }
+
+                        if (isNewValidOtp) {
                             notifSound.play().catch(() => {});
-                            localOrder.status = "OTP_RECEIVED";
+                            localOrder.status = "Recieved";
                             localOrder.otp = extractedOtp;
+                            localOrder.lastOtp = extractedOtp;
+                            localOrder.hasReceivedOTP = true;
+                            localOrder.smsRevision = srvRev > 0 ? srvRev : ((localOrder.lastSmsRevision || 0) + 1);
                             changed = true;
                             
                             const phoneStr = normalizePhone(localOrder.phone);
@@ -1103,7 +1157,7 @@ function startPolling() {
     pollingInterval = setInterval(runPoll, 4000);
 }
 
-// === AKSI SUPER CEPAT: GANTI, ULANG, BATAL, BATAL SEMUA, SELESAI ===
+// === AKSI ORDER: GANTI, ULANG, BATAL, BATAL SEMUA, SELESAI (DISESUAIKAN DENGAN OTP CEPAT) ===
 window.replaceSpecificOrder = async function(orderId, productId) {
     const btn = document.getElementById(`btn-replace-${orderId}`); 
     const targetProductId = selectedProductId || ((productId && productId !== 'null') ? productId : null);
@@ -1151,15 +1205,19 @@ window.replaceSpecificOrder = async function(orderId, productId) {
                 phone: od.phone_number, 
                 price: finalPrice, 
                 otp: null, 
-                status: "ACTIVE", 
+                lastOtp: null,
+                smsRevision: 0,
+                lastSmsRevision: 0,
+                status: "Waiting SMS", 
                 createdAt: Date.now(),
                 expiresAt: new Date(od.expires_at).getTime(), 
                 cancelUnlockTime: cancelUnlockMs, 
-                isAutoCanceling: false,
-                isResent: false
+                hasReceivedOTP: false,
+                isResent: false,
+                isAutoCanceling: false
             });
             saveToStorage(); 
-            copyToClipboard(od.phone_number, "Nomor diganti & disalin!");
+            copyToClipboard(od.phone_number, "Berhasil mendapat nomor baru & disalin!");
             startPolling(); 
             startTimerTick(); 
             fetchBalance(); 
@@ -1169,44 +1227,82 @@ window.replaceSpecificOrder = async function(orderId, productId) {
             showToast(createRes && createRes.error ? createRes.error.message : "Nomor lama dibatalkan, gagal pesan baru.", "error");
         } else {
             showToast(cancelRes && cancelRes.error ? cancelRes.error.message : "Belum mencapai batas waktu batal.", "error"); 
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } 
+            renderOrders();
         }
     } catch (e) { 
         showToast("Error Jaringan.", "error"); 
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Ganti'; } 
+        renderOrders();
     }
 };
 
-window.resendSpecificOrder = async function(orderId) {
-    const idStr = String(orderId); 
-    let idx = activeOrders.findIndex(o => String(o.id) === idStr);
-    if (idx === -1) return;
-
-    const prevStatus = activeOrders[idx].status;
-    const prevOtp = activeOrders[idx].otp;
-    const prevResent = activeOrders[idx].isResent;
-
-    saveToHistory({ ...activeOrders[idx] }, "MINTA ULANG"); 
-    activeOrders[idx].status = "ACTIVE"; 
-    activeOrders[idx].otp = null; 
-    activeOrders[idx].isResent = true;
-    saveToStorage(); 
-    showToast("Meminta kode SMS baru...");
-
+// FUNGSI ULANG (RESEND) PERSIS SEPERTI OTP CEPAT
+window.resendSpecificOrder = async function(id) {
+    const btnResend = document.getElementById(`btn-resend-${id}`);
+    if (btnResend) { btnResend.disabled = true; btnResend.innerHTML = '<div class="loader"></div>'; }
+    
     try {
-        const res = await apiCall('/orders/resend', 'POST', { id: parseInt(orderId) });
-        if (!res.success) { 
-            let curIdx = activeOrders.findIndex(o => String(o.id) === idStr);
-            if (curIdx !== -1) {
-                activeOrders[curIdx].status = prevStatus;
-                activeOrders[curIdx].otp = prevOtp;
-                activeOrders[curIdx].isResent = prevResent;
+        const res = await apiCall('/orders/resend', 'POST', { id: parseInt(id) }); 
+        if (res.success) {
+            showToast("Meminta kode SMS baru...");
+            let idx = activeOrders.findIndex(o => String(o.id) === String(id));
+            if (idx !== -1) {
+                saveToHistory({ ...activeOrders[idx] }, "MINTA ULANG");
+                
+                // Simpan OTP & revisi terakhir agar polling tidak mengambil ulang OTP lama
+                activeOrders[idx].lastOtp = activeOrders[idx].otp;
+                activeOrders[idx].lastSmsRevision = activeOrders[idx].smsRevision || 1;
+                activeOrders[idx].status = "Waiting SMS";
+                activeOrders[idx].otp = null;
+                activeOrders[idx].hasReceivedOTP = false; 
+                activeOrders[idx].isResent = true; 
+                
                 saveToStorage();
             }
-            showToast(res.error ? res.error.message : "Gagal meminta ulang.", "error"); 
+        } else {
+            showToast("Gagal resend: " + (res.error ? res.error.message : "Error"), "error");
         }
     } catch (e) { 
-        showToast("Kesalahan jaringan saat minta ulang.", "error"); 
+        showToast("Error sistem: " + e.message, "error"); 
+    } finally { 
+        renderOrders(); 
+    }
+};
+
+// FUNGSI SELESAI (FINISH) PERSIS SEPERTI OTP CEPAT
+window.finishSpecificOrder = async function(orderId) {
+    const btn = document.getElementById(`btn-finish-${orderId}`);
+    if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
+
+    let oIdx = activeOrders.findIndex(x => String(x.id) === String(orderId));
+    if (oIdx === -1) return;
+    let orderToSave = activeOrders[oIdx];
+
+    try {
+        const res = await apiCall('/orders/finish', 'POST', { id: parseInt(orderId) });
+        
+        // Sukses di server, atau sudah berstatus terminal (NOT_FOUND / CONFLICT)
+        if (res.success || (res.error && (res.error.code === 'NOT_FOUND' || res.error.code === 'CONFLICT'))) {
+            saveToHistory(orderToSave, "SELESAI");
+            recordStat('success');
+            
+            const card = document.getElementById(`order-card-${orderId}`);
+            if (card) card.classList.add('removing');
+            
+            setTimeout(() => {
+                activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId));
+                if (activeOrders.length <= 1) isDroplistOpen = false;
+                saveToStorage();
+                fetchBalance();
+                showToast("Pesanan Selesai");
+                renderOrders();
+            }, 250);
+        } else {
+            showToast(res.error ? res.error.message : "Gagal menyelesaikan pesanan di server", "error");
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Selesai'; }
+        }
+    } catch (e) {
+        showToast("Gagal memproses permintaan", "error");
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Selesai'; }
     }
 };
 
@@ -1220,18 +1316,24 @@ window.cancelSpecificOrder = async function(id, auto = false) {
             if (oldOrder) saveToHistory(oldOrder, "BATAL"); 
             recordStat('failed');
             
-            activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); 
-            if (activeOrders.length <= 1) isDroplistOpen = false;
-            saveToStorage(); 
-            
-            if (res.data && typeof res.data.new_balance === 'number') {
-                updateBalanceDisplayUI(res.data.new_balance);
-            } else {
-                fetchBalance();
-            }
-            
-            if (auto) showToast("Otomatis dibatalkan (Waktu Habis)", "error"); 
-            else showToast("Pesanan dibatalkan & dana dikembalikan", "success"); 
+            const card = document.getElementById(`order-card-${id}`);
+            if (card) card.classList.add('removing');
+
+            setTimeout(() => {
+                activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); 
+                if (activeOrders.length <= 1) isDroplistOpen = false;
+                saveToStorage(); 
+                
+                if (res.data && typeof res.data.new_balance === 'number') {
+                    updateBalanceDisplayUI(res.data.new_balance);
+                } else {
+                    fetchBalance();
+                }
+                
+                if (auto) showToast("Otomatis dibatalkan (Waktu Habis)", "error"); 
+                else showToast("Pesanan Dibatalkan", "success"); 
+                renderOrders();
+            }, 250);
         } else { 
             showToast(res.error ? res.error.message : "Gagal dibatalkan.", "error"); 
             if (btnCancel) { btnCancel.disabled = false; btnCancel.innerHTML = '<i class="fas fa-times"></i> Batal'; } 
@@ -1276,19 +1378,6 @@ window.cancelAllOldOrders = async function() {
         showToast("Belum ada pesanan lama yang melewati batas waktu batal (2 menit).", "error");
         if (btnAll) { btnAll.disabled = false; btnAll.innerHTML = `<i class="fas fa-trash-alt"></i> Batalkan Semua Pesanan Lama`; }
     }
-};
-
-window.finishSpecificOrder = function(id) {
-    const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
-    if (oldOrder) saveToHistory(oldOrder, "SUKSES");
-    recordStat('success');
-    
-    activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); 
-    if (activeOrders.length <= 1) isDroplistOpen = false;
-    saveToStorage(); 
-    showToast("Pesanan Selesai!");
-
-    apiCall('/orders/finish', 'POST', { id: parseInt(id) }).catch(() => {}); 
 };
 
 // === INISIALISASI PARALEL TANPA SINKRONISASI ANTAR HP ===
