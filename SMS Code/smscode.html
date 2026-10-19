@@ -3,39 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMS Code Pro 🇮🇩</title>
+    <title>Shopee OTP Pro 🇮🇩</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="smscode.css?v=18">
     
-    <link rel="stylesheet" href="smscode.css?v=30"> 
-    
-   <script>
-    (function() {
-        var lastApp = localStorage.getItem('last_active_app');
-        var currentHref = window.location.href;
-        if (!lastApp) {
-            if (currentHref.includes('virtualsms.html')) localStorage.setItem('last_active_app', 'virtualsms.html');
-            else if (currentHref.includes('herosms.html')) localStorage.setItem('last_active_app', 'herosms.html');
-            else if (currentHref.includes('smscode.html')) localStorage.setItem('last_active_app', 'smscode.html');
-            else if (currentHref.includes('otpcepat.html')) localStorage.setItem('last_active_app', 'otpcepat.html');
-            return;
-        }
-        if (lastApp && !currentHref.includes(lastApp) && !sessionStorage.getItem('just_switched')) {
-            sessionStorage.setItem('just_switched', 'true');
-            if (lastApp === 'virtualsms.html') window.location.replace("https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html");
-            else if (lastApp === 'herosms.html') window.location.replace("https://shopee-smscode.github.io/Hero%20SMS/herosms.html");
-            else if (lastApp === 'smscode.html') window.location.replace("https://shopee-smscode.github.io/SMS%20Code/smscode.html");
-            else if (lastApp === 'otpcepat.html') window.location.replace("https://shopee-smscode.github.io/OTP%20Cepat/otpcepat.html");
-        }
-    })();
-</script>
+    <!-- SKRIP PENGINGAT APLIKASI (AUTO-REDIRECT) -->
+    <script>
+        (function() {
+            var lastApp = localStorage.getItem('last_active_app');
+            var currentHref = window.location.href;
+            if (!lastApp) {
+                if (currentHref.includes('virtualsms.html')) localStorage.setItem('last_active_app', 'virtualsms.html');
+                else if (currentHref.includes('herosms.html')) localStorage.setItem('last_active_app', 'herosms.html');
+                else if (currentHref.includes('smscode.html')) localStorage.setItem('last_active_app', 'smscode.html');
+                return;
+            }
+            if (lastApp && !currentHref.includes(lastApp) && !sessionStorage.getItem('just_switched')) {
+                sessionStorage.setItem('just_switched', 'true');
+                if (lastApp === 'virtualsms.html') window.location.replace("https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html");
+                else if (lastApp === 'herosms.html') window.location.replace("https://shopee-smscode.github.io/Hero%20SMS/herosms.html");
+                else if (lastApp === 'smscode.html') window.location.replace("https://shopee-smscode.github.io/SMS%20Code/smscode.html");
+            }
+        })();
+    </script>
 </head>
 <body class="theme-smscode">
     <div id="appView" class="container">
         
+        <!-- TOP ACTIONS BAR (DROPDOWN KIRI & KANAN) -->
         <div class="top-bar-modern">
             <div style="display: flex; gap: 8px; align-items: center;">
+                <!-- Dropdown Pilih SMS -->
                 <div class="dropdown">
                     <button class="dropbtn" onclick="toggleAppDropdown()">
                         <i class="fas fa-sms"></i> SMS Code <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 2px;"></i>
@@ -44,9 +44,9 @@
                         <a href="https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html" onclick="localStorage.setItem('last_active_app', 'virtualsms.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-globe"></i> SMS Virtual</a>
                         <a href="https://shopee-smscode.github.io/Hero%20SMS/herosms.html" onclick="localStorage.setItem('last_active_app', 'herosms.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-bolt"></i> Hero SMS</a>
                         <a href="https://shopee-smscode.github.io/SMS%20Code/smscode.html" class="active" onclick="localStorage.setItem('last_active_app', 'smscode.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-sms"></i> SMS Code</a>
-                        <a href="https://shopee-smscode.github.io/OTP%20Cepat/otpcepat.html" onclick="localStorage.setItem('last_active_app', 'otpcepat.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-rocket"></i> OTP Cepat</a>
                     </div>
                 </div>
+                <!-- Tombol Note External -->
                 <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-sticky-note"></i></button>
             </div>
             
@@ -55,7 +55,6 @@
                     <i class="fas fa-bars"></i>
                 </button>
                 <div id="menuDropdown" class="dropdown-content dropdown-right">
-                    <a href="#" onclick="openAccountModal(); return false;"><i class="fas fa-users"></i> Akun <span id="currentAccountBadge" class="badge-account">...</span></a>
                     <a href="#" onclick="openStatsModal(); return false;"><i class="fas fa-chart-bar"></i> Statistik</a>
                     <a href="#" onclick="openBlacklistModal(); return false;" style="position: relative;"><i class="fas fa-ban"></i> Blacklist <span id="blacklistBadge" class="badge-menu">0</span></a>
                     <a href="#" onclick="openHistoryModal(); return false;"><i class="fas fa-history"></i> Riwayat</a>
@@ -66,37 +65,34 @@
 
         <div class="app-header-container">
             <div class="header-titles">
-                <h1>SMS-Code 🇮🇩</h1>
-                <p class="subtitle">👨‍💻 Akun: <strong id="currentAccountName">Memuat...</strong></p>
+                <h1>Shopee OTP 🇮🇩</h1>
+                <p class="subtitle">Provider Tercepat</p>
             </div>
-            <div class="balance-container">
-                <div class="balance-badge">
-                    <span class="balance-label">Saldo</span>
-                    <span id="balanceDisplay" class="balance-value">...</span>
-                </div>
-            </div>
+            <button onclick="openAccountModal()" class="account-selector-btn">
+                👤 <span id="currentAccountBadge">Memuat...</span> <i class="fas fa-chevron-down"></i>
+            </button>
+            <span id="currentAccountName" style="display:none;"></span>
         </div>
         
         <div id="activeOrdersContainer">
             <div class="status-text-mini">Belum ada pesanan aktif.</div>
         </div>
 
+        <div class="balance-container">
+            <div class="balance-badge">
+                <span class="balance-label">Saldo</span>
+                <span id="balanceDisplay" class="balance-value">...</span>
+            </div>
+        </div>
+
+        <!-- LAYANAN & HARGA -->
         <div>
-            <!-- PILIH LAYANAN & ACAK SEJAJAR DALAM 1 BARIS -->
-            <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-bottom: 8px;">
-                <div style="flex: 1; text-align: left;">
-                    <label style="font-size: 10px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; display: block; padding-left: 2px;">Layanan</label>
-                    <button id="btnServiceSelect" onclick="openServiceModal()" class="form-input" style="text-align: left; font-weight: 800; font-size: 13px; padding: 10px 12px; border-radius: 10px; background-color: var(--bg-card); cursor: pointer; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); color: var(--primary-color); height: 36px; margin: 0;">
-                        <span>Memuat...</span>
-                        <i class="fas fa-search" style="font-size: 11px;"></i>
-                    </button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding: 0 4px;">
+                <div style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">
+                    LAYANAN <span style="color: var(--primary-color);">SHOPEE</span>
                 </div>
-                
-                <div>
-                    <label style="font-size: 10px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; display: block; padding-left: 2px;">Operator</label>
-                    <label style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; font-weight: 800; color: var(--primary-color); cursor: pointer; background: var(--bg-card); padding: 0 10px; border-radius: 10px; border: 1px solid var(--border-color); flex-shrink: 0; height: 36px; margin: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
-                        <input type="checkbox" id="chkRandomOp" onchange="toggleRandomOperator()" checked style="accent-color: var(--primary-color);"> Acak 
-                    </label>
+                <div style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">
+                    HARGA: <span id="displayHeaderPrice" style="color: var(--success-color);">...</span>
                 </div>
             </div>
 
@@ -104,41 +100,24 @@
                 <div class="status-text-mini">Memuat data Server...</div>
             </div>
             
-            <button id="btnOrder" class="btn-primary" onclick="onOrderButtonClicked()" disabled>Pesan Nomor Baru</button>
+            <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
             <div id="extraBtnWrapper"></div>
         </div>
     </div>
 
-    <!-- MODAL PILIH LAYANAN (SEARCH) -->
-    <div id="serviceModal" class="modal hidden">
-        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
-            <div class="modal-header">
-                <h3 class="modal-title">Pilih Layanan</h3>
-                <button onclick="closeServiceModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
-            </div>
-            <div style="margin-bottom: 10px;">
-                <input type="text" id="searchServiceInput" class="form-input" placeholder="🔍 Cari layanan... (ex: Shopee)" oninput="filterServices()" style="border-radius: 10px; font-weight: bold;">
-            </div>
-            <div id="serviceListContainer" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column; gap: 6px;">
-                <div class="status-text-mini">Memuat...</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL GANTI AKUN -->
+    <!-- MODAL ACCOUNT SWITCHER -->
     <div id="accountModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
-                <h3 class="modal-title">Ganti Akun</h3>
+                <h3 class="modal-title">Pilih Akun</h3>
                 <button onclick="closeAccountModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
-            <div id="accountListContainer" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
-                <div class="status-text-mini">Memuat akun...</div>
+            <div id="accountListContainer" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; text-align: left;">
             </div>
         </div>
     </div>
 
-    <!-- MODAL CATATAN -->
+    <!-- MODAL EXTERNAL NOTES (IFRAME) -->
     <div id="iframeNoteModal" class="modal hidden">
         <div class="modal-content" style="max-height: 95vh; display: flex; flex-direction: column; padding: 10px; width: 95%; max-width: 450px;">
             <div class="modal-header" style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: none;">
@@ -182,7 +161,7 @@
             </div>
             <input type="date" id="statDate" class="form-input" style="margin-bottom:15px; font-weight:bold; text-align:center; color: var(--text-primary); background: var(--bg-card); border: 1px solid var(--border-color);">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <div style="background: rgba(249, 115, 22, 0.1); padding: 15px; border-radius: 12px; text-align: center; border: 1px solid var(--success-color);">
+                <div style="background: rgba(46, 204, 113, 0.1); padding: 15px; border-radius: 12px; text-align: center; border: 1px solid var(--success-color);">
                     <div style="font-size: 24px; font-weight: 900; color: var(--success-color);" id="statSuccess">0</div>
                     <div style="font-size: 10px; font-weight: bold; color: var(--text-secondary); text-transform: uppercase;">Sukses OTP</div>
                 </div>
@@ -204,7 +183,7 @@
             <div style="text-align: center; padding: 10px 0;">
                 <div style="font-size: 48px; font-weight: 900; color: var(--primary-color); margin-bottom: 10px; text-shadow: 0 0 15px rgba(249, 115, 22, 0.3);" id="blacklistDetailCount">0</div>
                 <p style="color: var(--text-primary); font-weight: 700; margin-bottom: 5px; font-size: 14px;">Nomor Terblokir</p>
-                <p style="color: var(--text-secondary); font-size: 12px; line-height: 1.4; margin: 0 5px;">Nomor yang sudah sukses tidak akan diberikan lagi.</p>
+                <p style="color: var(--text-secondary); font-size: 12px; line-height: 1.4; margin: 0 5px;">Nomor yang sudah sukses mendapatkan OTP akan diingat dan tidak akan diberikan lagi.</p>
                 <div id="operatorBreakdown" style="margin-top: 15px; text-align: center;"></div>
             </div>
         </div>
@@ -238,6 +217,6 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <script src="smscode.js?v=30"></script>
+    <script src="smscode.js?v=18"></script>
 </body>
 </html>
