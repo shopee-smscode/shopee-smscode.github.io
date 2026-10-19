@@ -228,9 +228,21 @@ async function fetchBalance() {
 window.handlePriceChange = function() {
     const selectEl = document.getElementById('priceSelect');
     if (!selectEl) return;
+    
     selectedProductId = selectEl.value;
     localStorage.setItem('smscode_selected_product', selectedProductId);
     if (btnOrder) btnOrder.disabled = !selectedProductId;
+
+    // FITUR BARU: Update label harga di dalam kartu operator secara realtime
+    const selectedOpIdStr = localStorage.getItem('smscode_selected_op') || "null";
+    const priceLabelEl = document.getElementById(`price-label-${selectedOpIdStr}`);
+    if (priceLabelEl && selectedProductId && availableProducts.length > 0) {
+        const productInfo = availableProducts.find(p => String(p.id) === String(selectedProductId));
+        if (productInfo) {
+            const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+            priceLabelEl.innerText = formatter.format(productInfo.price);
+        }
+    }
 };
 
 function renderOperatorGrid(operators, products) {
@@ -245,8 +257,8 @@ function renderOperatorGrid(operators, products) {
     
     activeOps.forEach(op => {
         const opProducts = products.filter(p => p.operator_id === op.operator_id);
-        // Harga termurah untuk ditampilkan di grid
-        const minPrice = opProducts.length > 0 ? opProducts[0].price : 0;
+        // Harga default untuk ditampilkan di grid (ambil yang termurah)
+        const minPrice = opProducts.length > 0 ? Math.min(...opProducts.map(p => p.price)) : 0;
         const opIdStr = op.operator_id === null ? "null" : String(op.operator_id);
         const opName = op.operator_id === null ? "Acak" : (op.name || op.code);
         
@@ -266,7 +278,7 @@ function renderOperatorGrid(operators, products) {
         card.innerHTML = `
             <div class="op-icon">${iconHtml}</div>
             <div class="op-name">${opName}</div>
-            <div class="op-price">${formatter.format(minPrice)}</div>
+            <div class="op-price" id="price-label-${opIdStr}">${formatter.format(minPrice)}</div>
         `;
         
         card.onclick = () => selectOperator(opIdStr, opProducts);
@@ -317,6 +329,8 @@ function selectOperator(opIdStr, opProducts) {
     if(!prodExists) savedProd = String(opProducts[0].id);
     
     selectEl.value = savedProd;
+    
+    // Paksa update UI harga di kartu
     window.handlePriceChange();
 }
 
