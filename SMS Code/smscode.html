@@ -9,6 +9,21 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="smscode.css?v=18">
     
+    <!-- CSS Tambahan Khusus untuk Grid Operator -->
+    <style>
+        .operator-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+        .operator-card { background: var(--bg-card); border: 2px solid var(--border-color); border-radius: 12px; padding: 12px 4px; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+        .operator-card:active { transform: scale(0.95); }
+        .operator-card.selected { border-color: var(--primary-color); background: var(--otp-bg); box-shadow: 0 4px 12px var(--shadow-color); }
+        .op-icon { background: var(--bg-body); width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--text-primary); margin-bottom: 2px; border: 1px solid var(--border-color); }
+        .operator-card.selected .op-icon { border-color: var(--primary-color); }
+        .op-name { font-size: 10px; font-weight: 800; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-transform: uppercase; }
+        .op-price { font-size: 12px; font-weight: 900; color: var(--primary-color); background: var(--bg-body); padding: 2px 8px; border-radius: 6px; box-shadow: inset 0 0 4px rgba(0,0,0,0.3);}
+        
+        .price-select { background: var(--bg-card); color: var(--primary-color); border: 1px solid var(--border-color); border-radius: 6px; padding: 4px; font-weight: 900; font-size: 12px; outline: none; cursor: pointer; max-width: 140px; text-overflow: ellipsis;}
+        .price-select:focus { border-color: var(--primary-color); }
+    </style>
+
     <!-- SKRIP PENGINGAT APLIKASI (AUTO-REDIRECT) -->
     <script>
         (function() {
@@ -35,7 +50,6 @@
         <!-- TOP ACTIONS BAR (DROPDOWN KIRI & KANAN) -->
         <div class="top-bar-modern">
             <div style="display: flex; gap: 8px; align-items: center;">
-                <!-- Dropdown Pilih SMS -->
                 <div class="dropdown">
                     <button class="dropbtn" onclick="toggleAppDropdown()">
                         <i class="fas fa-sms"></i> SMS Code <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 2px;"></i>
@@ -46,7 +60,6 @@
                         <a href="https://shopee-smscode.github.io/SMS%20Code/smscode.html" class="active" onclick="localStorage.setItem('last_active_app', 'smscode.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-sms"></i> SMS Code</a>
                     </div>
                 </div>
-                <!-- Tombol Note External -->
                 <button onclick="openIframeNoteModal()" class="btn-top-action"><i class="fas fa-sticky-note"></i></button>
             </div>
             
@@ -85,19 +98,23 @@
             </div>
         </div>
 
-        <!-- LAYANAN & HARGA -->
+        <!-- AREA LAYANAN, DROPDOWN HARGA & GRID OPERATOR -->
         <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding: 0 4px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 0 4px;">
                 <div style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">
                     LAYANAN <span style="color: var(--primary-color);">SHOPEE</span>
                 </div>
-                <div style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">
-                    HARGA: <span id="displayHeaderPrice" style="color: var(--success-color);">...</span>
+                <div style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 6px;">
+                    HARGA: 
+                    <select id="priceSelect" class="price-select" onchange="handlePriceChange()">
+                        <option value="">Memuat...</option>
+                    </select>
                 </div>
             </div>
 
-            <div id="productList" class="product-list">
-                <div class="status-text-mini">Memuat data Server...</div>
+            <!-- Grid Operator sebagai pengganti Product List -->
+            <div id="operatorGrid" class="operator-grid">
+                <div class="status-text-mini" style="grid-column: 1 / -1;">Memuat data Server & Operator...</div>
             </div>
             
             <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
@@ -117,7 +134,7 @@
         </div>
     </div>
 
-    <!-- MODAL EXTERNAL NOTES (IFRAME) -->
+    <!-- MODAL EXTERNAL NOTES -->
     <div id="iframeNoteModal" class="modal hidden">
         <div class="modal-content" style="max-height: 95vh; display: flex; flex-direction: column; padding: 10px; width: 95%; max-width: 450px;">
             <div class="modal-header" style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: none;">
@@ -217,6 +234,6 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <script src="smscode.js?v=19"></script>
+    <script src="smscode.js?v=20"></script>
 </body>
 </html>

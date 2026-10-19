@@ -11,9 +11,8 @@ let cachedAccounts = [];
 let viewingPresenceRef = null; let activeAccountName = null; let activeOrders = []; let availableProducts = []; let selectedProductId = null; let timerInterval = null; let pollingInterval = null;
 let orderHistory = []; let usedNumbersDB = new Set(); let isUsedNumbersLoaded = false; 
 
-const currentAccountName = document.getElementById('currentAccountName'); const productList = document.getElementById('productList'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); 
+const currentAccountName = document.getElementById('currentAccountName'); const btnOrder = document.getElementById('btnOrder'); const activeOrdersContainer = document.getElementById('activeOrdersContainer'); const activeCount = document.getElementById('activeCount'); const balanceDisplay = document.getElementById('balanceDisplay'); const exitModal = document.getElementById('exitModal'); 
 
-// === DROPDOWN & MENU LOGIC ===
 window.toggleAppDropdown = function() {
     document.getElementById("appDropdown").classList.toggle("show");
     document.getElementById("menuDropdown").classList.remove("show");
@@ -39,7 +38,6 @@ window.closeIframeNoteModal = function() {
     document.getElementById('iframeNoteModal').classList.add('hidden');
 }
 
-// === FUNGSI API ROBUST (ANTI CRASH / AMAN DARI ERROR HTML CLOUDFLARE) ===
 async function apiCall(endpoint, method = "GET", body = null) { 
     const options = { method: method, headers: { "Content-Type": "application/json", "X-Account-Name": activeAccountName || "" } }; 
     if (body) options.body = JSON.stringify(body); 
@@ -144,8 +142,6 @@ window.openHistoryModal = function() { document.getElementById('historyModal').c
 window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); }
 window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`smscode_history_${activeAccountName}`); renderHistory(); } }
 
-// === PERBAIKAN: SAFE BOOT MODE ===
-// Jika Worker Error, tidak akan macet di layar awal
 async function fetchAccounts() {
     try {
         const res = await apiCall('/api/accounts'); 
@@ -160,8 +156,6 @@ async function fetchAccounts() {
     } catch (error) { 
         if(document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = "Mode Darurat"; 
         showToast("Worker Error. Mengaktifkan Mode Darurat...", "error"); 
-        
-        // Memaksa UI berlanjut agar error sesungguhnya terlihat di kotak layanan
         cachedAccounts = ["Akun Darurat"];
         loginAccount("Akun Darurat");
     }
@@ -190,15 +184,9 @@ async function fetchBalanceForAccount(accName) {
                 balEl.innerText = formatter.format(res.data.balance); 
                 balEl.style.color = (accName === activeAccountName) ? "var(--primary-color)" : "var(--text-primary)"; 
             } 
-            else { 
-                balEl.innerText = "Error API"; 
-                balEl.style.color = "var(--danger-color)"; 
-            }
+            else { balEl.innerText = "Error API"; balEl.style.color = "var(--danger-color)"; }
         }
-    } catch (err) { 
-        const balEl = document.getElementById(`bal-${accName}`); 
-        if (balEl) { balEl.innerText = "Gagal Terhubung"; balEl.style.color = "var(--danger-color)"; } 
-    }
+    } catch (err) { const balEl = document.getElementById(`bal-${accName}`); if (balEl) { balEl.innerText = "Gagal Terhubung"; balEl.style.color = "var(--danger-color)"; } }
 }
 
 window.switchAccount = function(accountName) {
@@ -232,18 +220,110 @@ async function fetchBalance() {
         if (res.success) { 
             const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }); 
             if (bDisplay) bDisplay.innerText = formatter.format(res.data.balance); 
-        } else {
-            if (bDisplay) bDisplay.innerText = "Error API";
-        }
-    } catch (error) { 
-        const bDisplay = document.getElementById('balanceDisplay'); 
-        if (bDisplay) bDisplay.innerText = "Jaringan Error"; 
-    } 
+        } else { if (bDisplay) bDisplay.innerText = "Error API"; }
+    } catch (error) { const bDisplay = document.getElementById('balanceDisplay'); if (bDisplay) bDisplay.innerText = "Jaringan Error"; } 
+}
+
+// === GRID OPERATOR & DROPDOWN HARGA LOGIC ===
+window.handlePriceChange = function() {
+    const selectEl = document.getElementById('priceSelect');
+    if (!selectEl) return;
+    selectedProductId = selectEl.value;
+    localStorage.setItem('smscode_selected_product', selectedProductId);
+    if (btnOrder) btnOrder.disabled = !selectedProductId;
+};
+
+function renderOperatorGrid(operators, products) {
+    const grid = document.getElementById('operatorGrid');
+    if (!grid) return;
+    grid.innerHTML = "";
+    
+    const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+    
+    // Hanya tampilkan operator yang memiliki stok/produk
+    const activeOps = operators.filter(op => products.some(p => p.operator_id === op.operator_id));
+    
+    activeOps.forEach(op => {
+        const opProducts = products.filter(p => p.operator_id === op.operator_id);
+        // Harga termurah untuk ditampilkan di grid
+        const minPrice = opProducts.length > 0 ? opProducts[0].price : 0;
+        const opIdStr = op.operator_id === null ? "null" : String(op.operator_id);
+        const opName = op.operator_id === null ? "Acak" : (op.name || op.code);
+        
+        const card = document.createElement("div");
+        card.className = "operator-card";
+        card.id = `op-card-${opIdStr}`;
+        
+        let iconHtml = '<i class="fas fa-signal"></i>';
+        const lowerName = opName.toLowerCase();
+        if(lowerName.includes('acak')) iconHtml = '<i class="fas fa-random" style="color:#3b82f6;"></i>';
+        else if(lowerName.includes('telkomsel')) iconHtml = '<span style="color:white;background:#ed1c24;font-weight:900;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:14px;">T</span>';
+        else if(lowerName.includes('indosat') || lowerName.includes('im3')) iconHtml = '<span style="color:#ffcc00;font-weight:900;font-style:italic;">im3</span>';
+        else if(lowerName.includes('xl') || lowerName.includes('axis')) iconHtml = '<span style="color:#0000ff;font-weight:900;">XL</span>';
+        else if(lowerName.includes('three') || lowerName.includes('tri') || opName === '3') iconHtml = '<span style="font-weight:900;font-size:20px;">3</span>';
+        else if(lowerName.includes('smartfren')) iconHtml = '<span style="color:#e91e63;font-weight:900;font-size:10px;">SF</span>';
+
+        card.innerHTML = `
+            <div class="op-icon">${iconHtml}</div>
+            <div class="op-name">${opName}</div>
+            <div class="op-price">${formatter.format(minPrice)}</div>
+        `;
+        
+        card.onclick = () => selectOperator(opIdStr, opProducts);
+        grid.appendChild(card);
+    });
+    
+    // Auto-select operator
+    let savedOp = localStorage.getItem('smscode_selected_op') || "null";
+    const opExists = activeOps.some(o => (o.operator_id === null ? "null" : String(o.operator_id)) === savedOp);
+    if(!opExists && activeOps.length > 0) savedOp = activeOps[0].operator_id === null ? "null" : String(activeOps[0].operator_id);
+    
+    const initialProducts = products.filter(p => (p.operator_id === null ? "null" : String(p.operator_id)) === savedOp);
+    selectOperator(savedOp, initialProducts);
+}
+
+function selectOperator(opIdStr, opProducts) {
+    document.querySelectorAll('.operator-card').forEach(c => c.classList.remove('selected'));
+    const selectedCard = document.getElementById(`op-card-${opIdStr}`);
+    if(selectedCard) selectedCard.classList.add('selected');
+    
+    localStorage.setItem('smscode_selected_op', opIdStr);
+    
+    const selectEl = document.getElementById('priceSelect');
+    if (!selectEl) return;
+    selectEl.innerHTML = "";
+    
+    const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+    
+    if (opProducts.length === 0) {
+        selectEl.innerHTML = '<option value="">Kosong</option>';
+        selectEl.disabled = true;
+        if (btnOrder) btnOrder.disabled = true;
+        selectedProductId = null;
+        return;
+    }
+    
+    opProducts.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.innerText = `${formatter.format(p.price)} (Stok: ${p.available})`;
+        selectEl.appendChild(opt);
+    });
+    
+    selectEl.disabled = false;
+    
+    let savedProd = localStorage.getItem('smscode_selected_product');
+    let prodExists = opProducts.some(p => String(p.id) === savedProd);
+    if(!prodExists) savedProd = String(opProducts[0].id);
+    
+    selectEl.value = savedProd;
+    window.handlePriceChange();
 }
 
 async function loadShopeeIndonesia() {
     try {
-        if (productList) productList.innerHTML = '<div class="status-text-mini">Mencari Server...</div>';
+        const opGrid = document.getElementById('operatorGrid');
+        if (opGrid) opGrid.innerHTML = '<div class="status-text-mini" style="grid-column: 1 / -1;">Mencari Server & Operator...</div>';
         
         // 1. Dapatkan daftar negara
         const countriesRes = await apiCall('/catalog/countries'); 
@@ -257,53 +337,35 @@ async function loadShopeeIndonesia() {
         const shopee = servicesRes.data.find(s => s.name.toLowerCase().includes('shopee'));
         if (!shopee) throw new Error("Layanan Shopee tidak tersedia.");
 
-        // 3. Dapatkan produk
-        const productsRes = await apiCall(`/catalog/products?country_id=${indo.id}&platform_id=${shopee.id}`);
+        // 3. Dapatkan Operator & Produk sekaligus
+        const [opsRes, productsRes] = await Promise.all([
+            apiCall(`/catalog/operators?country_id=${indo.id}&platform_id=${shopee.id}`),
+            apiCall(`/catalog/products?country_id=${indo.id}&platform_id=${shopee.id}`)
+        ]);
+
         if (!productsRes.success) throw new Error(productsRes.error.message);
         
-        if (productsRes.data && productsRes.data.length > 0) {
-            availableProducts = productsRes.data.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-            if (productList) productList.innerHTML = ""; 
-            if (availableProducts.length > 0) { 
-                let savedOp = localStorage.getItem('smscode_selected_server'); 
-                let isOpExist = availableProducts.find(p => String(p.id) === String(savedOp));
-                selectedProductId = isOpExist ? savedOp : availableProducts[0].id; 
-                localStorage.setItem('smscode_selected_server', selectedProductId); 
-                if (btnOrder) btnOrder.disabled = false; 
-            }
+        availableProducts = productsRes.data || [];
+        let operators = (opsRes.success && opsRes.data) ? opsRes.data : [];
+
+        if (availableProducts.length > 0) {
+            // Urutkan produk berdasarkan harga dari termurah
+            availableProducts.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
             
-            const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
-            
-            // Mengupdate label harga di header layanan
-            const selectedProductInfo = availableProducts.find(p => String(p.id) === String(selectedProductId)) || availableProducts[0];
-            const headerPriceEl = document.getElementById('displayHeaderPrice');
-            if (headerPriceEl && selectedProductInfo) {
-                headerPriceEl.innerText = formatter.format(selectedProductInfo.price);
+            // Perbaikan jika API mengembalikan Acak secara implisit melalui produk tanpa operator_id
+            const hasAny = availableProducts.some(p => p.operator_id === null);
+            if (hasAny && !operators.find(o => o.operator_id === null)) {
+                operators.unshift({ operator_id: null, name: "Acak", code: "any" });
             }
 
-            availableProducts.forEach(product => {
-                const card = document.createElement("div"); 
-                card.className = "product-card"; 
-                if (selectedProductId == product.id) { card.classList.add('selected'); }
-                const displayPrice = formatter.format(product.price);
-                card.innerHTML = `<div class="product-info"><h4>Server ID: ${product.id}</h4><p>Stok: ${product.available}</p></div><div class="product-price">${displayPrice}</div>`;
-                card.onclick = () => { 
-                    document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected')); 
-                    card.classList.add('selected'); 
-                    selectedProductId = product.id; 
-                    localStorage.setItem('smscode_selected_server', selectedProductId); 
-                    if (btnOrder) btnOrder.disabled = false; 
-                    
-                    if (headerPriceEl) headerPriceEl.innerText = formatter.format(product.price);
-                };
-                if (productList) productList.appendChild(card);
-            });
+            renderOperatorGrid(operators, availableProducts);
         } else { 
-            if (productList) productList.innerHTML = '<div class="status-text-mini">Server sedang kosong.</div>'; 
+            if (opGrid) opGrid.innerHTML = '<div class="status-text-mini" style="grid-column: 1 / -1;">Server sedang kosong.</div>'; 
+            if (btnOrder) btnOrder.disabled = true;
         }
     } catch (error) { 
-        // JIka error Cloudflare/Worker, pesan error akan jelas terlihat di sini!
-        if (productList) productList.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color); padding: 10px; border: 1px dashed var(--danger-color); border-radius: 8px;"><b>GAGAL MEMUAT:</b><br>${error.message}</div>`; 
+        const opGrid = document.getElementById('operatorGrid');
+        if (opGrid) opGrid.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color); padding: 10px; border: 1px dashed var(--danger-color); border-radius: 8px; grid-column: 1 / -1;"><b>GAGAL MEMUAT:</b><br>${error.message}</div>`; 
     }
 }
 
