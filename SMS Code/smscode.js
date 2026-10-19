@@ -94,7 +94,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener('online', () => { showToast("🌐 Koneksi Internet Kembali", "success"); forceCheckOverdueOrders(); startPolling(); });
 window.addEventListener('offline', () => { showToast("⚠️ Tidak ada koneksi internet", "warning"); });
 
-// === FUNGSI API CEPAT (KEEP-ALIVE) ===
+// === FUNGSI API CEPAT ===
 async function apiCall(endpoint, method = "GET", body = null, customAccount = null) { 
     const targetAccount = customAccount || activeAccountName || "";
     const options = { 
@@ -571,7 +571,6 @@ function renderOperatorGrid(operators, products) {
         return;
     }
     
-    // Ganti isi grid dalam 1 frame tanpa menghilangkan tampilan sebelumnya
     grid.replaceChildren(fragment);
     
     let savedOp = localStorage.getItem('smscode_selected_op') || "null";
@@ -679,8 +678,6 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
     const refreshIcon = document.getElementById('catalogRefreshIcon');
     if (refreshIcon) refreshIcon.classList.add('fa-spin');
 
-    // JANGAN PERNAH MENGHAPUS KARTU OPERATOR SAAT MEREFRESH!
-    // Jika layanan belum dimuat di memori namun ada di cache lokal, tampilkan dulu cache-nya sambil mengambil data baru
     const localCacheKey = `smscode_cat_${currentServiceId || 'default'}`;
     const savedLocalCat = JSON.parse(localStorage.getItem(localCacheKey));
     const hasExistingCards = opGrid && opGrid.querySelector('.operator-card') !== null;
@@ -738,7 +735,6 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
             products: availableProducts
         }));
 
-        // Langsung perbarui harga & kartu operator di tempat tanpa berkedip
         renderOperatorGrid(cachedOperatorsList, availableProducts);
         if (forceRefresh) showToast("Harga & stok diperbarui!");
     } catch (error) { 
@@ -789,7 +785,6 @@ if (btnOrder) {
                     isResent: false
                 });
                 
-                // Optimistic Balance Update (0ms) lalu verifikasi di latar belakang
                 if (currentBalanceValue >= finalPrice) {
                     updateBalanceDisplayUI(currentBalanceValue - finalPrice);
                 }
@@ -1122,14 +1117,12 @@ window.replaceSpecificOrder = async function(orderId, productId) {
     try {
         let cancelRes, createRes;
 
-        // OPTIMASI KECEPATAN: Jika saldo cukup untuk membeli langsung, jalankan Batal & Pesan Baru secara PARALEL!
         if (currentBalanceValue >= estimatedPrice && estimatedPrice > 0) {
             [cancelRes, createRes] = await Promise.all([
                 apiCall('/orders/cancel', 'POST', { id: parseInt(orderId) }),
                 apiCall('/orders/create', 'POST', { product_id: parseInt(targetProductId), quantity: 1 })
             ]);
         } else {
-            // Jika saldo pas-pasan, batalkan dulu untuk menerima refund instan, lalu langsung pesan tanpa jeda animasi!
             cancelRes = await apiCall('/orders/cancel', 'POST', { id: parseInt(orderId) });
             if (cancelRes.success || (cancelRes.error && cancelRes.error.code === 'NOT_FOUND')) {
                 if (cancelRes.data && typeof cancelRes.data.new_balance === 'number') {
@@ -1189,7 +1182,6 @@ window.resendSpecificOrder = async function(orderId) {
     let idx = activeOrders.findIndex(o => String(o.id) === idStr);
     if (idx === -1) return;
 
-    // OPTIMISTIC UI (0ms): Langsung ubah tampilan ke Menunggu SMS tanpa menunggu server
     const prevStatus = activeOrders[idx].status;
     const prevOtp = activeOrders[idx].otp;
     const prevResent = activeOrders[idx].isResent;
@@ -1204,7 +1196,6 @@ window.resendSpecificOrder = async function(orderId) {
     try {
         const res = await apiCall('/orders/resend', 'POST', { id: parseInt(orderId) });
         if (!res.success) { 
-            // Kembalikan state jika ditolak server
             let curIdx = activeOrders.findIndex(o => String(o.id) === idStr);
             if (curIdx !== -1) {
                 activeOrders[curIdx].status = prevStatus;
@@ -1229,7 +1220,6 @@ window.cancelSpecificOrder = async function(id, auto = false) {
             if (oldOrder) saveToHistory(oldOrder, "BATAL"); 
             recordStat('failed');
             
-            // Langsung hapus kartu & update saldo dari response new_balance (0ms tanpa animasi lambat)
             activeOrders = activeOrders.filter(o => String(o.id) !== String(id)); 
             if (activeOrders.length <= 1) isDroplistOpen = false;
             saveToStorage(); 
@@ -1289,7 +1279,6 @@ window.cancelAllOldOrders = async function() {
 };
 
 window.finishSpecificOrder = function(id) {
-    // OPTIMISTIC UI (0ms): Langsung selesaikan di layar detik itu juga, kirim sinyal ke server di latar belakang
     const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
     if (oldOrder) saveToHistory(oldOrder, "SUKSES");
     recordStat('success');

@@ -3,6 +3,8 @@
     --success-color: #22c55e;
     --danger-color: #ef4444;
     --warning-color: #f59e0b;
+    --old-order-yellow: #facc15;
+    --old-order-yellow-dark: #eab308;
     --info-color: #3b82f6;
     --base-font-size: clamp(13px, 3.8vw, 16px); 
 }
@@ -96,7 +98,7 @@ body {
 
 .old-orders-wrapper { margin-top: 8px; border-top: 1.5px dashed var(--border-color); padding-top: 8px; margin-bottom: 4px; flex-shrink: 0; }
 .btn-droplist { width: 100%; background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border-color); padding: 9px 14px; border-radius: 11px; font-size: 12px; font-weight: 800; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: 0.15s; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
-.btn-droplist.open { color: var(--primary-color); border-color: var(--primary-color); background: var(--bg-body); }
+.btn-droplist.open { color: var(--old-order-yellow); border-color: var(--old-order-yellow); background: var(--bg-body); }
 .btn-droplist:active:not(:disabled) { transform: scale(0.98); }
 .btn-droplist:disabled, .btn-droplist.disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; filter: grayscale(0.6); }
 .old-orders-content { display: none; margin-top: 10px; }
@@ -104,11 +106,29 @@ body {
 .btn-cancel-all { width: 100%; background: rgba(239, 68, 68, 0.1); color: var(--danger-color); border: 1px dashed var(--danger-color); padding: 9px; border-radius: 10px; font-size: 11.5px; font-weight: 800; cursor: pointer; margin-bottom: 10px; transition: 0.15s; display: flex; justify-content: center; align-items: center; gap: 6px; }
 .btn-cancel-all:active:not(:disabled) { transform: scale(0.98); }
 
-/* --- ORDER CARD & EMPTY PLACEHOLDER (SNAPPY TRANSITION) --- */
+/* --- ORDER CARD & PEMBEDA WARNA KUNING UNTUK PESANAN LAMA --- */
 .order-card { flex: 1; display: flex; flex-direction: column; justify-content: space-between; background: var(--bg-body); border: 2px solid var(--primary-color); border-radius: 14px; padding: 10px; margin-bottom: 0; box-shadow: inset 0 0 14px rgba(0,0,0,0.2); transition: all 0.12s ease-out; }
-.old-orders-content .order-card { margin-bottom: 8px; }
 .order-card.empty-card { border-color: var(--border-color); opacity: 0.9; }
 .order-card.removing { opacity: 0 !important; transform: scale(0.95) !important; }
+
+/* Garis pembatas kuning khusus untuk kartu di dalam Pesanan Lama */
+.old-orders-content .order-card { 
+    margin-bottom: 8px; 
+    border-color: var(--old-order-yellow); 
+    box-shadow: 0 0 12px rgba(250, 204, 21, 0.12), inset 0 0 14px rgba(0,0,0,0.2); 
+}
+.old-orders-content .order-card .otp-display:not(.success-glow) {
+    border-color: var(--old-order-yellow-dark);
+}
+.old-orders-content .order-card .order-price {
+    color: var(--old-order-yellow);
+}
+.old-orders-content .order-card .dot-pulse {
+    background-color: var(--old-order-yellow);
+}
+.old-orders-content .order-card .waiting-text {
+    color: var(--old-order-yellow);
+}
 
 .order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .order-id-label { color: var(--text-secondary); font-size: 10.5px; font-weight: 700; background: var(--bg-card); padding: 3px 6px; border-radius: 6px; border: 1px solid var(--border-color); }
