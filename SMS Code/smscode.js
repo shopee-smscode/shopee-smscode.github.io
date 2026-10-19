@@ -253,7 +253,7 @@ function renderOperatorGrid(apiOperators, products) {
     
     const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
     
-    // DEFINISI HARDCODE 6 OPERATOR INDONESIA AGAR SELALU MUNCUL DI GRID
+    // DEFINISI HARDCODE 6 OPERATOR
     const INDO_OPS = [
         { key: "any", name: "ACAK", iconHtml: '<i class="fas fa-random" style="color:#3b82f6;"></i>' },
         { key: "xl", name: "AXIS (XL AXIATA)", iconHtml: '<span style="color:#0000ff;font-weight:900;">XL</span>' },
@@ -263,57 +263,79 @@ function renderOperatorGrid(apiOperators, products) {
         { key: "smartfren", name: "SMARTFREN", iconHtml: '<span style="color:#e91e63;font-weight:900;font-size:10px;">SF</span>' }
     ];
 
-    // Pemetaan Alias agar kata kunci API nyambung ke Grid UI
     const matchMap = {
         "xl": ["xl", "axis"],
-        "indosat": ["indosat", "im3", "isat"],
+        "indosat": ["indosat", "im3", "isat", "ooredoo"],
         "telkomsel": ["telkomsel", "tsel"],
         "three": ["three", "tri", "hutchison", "3"],
         "smartfren": ["smartfren"]
     };
 
+    let renderedCount = 0;
+
     INDO_OPS.forEach(opDef => {
-        let actualOpId = "null"; // Default Acak
+        let actualOpId = "null"; 
+        let opProducts = [];
         
-        if (opDef.key !== "any") {
+        if (opDef.key === "any") {
+            opProducts = products.filter(p => p.operator_id === null);
+            actualOpId = "null";
+        } else {
             const matches = matchMap[opDef.key];
-            const foundApiOp = apiOperators.find(o => o.code && matches.some(m => o.code.toLowerCase().includes(m)));
             
-            if (foundApiOp) {
-                actualOpId = String(foundApiOp.operator_id);
-            } else {
-                actualOpId = "not_found_" + opDef.key; // Dummy ID jika API mengembalikan kosong (stok habis)
+            opProducts = products.filter(p => {
+                if (p.operator_name && matches.some(m => p.operator_name.toLowerCase().includes(m))) return true;
+                const apiOp = apiOperators.find(o => o.operator_id === p.operator_id);
+                if (apiOp && apiOp.code && matches.some(m => apiOp.code.toLowerCase().includes(m))) return true;
+                if (apiOp && apiOp.name && matches.some(m => apiOp.name.toLowerCase().includes(m))) return true;
+                return false;
+            });
+
+            if (opProducts.length > 0) {
+                actualOpId = String(opProducts[0].operator_id);
+                opProducts = opProducts.filter(p => String(p.operator_id) === actualOpId);
             }
         }
         
-        const opProducts = products.filter(p => String(p.operator_id) === actualOpId);
-        
-        // Default harga adalah harga produk termurah. (Akan tertimpa saat dropdown dipilih)
-        const minPrice = opProducts.length > 0 ? Math.min(...opProducts.map(p => p.price)) : 0;
-        const displayPrice = minPrice > 0 ? formatter.format(minPrice) : "-";
+        // HILANGKAN KARTU JIKA TIDAK ADA STOK
+        if (opProducts.length > 0) {
+            renderedCount++;
+            const minPrice = Math.min(...opProducts.map(p => p.price));
+            const displayPrice = formatter.format(minPrice);
 
-        const card = document.createElement("div");
-        card.className = "operator-card";
-        card.id = `op-card-${actualOpId}`;
-        card.innerHTML = `
-            <div class="op-icon">${opDef.iconHtml}</div>
-            <div class="op-name">${opDef.name}</div>
-            <div class="op-price" id="price-label-${actualOpId}">${displayPrice}</div>
-        `;
-        
-        card.onclick = () => selectOperator(actualOpId, opProducts);
-        grid.appendChild(card);
+            const card = document.createElement("div");
+            card.className = "operator-card";
+            card.id = `op-card-${actualOpId}`;
+            card.innerHTML = `
+                <div class="op-icon">${opDef.iconHtml}</div>
+                <div class="op-name">${opDef.name}</div>
+                <div class="op-price" id="price-label-${actualOpId}">${displayPrice}</div>
+            `;
+            
+            card.onclick = () => selectOperator(actualOpId, opProducts);
+            grid.appendChild(card);
+        }
     });
+
+    if (renderedCount === 0) {
+        grid.innerHTML = '<div class="status-text-mini" style="grid-column: 1 / -1;">Server sedang kosong.</div>'; 
+        if (btnOrder) btnOrder.disabled = true;
+        return;
+    }
     
     // Auto-select operator
     let savedOp = localStorage.getItem('smscode_selected_op') || "null";
     let targetOpId = savedOp;
     
-    // Cek apakah operator yang tersimpan memiliki produk, jika tidak, kembali ke Acak ("null")
     let initialProducts = products.filter(p => String(p.operator_id) === targetOpId);
-    if(initialProducts.length === 0 && targetOpId !== "null") {
-        targetOpId = "null";
-        initialProducts = products.filter(p => String(p.operator_id) === targetOpId);
+    
+    // Jika operator tersimpan sudah hilang, pindah ke kotak pertama yang muncul
+    if(initialProducts.length === 0) {
+        const firstCard = grid.querySelector('.operator-card');
+        if (firstCard) {
+            targetOpId = firstCard.id.replace('op-card-', '');
+            initialProducts = products.filter(p => String(p.operator_id) === targetOpId);
+        }
     }
     
     selectOperator(targetOpId, initialProducts);
@@ -340,11 +362,11 @@ function selectOperator(opIdStr, opProducts) {
         return;
     }
     
-    // Isi Dropdown dengan pilihan harga & stok
+    // HILANGKAN TULISAN STOK DI DALAM DROPDOWN SEPERTI PERMINTAAN
     opProducts.forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.id;
-        opt.innerText = `${formatter.format(p.price)} (Stok: ${p.available})`;
+        opt.innerText = `${formatter.format(p.price)}`;
         selectEl.appendChild(opt);
     });
     
@@ -356,7 +378,6 @@ function selectOperator(opIdStr, opProducts) {
     
     selectEl.value = savedProd;
     
-    // Paksa eksekusi update UI harga
     window.handlePriceChange();
 }
 
@@ -365,22 +386,20 @@ async function loadShopeeIndonesia() {
         const opGrid = document.getElementById('operatorGrid');
         if (opGrid) opGrid.innerHTML = '<div class="status-text-mini" style="grid-column: 1 / -1;">Mencari Server & Operator...</div>';
         
-        // 1. Dapatkan daftar negara
         const countriesRes = await apiCall('/catalog/countries'); 
         if (!countriesRes.success) throw new Error(countriesRes.error.message);
         const indo = countriesRes.data.find(c => c.name.toLowerCase() === 'indonesia');
         if (!indo) throw new Error("Negara Indonesia tidak tersedia.");
 
-        // 2. Dapatkan layanan Shopee
         const servicesRes = await apiCall(`/catalog/services?country_id=${indo.id}`); 
         if (!servicesRes.success) throw new Error(servicesRes.error.message);
         const shopee = servicesRes.data.find(s => s.name.toLowerCase().includes('shopee'));
         if (!shopee) throw new Error("Layanan Shopee tidak tersedia.");
 
-        // 3. Dapatkan Operator & Produk sekaligus
+        // Memuat seluruh 10,000 data
         const [opsRes, productsRes] = await Promise.all([
             apiCall(`/catalog/operators?country_id=${indo.id}&platform_id=${shopee.id}`),
-            apiCall(`/catalog/products?country_id=${indo.id}&platform_id=${shopee.id}`)
+            apiCall(`/catalog/products?country_id=${indo.id}&platform_id=${shopee.id}&limit=10000`)
         ]);
 
         if (!productsRes.success) throw new Error(productsRes.error.message);
@@ -389,10 +408,8 @@ async function loadShopeeIndonesia() {
         let operators = (opsRes.success && opsRes.data) ? opsRes.data : [];
 
         if (availableProducts.length > 0) {
-            // Urutkan produk berdasarkan harga dari termurah
             availableProducts.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
             
-            // Masukkan "Acak" (null) ke daftar operator API jika ada produk yang nilainya null
             const hasAny = availableProducts.some(p => p.operator_id === null);
             if (hasAny && !operators.find(o => o.operator_id === null)) {
                 operators.unshift({ operator_id: null, name: "Acak", code: "any" });
@@ -435,7 +452,7 @@ function renderOrders() {
         const card = document.createElement("div"); card.className = "order-card"; card.id = `order-card-${order.id}`; 
         let isSuccess = (order.status === "OTP_RECEIVED" && order.otp); const wait = order.cancelUnlockTime - now;
         
-        // PENAMBAHAN TOMBOL SALIN (COPY) DI SAMPING KODE OTP SEPERTI PERMINTAAN ANDA
+        // TOMBOL SALIN OTP
         let otpHtml = isSuccess ? `
             <div class="otp-title">KODE OTP</div>
             <div style="display:flex; align-items:center; justify-content:center; gap:10px;">
