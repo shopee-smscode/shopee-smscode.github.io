@@ -7,7 +7,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="smscode.css?v=18">
+    <link rel="stylesheet" href="smscode.css?v=24">
     
     <!-- CSS Tambahan Khusus untuk Grid Operator -->
     <style>
@@ -17,10 +17,10 @@
         .operator-card.selected { border-color: var(--primary-color); background: var(--otp-bg); box-shadow: 0 4px 12px var(--shadow-color); }
         .op-icon { background: var(--bg-body); width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--text-primary); margin-bottom: 2px; border: 1px solid var(--border-color); }
         .operator-card.selected .op-icon { border-color: var(--primary-color); }
-        .op-name { font-size: 10px; font-weight: 800; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-transform: uppercase; }
-        .op-price { font-size: 12px; font-weight: 900; color: var(--primary-color); background: var(--bg-body); padding: 2px 8px; border-radius: 6px; box-shadow: inset 0 0 4px rgba(0,0,0,0.3);}
+        .op-name { font-size: 10px; font-weight: 800; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-transform: uppercase; padding: 0 4px; }
+        .op-price { font-size: 12px; font-weight: 900; color: var(--primary-color); background: var(--bg-body); padding: 2px 8px; border-radius: 6px; box-shadow: inset 0 0 4px rgba(0,0,0,0.3); }
         
-        .price-select { background: var(--bg-card); color: var(--primary-color); border: 1px solid var(--border-color); border-radius: 6px; padding: 4px; font-weight: 900; font-size: 12px; outline: none; cursor: pointer; max-width: 155px; text-overflow: ellipsis;}
+        .price-select { background: var(--bg-card); color: var(--primary-color); border: 1px solid var(--border-color); border-radius: 6px; padding: 4px 8px; font-weight: 900; font-size: 12px; outline: none; cursor: pointer; max-width: 155px; text-overflow: ellipsis; }
         .price-select:focus { border-color: var(--primary-color); }
     </style>
 
@@ -101,8 +101,8 @@
         <!-- AREA LAYANAN, DROPDOWN HARGA & GRID OPERATOR -->
         <div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 0 4px;">
-                <div style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">
-                    LAYANAN <span style="color: var(--primary-color);">SHOPEE</span>
+                <div onclick="loadShopeeIndonesia(true)" style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; cursor: pointer;" title="Ketuk untuk muat ulang harga">
+                    LAYANAN <span style="color: var(--primary-color);">SHOPEE</span> <i id="catalogRefreshIcon" class="fas fa-sync-alt" style="font-size: 10px; margin-left: 2px; color: var(--text-secondary);"></i>
                 </div>
                 <div style="font-size: 11px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 6px;">
                     HARGA: 
@@ -113,7 +113,7 @@
             </div>
 
             <div id="operatorGrid" class="operator-grid">
-                <div class="status-text-mini" style="grid-column: 1 / -1;">Memuat data Server & Operator...</div>
+                <div class="status-text-mini" style="grid-column: 1 / -1;">Memuat Operator...</div>
             </div>
             
             <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
@@ -233,6 +233,6 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <script src="smscode.js?v=23"></script>
+    <script src="smscode.js?v=24"></script>
 </body>
 </html>
