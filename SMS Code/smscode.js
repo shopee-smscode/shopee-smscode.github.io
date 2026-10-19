@@ -357,7 +357,6 @@ function loginAccount(accountName) {
     setAccountViewingStatus(true); 
     
     const now = Date.now(); 
-    // Hanya memuat pesanan milik perangkat (HP) ini sendiri agar tidak bercampur antar HP
     const rawOrders = JSON.parse(localStorage.getItem(getDeviceOrdersKey(accountName))) || []; 
     activeOrders = rawOrders.filter(o => o.expiresAt > now); 
     saveToStorage(); 
@@ -474,7 +473,7 @@ window.filterServices = function() {
         const isActive = (String(svc.id) === String(currentServiceId));
         const fav = isFavorite(svc.name);
         const btn = document.createElement('div');
-        btn.style = `width: 100%; padding: 11px 14px; border-radius: 10px; font-size: 13px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);`;
+        btn.style = `width: 100%; padding: 10px 12px; border-radius: 10px; font-size: 12.5px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);`;
         
         const safeName = String(svc.name).replace(/'/g, "\\'");
         const starColor = fav ? '#ffc107' : 'var(--text-secondary)';
@@ -482,7 +481,7 @@ window.filterServices = function() {
 
         btn.innerHTML = `
             <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
-                <i class="${starClass}" style="color: ${starColor}; font-size: 16px; cursor: pointer; padding: 4px;" onclick="toggleFavorite('${safeName}', event)"></i>
+                <i class="${starClass}" style="color: ${starColor}; font-size: 15px; cursor: pointer; padding: 4px;" onclick="toggleFavorite('${safeName}', event)"></i>
                 <span>${svc.name}</span>
             </div>
             ${isActive ? '<i class="fas fa-check-circle" style="color: var(--primary-color);"></i>' : ''}
@@ -724,7 +723,7 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
         renderOperatorGrid(cachedOperatorsList, availableProducts);
     } catch (error) { 
         if (opGrid && availableProducts.length === 0) {
-            opGrid.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color); padding: 10px; border: 1px dashed var(--danger-color); border-radius: 8px; grid-column: 1 / -1;"><b>GAGAL MEMUAT:</b><br>${error.message}</div>`; 
+            opGrid.innerHTML = `<div class="status-text-mini" style="color:var(--danger-color); padding: 8px; border: 1px dashed var(--danger-color); border-radius: 8px; grid-column: 1 / -1;"><b>GAGAL MEMUAT:</b><br>${error.message}</div>`; 
         }
     } finally {
         isCatalogFetching = false;
@@ -784,31 +783,31 @@ if (btnOrder) {
     };
 }
 
-// === KOTAK MENUNGGU OTP KOSONG (SAAT BELUM ADA PESANAN) ===
+// === KOTAK MENUNGGU OTP KOSONG (COMPACT SAAT BELUM ADA PESANAN) ===
 function createEmptyOrderCard() {
     const card = document.createElement("div");
     card.className = "order-card empty-card";
     const fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
     card.innerHTML = `
         <div class="order-header">
-            <div class="order-info-left" style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 28px; height: 28px; background: var(--bg-card); border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center; flex-shrink: 0; border: 1px solid var(--border-color);">
+            <div class="order-info-left" style="display: flex; align-items: center; gap: 6px;">
+                <div style="width: 24px; height: 24px; background: var(--bg-card); border-radius: 6px; padding: 2px; display: flex; justify-content: center; align-items: center; flex-shrink: 0; border: 1px solid var(--border-color);">
                     <img src="${fallbackImg}" style="max-width: 100%; max-height: 100%; object-fit: contain; opacity: 0.45;">
                 </div>
                 <div style="text-align: left;">
-                    <div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#- (BELUM ADA PESANAN)</div>
+                    <div class="order-id-label" style="display:inline-block;">#- (BELUM ADA PESANAN)</div>
                     <div class="order-price" style="display:block; color: var(--text-secondary);">Rp -</div>
                 </div>
             </div>
             <span class="timer" style="color: var(--text-secondary);">--:--</span>
         </div>
         <div class="phone-row">
-            <span class="phone-number" style="color: var(--text-secondary); font-size: 16px !important; letter-spacing: 2px;">- - - -</span>
+            <span class="phone-number" style="color: var(--text-secondary); font-size: 15px !important; letter-spacing: 2px;">- - - -</span>
             <button class="btn-copy" disabled><i class="fas fa-copy"></i></button>
         </div>
         <div class="otp-display empty-otp-box">
-            <div style="font-size: 13px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1.5px; text-transform: uppercase;">
-                <i class="fas fa-inbox" style="margin-right: 6px; opacity: 0.7;"></i> Belum Ada Pesanan
+            <div style="font-size: 11.5px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1.2px; text-transform: uppercase;">
+                <i class="fas fa-inbox" style="margin-right: 5px; opacity: 0.7;"></i> Belum Ada Pesanan
             </div>
         </div>
         <div class="action-buttons-grid">
@@ -821,7 +820,7 @@ function createEmptyOrderCard() {
     return card;
 }
 
-// === RENDER KARTU ORDER AKTIF ===
+// === RENDER KARTU ORDER AKTIF (COMPACT) ===
 function createOrderCard(order) {
     const now = Date.now();
     const card = document.createElement("div"); 
@@ -839,8 +838,8 @@ function createOrderCard(order) {
     
     let otpHtml = isSuccess ? `
         <div class="otp-title">KODE OTP</div>
-        <div class="otp-code" style="margin:0 !important; padding-right: 44px;">${formatOTP(order.otp)}</div>
-        <button class="btn-copy" onclick="copyToClipboard('${order.otp}', 'Kode OTP disalin!')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); box-shadow: 0 2px 8px rgba(0,0,0,0.4);"><i class="fas fa-copy"></i></button>
+        <div class="otp-code" style="margin:0 !important; padding-right: 40px;">${formatOTP(order.otp)}</div>
+        <button class="btn-copy" onclick="copyToClipboard('${order.otp}', 'Kode OTP disalin!')" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); box-shadow: 0 2px 8px rgba(0,0,0,0.4);"><i class="fas fa-copy"></i></button>
     ` : `
         <div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div><div class="dot-pulse"></div></div>
         <div class="waiting-text">MENUNGGU SMS...</div>
@@ -876,12 +875,12 @@ function createOrderCard(order) {
 
     card.innerHTML = `
         <div class="order-header">
-            <div class="order-info-left" style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 28px; height: 28px; background: #fff; border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center; flex-shrink: 0;">
+            <div class="order-info-left" style="display: flex; align-items: center; gap: 6px;">
+                <div style="width: 24px; height: 24px; background: #fff; border-radius: 6px; padding: 2px; display: flex; justify-content: center; align-items: center; flex-shrink: 0;">
                     <img src="${headerLogoUrl}" onerror="this.src='${fallbackImg}';" style="max-width: 100%; max-height: 100%; object-fit: contain;">
                 </div>
                 <div style="text-align: left;">
-                    <div class="order-id-label" style="display:inline-block; margin-bottom:2px; max-width: 195px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;">#${order.id} (${srvName} • ${providerName})</div>
+                    <div class="order-id-label" style="display:inline-block; max-width: 195px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;">#${order.id} (${srvName} • ${providerName})</div>
                     <div class="order-price" style="display:block;">${displayPrice}</div>
                 </div>
             </div>
@@ -907,7 +906,6 @@ function renderOrders() {
     if (!activeOrdersContainer) return;
     activeOrdersContainer.innerHTML = ""; 
 
-    // 1. Kotak Utama: Jika kosong tampilkan kotak placeholder, jika ada tampilkan pesanan terbaru
     if (activeOrders.length === 0) {
         isDroplistOpen = false;
         activeOrdersContainer.appendChild(createEmptyOrderCard());
@@ -915,7 +913,6 @@ function renderOrders() {
         activeOrdersContainer.appendChild(createOrderCard(activeOrders[0]));
     }
 
-    // 2. Menu Dropdown Pesanan Lama: Selalu ada meskipun 0 pesanan lama
     const oldOrdersCount = Math.max(0, activeOrders.length - 1);
     const hasOldOrders = oldOrdersCount > 0;
     if (!hasOldOrders) isDroplistOpen = false;
@@ -1047,7 +1044,6 @@ function startPolling() {
             const res = await apiCall('/orders/active');
             if (res.success && Array.isArray(res.data)) {
                 let changed = false;
-                // Hanya mencocokkan ID pesanan yang ada di localOrder perangkat ini
                 activeOrders.forEach(localOrder => {
                     const srvOrder = res.data.find(s => s.id === localOrder.id);
                     if (srvOrder) {
@@ -1196,7 +1192,7 @@ window.cancelAllOldOrders = async function() {
     if (activeOrders.length <= 1) return;
     const oldOrders = activeOrders.slice(1);
     const btnAll = document.getElementById("btn-cancel-all-old");
-    if (btnAll) { btnAll.disabled = true; btnAll.innerHTML = '<div class="loader" style="width:16px;height:16px;border-width:2px;"></div>'; }
+    if (btnAll) { btnAll.disabled = true; btnAll.innerHTML = '<div class="loader" style="width:14px;height:14px;border-width:2px;"></div>'; }
     showToast(`Membatalkan ${oldOrders.length} pesanan lama...`, "warning");
 
     const cancelPromises = oldOrders.map(async (order) => {
