@@ -246,71 +246,89 @@ window.handlePriceChange = function() {
     }
 };
 
-// FITUR BARU: Rendering Operator berdasarkan API Murni
+// EKSTRAKSI DINAMIS: Dijamin akurat 100% sama dengan website
 function renderOperatorGrid(apiOperators, products) {
     const grid = document.getElementById('operatorGrid');
     if (!grid) return;
     grid.innerHTML = "";
     
     const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+    
+    // Ambil semua operator_id unik dari produk yang TERSEDIA
+    const uniqueOpIds = [...new Set(products.map(p => p.operator_id))];
     let renderedCount = 0;
 
-    // Loop data riil dari database API, otomatis sinkron
-    apiOperators.forEach(op => {
-        const actualOpId = op.operator_id === null ? "null" : String(op.operator_id);
-        let opName = op.operator_id === null ? "ACAK" : (op.name || op.code).toUpperCase();
-        
-        // Cari produk yang terhubung ke operator ID ini
-        const opProducts = products.filter(p => {
-            const pOpId = p.operator_id === null ? "null" : String(p.operator_id);
-            return pOpId === actualOpId;
-        });
-        
-        // Jika ada stok, munculkan kotaknya
-        if (opProducts.length > 0) {
-            renderedCount++;
-            const minPrice = Math.min(...opProducts.map(p => p.price));
-            const displayPrice = formatter.format(minPrice);
+    // Urutkan agar Acak (null) selalu tampil pertama
+    uniqueOpIds.sort((a, b) => {
+        if (a === null) return -1;
+        if (b === null) return 1;
+        return 0;
+    });
 
-            let iconHtml = '<i class="fas fa-signal"></i>';
-            const lowerName = opName.toLowerCase();
-            
-            if(actualOpId === "null" || lowerName.includes('acak') || lowerName.includes('any')) {
-                iconHtml = '<i class="fas fa-random" style="color:#3b82f6;"></i>';
-                opName = "ACAK";
-            }
-            else if(lowerName.includes('telkomsel')) {
-                iconHtml = '<span style="color:white;background:#ed1c24;font-weight:900;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:14px;">T</span>';
-            }
-            else if(lowerName.includes('indosat') || lowerName.includes('im3') || lowerName.includes('ooredoo')) {
-                iconHtml = '<span style="color:#ffcc00;font-weight:900;font-style:italic;">im3</span>';
-            }
-            else if(lowerName.includes('xl') || lowerName.includes('axis')) {
-                iconHtml = '<span style="color:#0000ff;font-weight:900;">XL</span>';
-            }
-            else if(lowerName.includes('three') || lowerName.includes('tri') || opName === '3') {
-                iconHtml = '<span style="font-weight:900;font-size:20px;">3</span>';
-            }
-            else if(lowerName.includes('smartfren')) {
-                iconHtml = '<span style="color:#e91e63;font-weight:900;font-size:10px;">SF</span>';
-            }
+    uniqueOpIds.forEach(opId => {
+        // Ambil produk khusus untuk ID operator ini
+        const opProducts = products.filter(p => p.operator_id === opId);
+        if (opProducts.length === 0) return; // Lewati jika tidak ada stok
 
-            const card = document.createElement("div");
-            card.className = "operator-card";
-            card.id = `op-card-${actualOpId}`;
-            card.innerHTML = `
-                <div class="op-icon">${iconHtml}</div>
-                <div class="op-name">${opName}</div>
-                <div class="op-price" id="price-label-${actualOpId}">${displayPrice}</div>
-            `;
-            
-            card.onclick = () => selectOperator(actualOpId, opProducts);
-            grid.appendChild(card);
+        renderedCount++;
+        
+        let opName = "ACAK";
+        let opCode = "any";
+        
+        if (opId !== null) {
+            // Cocokkan dengan data resmi API
+            const apiOp = apiOperators.find(o => o.operator_id === opId);
+            if (apiOp) {
+                opName = apiOp.name || apiOp.code || "UNKNOWN";
+                opCode = apiOp.code || "";
+            } else if (opProducts[0].operator_name) {
+                opName = opProducts[0].operator_name;
+                opCode = opName;
+            } else {
+                opName = "OP-" + opId;
+            }
         }
+
+        opName = opName.toUpperCase();
+        const lowerMatch = (opName + " " + opCode).toLowerCase();
+        
+        // Atur Ikon berdasarkan deteksi teks
+        let iconHtml = '<i class="fas fa-signal"></i>';
+        if (opId === null || lowerMatch.includes('acak') || lowerMatch.includes('any')) {
+            iconHtml = '<i class="fas fa-random" style="color:#3b82f6;"></i>';
+            opName = "ACAK";
+        } else if (lowerMatch.includes('telkomsel') || lowerMatch.includes('tsel')) {
+            iconHtml = '<span style="color:white;background:#ed1c24;font-weight:900;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:14px;">T</span>';
+        } else if (lowerMatch.includes('indosat') || lowerMatch.includes('im3') || lowerMatch.includes('isat') || lowerMatch.includes('ooredoo')) {
+            iconHtml = '<span style="color:#ffcc00;font-weight:900;font-style:italic;">im3</span>';
+        } else if (lowerMatch.includes('xl') || lowerMatch.includes('axis')) {
+            iconHtml = '<span style="color:#0000ff;font-weight:900;">XL</span>';
+        } else if (lowerMatch.includes('three') || lowerMatch.includes('tri') || lowerMatch.includes('hutchison') || lowerMatch.includes(' 3 ') || opName === '3') {
+            iconHtml = '<span style="font-weight:900;font-size:20px;">3</span>';
+        } else if (lowerMatch.includes('smartfren')) {
+            iconHtml = '<span style="color:#e91e63;font-weight:900;font-size:10px;">SF</span>';
+        }
+
+        const minPrice = Math.min(...opProducts.map(p => p.price));
+        const displayPrice = formatter.format(minPrice);
+        const actualOpIdStr = opId === null ? "null" : String(opId);
+
+        // Render Kartu Operator
+        const card = document.createElement("div");
+        card.className = "operator-card";
+        card.id = `op-card-${actualOpIdStr}`;
+        card.innerHTML = `
+            <div class="op-icon">${iconHtml}</div>
+            <div class="op-name">${opName}</div>
+            <div class="op-price" id="price-label-${actualOpIdStr}">${displayPrice}</div>
+        `;
+        
+        card.onclick = () => selectOperator(actualOpIdStr, opProducts);
+        grid.appendChild(card);
     });
 
     if (renderedCount === 0) {
-        grid.innerHTML = '<div class="status-text-mini" style="grid-column: 1 / -1;">Stok server kosong.</div>'; 
+        grid.innerHTML = '<div class="status-text-mini" style="grid-column: 1 / -1;">Server sedang kosong.</div>'; 
         if (btnOrder) btnOrder.disabled = true;
         return;
     }
@@ -319,12 +337,12 @@ function renderOperatorGrid(apiOperators, products) {
     let savedOp = localStorage.getItem('smscode_selected_op') || "null";
     let initialProducts = products.filter(p => (p.operator_id === null ? "null" : String(p.operator_id)) === savedOp);
     
-    if (initialProducts.length === 0) {
+    // Jika operator tersimpan ternyata stoknya kosong/hilang, paksa pindah ke kartu pertama yang dirender
+    if(initialProducts.length === 0) {
         const firstCard = grid.querySelector('.operator-card');
         if (firstCard) {
-            const targetOpId = firstCard.id.replace('op-card-', '');
-            savedOp = targetOpId;
-            initialProducts = products.filter(p => (p.operator_id === null ? "null" : String(p.operator_id)) === targetOpId);
+            savedOp = firstCard.id.replace('op-card-', '');
+            initialProducts = products.filter(p => (p.operator_id === null ? "null" : String(p.operator_id)) === savedOp);
         }
     }
     
@@ -385,7 +403,7 @@ async function loadShopeeIndonesia() {
         const shopee = servicesRes.data.find(s => s.name.toLowerCase().includes('shopee'));
         if (!shopee) throw new Error("Layanan Shopee tidak tersedia.");
 
-        // Memuat seluruh data (hingga 10.000 limit) agar sinkron dengan website pusat
+        // Memuat seluruh data tanpa terpotong pagination
         const [opsRes, productsRes] = await Promise.all([
             apiCall(`/catalog/operators?country_id=${indo.id}&platform_id=${shopee.id}`),
             apiCall(`/catalog/products?country_id=${indo.id}&platform_id=${shopee.id}&limit=10000`)
@@ -399,12 +417,7 @@ async function loadShopeeIndonesia() {
         if (availableProducts.length > 0) {
             availableProducts.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
             
-            // Tambahkan "Acak" jika API mereturn produk dengan operator ID null
-            const hasAny = availableProducts.some(p => p.operator_id === null);
-            if (hasAny && !operators.find(o => o.operator_id === null)) {
-                operators.unshift({ operator_id: null, name: "Acak", code: "any" });
-            }
-
+            // Render UI
             renderOperatorGrid(operators, availableProducts);
         } else { 
             if (opGrid) opGrid.innerHTML = '<div class="status-text-mini" style="grid-column: 1 / -1;">Server sedang kosong.</div>'; 
