@@ -7,9 +7,9 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="smscode.css?v=25">
+    <link rel="stylesheet" href="smscode.css?v=26">
     
-    <!-- SKRIP PENGINGAT APLIKASI (TERMASUK OTP CEPAT) -->
+    <!-- SKRIP PENGINGAT APLIKASI -->
     <script>
         (function() {
             var lastApp = localStorage.getItem('last_active_app');
@@ -34,7 +34,7 @@
 <body class="theme-smscode">
     <div id="appView" class="container">
         
-        <!-- TOP ACTIONS BAR (DROPDOWN KIRI & AKSI KANAN) -->
+        <!-- TOP ACTIONS BAR -->
         <div class="top-bar-modern">
             <div style="display: flex; gap: 8px; align-items: center;">
                 <div class="dropdown">
@@ -51,7 +51,6 @@
             </div>
             
             <div style="display: flex; gap: 8px; align-items: center;">
-                <!-- TOMBOL CATATAN DI SEBELAH TOMBOL TOPUP -->
                 <button onclick="openIframeNoteModal()" class="btn-top-action" title="Catatan"><i class="fas fa-sticky-note"></i></button>
                 <button onclick="window.open('https://smscode.gg/dashboard', '_blank')" class="dropbtn-icon" style="color: var(--success-color); border-color: var(--success-color);" title="Top Up Saldo">
                     <i class="fas fa-plus-circle"></i>
@@ -70,29 +69,25 @@
             </div>
         </div>
 
+        <!-- HEADER DENGAN INDIKATOR AKUN & SALDO -->
         <div class="app-header-container">
             <div class="header-titles">
                 <h1>SMS Code 🇮🇩</h1>
-                <p class="subtitle">Provider Tercepat</p>
+                <p class="subtitle">👤 Akun: <strong id="currentAccountBadge" style="color: var(--primary-color);">Memuat...</strong></p>
+                <span id="currentAccountName" style="display:none;"></span>
             </div>
-            <button onclick="openAccountModal()" class="account-selector-btn">
-                👤 <span id="currentAccountBadge">Memuat...</span> <i class="fas fa-chevron-down"></i>
-            </button>
-            <span id="currentAccountName" style="display:none;"></span>
+            <div class="balance-container">
+                <div class="balance-badge">
+                    <span class="balance-label">Saldo</span>
+                    <span id="balanceDisplay" class="balance-value">...</span>
+                </div>
+            </div>
         </div>
         
-        <div id="activeOrdersContainer">
-            <div class="status-text-mini">Belum ada pesanan aktif.</div>
-        </div>
+        <!-- CONTAINER PESANAN AKTIF & DROPDOWN PESANAN LAMA (SELALU TAMPIL) -->
+        <div id="activeOrdersContainer"></div>
 
-        <div class="balance-container">
-            <div class="balance-badge">
-                <span class="balance-label">Saldo</span>
-                <span id="balanceDisplay" class="balance-value">...</span>
-            </div>
-        </div>
-
-        <!-- AREA PEMILIHAN LAYANAN (DENGAN PENCARIAN & FAVORIT), DROPDOWN HARGA & GRID OPERATOR -->
+        <!-- AREA PEMILIHAN LAYANAN, HARGA & GRID OPERATOR -->
         <div style="margin-top: 10px;">
             <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-bottom: 12px;">
                 <div style="flex: 1; text-align: left; min-width: 0;">
@@ -118,15 +113,14 @@
             </div>
             
             <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
-            <div id="extraBtnWrapper"></div>
         </div>
     </div>
 
-    <!-- MODAL PILIH LAYANAN (FITUR DARI OTP CEPAT) -->
+    <!-- MODAL PILIH LAYANAN -->
     <div id="serviceModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
-                <h3 class="modal-title">Pilih Layanan</h3>
+                <h3 class="modal-title"><i class="fas fa-layer-group"></i> Pilih Layanan</h3>
                 <button onclick="closeServiceModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
             <div style="margin-bottom: 10px;">
@@ -138,14 +132,32 @@
         </div>
     </div>
 
-    <!-- MODAL ACCOUNT SWITCHER -->
-    <div id="accountModal" class="modal hidden">
+    <!-- MODAL PENGATURAN & GANTI AKUN MODERN -->
+    <div id="settingsModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
-                <h3 class="modal-title">Pilih Akun</h3>
-                <button onclick="closeAccountModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+                <h3 class="modal-title"><i class="fas fa-sliders-h"></i> Pengaturan & Akun</h3>
+                <button onclick="closeSettingsModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
-            <div id="accountListContainer" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; text-align: left;">
+            
+            <!-- Banner Akun Aktif -->
+            <div class="settings-active-banner">
+                <div class="settings-active-info">
+                    <span class="label">Akun Aktif Saat Ini</span>
+                    <div class="name"><i class="fas fa-user-check" style="color: var(--primary-color);"></i> <span id="settingsActiveAccountName">-</span></div>
+                </div>
+                <button onclick="refreshAllAccountBalances()" class="btn-top-action" style="width: 34px; height: 34px;" title="Muat Ulang Saldo">
+                    <i id="refreshAccBalIcon" class="fas fa-sync-alt" style="font-size: 13px;"></i>
+                </button>
+            </div>
+
+            <div class="settings-section-label">
+                <span>Daftar Akun Server</span>
+                <span style="font-size: 10px; font-weight: 700; color: var(--primary-color);">Ketuk untuk ganti</span>
+            </div>
+
+            <div id="accountListContainer" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; padding-right: 2px;">
+                <div class="status-text-mini">Memuat daftar akun...</div>
             </div>
         </div>
     </div>
@@ -163,33 +175,11 @@
         </div>
     </div>
 
-    <!-- MODAL SETTINGS -->
-    <div id="settingsModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">⚙️ Pengaturan</h3>
-                <button onclick="closeSettingsModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
-            </div>
-            <div style="text-align: left; margin-bottom: 15px;">
-                <label style="font-size: 13px; font-weight: bold; color: var(--text-secondary); margin-bottom: 8px; display: block;">Sandi Default (Salin Otomatis)</label>
-                <input type="text" id="settingsPassword" class="form-input" placeholder="Masukkan sandi...">
-            </div>
-            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 20px;">
-                <span style="font-size: 13px; font-weight: bold; color: var(--text-primary);">Auto-Salin Sandi Selesai</span>
-                <label class="switch">
-                    <input type="checkbox" id="settingsAutoCopy">
-                    <span class="slider"><span class="slider-knob"></span></span>
-                </label>
-            </div>
-            <button onclick="saveSettings()" class="btn-success" style="width: 100%; padding: 14px; border-radius: 12px; font-size: 15px;"><i class="fas fa-save"></i> Simpan Pengaturan</button>
-        </div>
-    </div>
-
     <!-- MODAL STATISTIK -->
     <div id="statsModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">Statistik Harian</h3>
+                <h3 class="modal-title"><i class="fas fa-chart-bar"></i> Statistik Harian</h3>
                 <button onclick="closeStatsModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
             <input type="date" id="statDate" class="form-input" style="margin-bottom:15px; font-weight:bold; text-align:center; color: var(--text-primary); background: var(--bg-card); border: 1px solid var(--border-color);">
@@ -210,7 +200,7 @@
     <div id="blacklistModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
-                <h3 class="modal-title">Database Blacklist</h3>
+                <h3 class="modal-title"><i class="fas fa-ban"></i> Database Blacklist</h3>
                 <button onclick="closeBlacklistModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
             <div style="text-align: center; padding: 10px 0;">
@@ -226,7 +216,7 @@
     <div id="historyModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
-                <h3 class="modal-title">Riwayat Pesanan</h3>
+                <h3 class="modal-title"><i class="fas fa-history"></i> Riwayat Pesanan</h3>
                 <button onclick="closeHistoryModal()" class="btn-danger" style="width: 32px; height: 32px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
             </div>
             <div id="history-list" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
@@ -239,7 +229,7 @@
     <!-- MODAL KELUAR -->
     <div id="exitModal" class="modal hidden">
         <div class="modal-content">
-            <h3 class="modal-title">Keluar Aplikasi?</h3>
+            <h3 class="modal-title" style="justify-content: center; margin-bottom: 8px;">Keluar Aplikasi?</h3>
             <p class="modal-desc">Apakah Anda yakin ingin menutup dan keluar dari aplikasi ini?</p>
             <div class="modal-actions" style="display:flex; justify-content:space-between; gap:10px;">
                 <button onclick="closeExitModal()" class="btn-primary" style="flex:1; padding:12px; background-color: var(--bg-card); color: var(--text-primary); border-radius: 12px;">Batal</button>
@@ -250,6 +240,6 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <script src="smscode.js?v=25"></script>
+    <script src="smscode.js?v=26"></script>
 </body>
 </html>

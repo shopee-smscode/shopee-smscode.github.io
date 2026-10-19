@@ -5,7 +5,13 @@ const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", auth
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
 
-let appSettings = JSON.parse(localStorage.getItem('app_settings')) || { password: "Aku123..", autoCopy: true };
+// === IDENTITAS UNIK PERANGKAT (MENCEGAH PESANAN TERCAMPUR ANTAR HP) ===
+let DEVICE_ID = localStorage.getItem('smscode_device_id');
+if (!DEVICE_ID) {
+    DEVICE_ID = 'dev_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
+    localStorage.setItem('smscode_device_id', DEVICE_ID);
+}
+
 let cachedAccounts = JSON.parse(localStorage.getItem('smscode_cached_accounts')) || [];
 let favoriteServices = JSON.parse(localStorage.getItem('smscode_favorites')) || ['shopee', 'whatsapp', 'telegram', 'tiktok'];
 
@@ -34,10 +40,17 @@ let isUsedNumbersLoaded = false;
 const currentAccountName = document.getElementById('currentAccountName');
 const btnOrder = document.getElementById('btnOrder');
 const activeOrdersContainer = document.getElementById('activeOrdersContainer');
-const balanceDisplay = document.getElementById('balanceDisplay');
 const exitModal = document.getElementById('exitModal'); 
 
 const idrFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+
+// === fungsi pembantu kunci penyimpanan lokal khusus perangkat ini ===
+function getDeviceOrdersKey(accName) {
+    return `orders_${DEVICE_ID}_${accName}`;
+}
+function getDeviceHistoryKey(accName) {
+    return `smscode_history_${DEVICE_ID}_${accName}`;
+}
 
 // === DROPDOWN & MENU LOGIC ===
 window.toggleAppDropdown = function() {
@@ -65,7 +78,7 @@ window.closeIframeNoteModal = function() {
     document.getElementById('iframeNoteModal').classList.add('hidden');
 };
 
-// === EVENT LISTENER JARINGAN & VISIBILITY (FITUR OTP CEPAT) ===
+// === EVENT LISTENER JARINGAN & VISIBILITY ===
 document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
         forceCheckOverdueOrders();
@@ -76,7 +89,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener('online', () => { showToast("🌐 Koneksi Internet Kembali", "success"); forceCheckOverdueOrders(); startPolling(); });
 window.addEventListener('offline', () => { showToast("⚠️ Tidak ada koneksi internet", "warning"); });
 
-// === FUNGSI API DENGAN DUKUNGAN MULTI-AKUN PARALEL ===
+// === FUNGSI API ===
 async function apiCall(endpoint, method = "GET", body = null, customAccount = null) { 
     const targetAccount = customAccount || activeAccountName || "";
     const options = { 
@@ -104,10 +117,68 @@ async function apiCall(endpoint, method = "GET", body = null, customAccount = nu
     }
 }
 
-function openSettingsModal() { document.getElementById('settingsPassword').value = appSettings.password; document.getElementById('settingsAutoCopy').checked = appSettings.autoCopy; document.getElementById('settingsModal').classList.remove('hidden'); history.pushState(null, null, "#settings"); }
-function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
-window.saveSettings = function() { appSettings.password = document.getElementById('settingsPassword').value; appSettings.autoCopy = document.getElementById('settingsAutoCopy').checked; localStorage.setItem('app_settings', JSON.stringify(appSettings)); closeSettingsModal(); showToast("Pengaturan disimpan!"); renderMainButtons(); };
-function renderMainButtons() { const extraBtnWrapper = document.getElementById('extraBtnWrapper'); if (!extraBtnWrapper) return; if (appSettings.autoCopy) { extraBtnWrapper.innerHTML = `<button onclick="copyToClipboard('${appSettings.password}', 'Sandi disalin!')" class="btn-primary" style="background-color: var(--info-color); color: #fff; margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-copy"></i> Salin Sandi</button>`; } else { extraBtnWrapper.innerHTML = `<button class="btn-primary" disabled style="background-color: var(--bg-card); color: var(--text-secondary); margin-top: 6px; width: 100%; border-radius: 12px;"><i class="fas fa-check"></i> Selesai (Nonaktif)</button>`; } }
+// === MODAL PENGATURAN & GANTI AKUN MODERN ===
+window.openSettingsModal = function() {
+    const activeLabel = document.getElementById('settingsActiveAccountName');
+    if (activeLabel) activeLabel.innerText = activeAccountName || "Belum dipilih";
+    document.getElementById('settingsModal').classList.remove('hidden');
+    history.pushState(null, null, "#settings");
+    renderAccountListInSettings();
+};
+
+window.closeSettingsModal = function() {
+    document.getElementById('settingsModal').classList.add('hidden');
+};
+
+function renderAccountListInSettings() {
+    const container = document.getElementById('accountListContainer');
+    if (!container) return;
+    container.innerHTML = "";
+
+    if (!cachedAccounts || cachedAccounts.length === 0) {
+        container.innerHTML = '<div class="status-text-mini">Tidak ada akun ditemukan.</div>';
+        return;
+    }
+
+    cachedAccounts.forEach(acc => {
+        const isActive = (acc === activeAccountName);
+        const btn = document.createElement('button');
+        btn.className = `account-card-item ${isActive ? 'active' : ''}`;
+        btn.id = `btn-acc-${acc}`;
+        btn.innerHTML = `
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div class="account-avatar">
+                    <i class="fas ${isActive ? 'fa-user-shield' : 'fa-user'}"></i>
+                </div>
+                <div>
+                    <div style="font-size:13px; font-weight:900; color:${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; display:flex; align-items:center; gap:6px;">
+                        <span>${acc}</span>
+                        ${isActive ? '<span style="font-size:9px; background:var(--primary-color); color:var(--bg-body); padding:1px 6px; border-radius:6px; font-weight:900;">AKTIF</span>' : ''}
+                    </div>
+                    <div style="font-size:10px; color:var(--text-secondary); font-weight:600;">Ketuk untuk beralih ke akun ini</div>
+                </div>
+            </div>
+            <span id="bal-${acc}" class="account-balance-pill" style="color:var(--text-secondary);">
+                <i class="fas fa-spinner fa-spin"></i>
+            </span>
+        `;
+        btn.onclick = () => {
+            switchAccount(acc);
+            closeSettingsModal();
+            showToast(`Beralih ke akun ${acc}`);
+        };
+        container.appendChild(btn);
+        fetchBalanceForAccount(acc);
+    });
+}
+
+window.refreshAllAccountBalances = function() {
+    const icon = document.getElementById('refreshAccBalIcon');
+    if (icon) icon.classList.add('fa-spin');
+    cachedAccounts.forEach(acc => fetchBalanceForAccount(acc));
+    fetchBalance();
+    setTimeout(() => { if (icon) icon.classList.remove('fa-spin'); }, 800);
+};
 
 function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("0")) { p = "62" + p.substring(1); } return p; }
 function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
@@ -126,7 +197,6 @@ function getProviderName(phone) {
     return "Acak"; 
 }
 
-// === LOGO OPERATOR RESMI (FITUR OTP CEPAT) ===
 function getOperatorLogo(opName) { 
     const i = String(opName || "").toLowerCase(); 
     if (i.includes('telkomsel') || i.includes('tsel')) return 'https://assets.telkomsel.com/public/app-logo/2021-06/telkomsel-logo.png'; 
@@ -138,11 +208,9 @@ function getOperatorLogo(opName) {
     return 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png'; 
 }
 
-function relocateBalanceUI() { const headerContainer = document.querySelector('.app-header-container'); const balanceContainer = document.querySelector('.balance-container'); if(headerContainer && balanceContainer && !document.getElementById('newBalanceDisplay')) { balanceContainer.style.display = 'none'; const newBalanceDiv = document.createElement('div'); newBalanceDiv.style.textAlign = 'right'; newBalanceDiv.innerHTML = `<span style="font-size: 11px; color: var(--text-secondary); font-weight: bold; text-transform: uppercase; display: block;">Saldo</span><span id="newBalanceDisplay" style="font-size: 18px; font-weight: 900; color: var(--primary-color);">...</span>`; headerContainer.appendChild(newBalanceDiv); const oldBalance = document.getElementById('balanceDisplay'); if(oldBalance) oldBalance.removeAttribute('id'); newBalanceDiv.querySelector('span:last-child').id = 'balanceDisplay'; } }
-
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
-    let mods = ['serviceModal', 'blacklistModal', 'historyModal', 'statsModal', 'settingsModal', 'accountModal', 'iframeNoteModal']; 
+    let mods = ['serviceModal', 'blacklistModal', 'historyModal', 'statsModal', 'settingsModal', 'iframeNoteModal']; 
     let closedAny = false;
     mods.forEach(m => { let el = document.getElementById(m); if (el && !el.classList.contains('hidden')) { el.classList.add('hidden'); closedAny = true; } });
     if (closedAny) { history.pushState(null, null, window.location.href); return; }
@@ -179,16 +247,20 @@ document.getElementById('statDate').addEventListener('change', loadStatsData);
 window.openBlacklistModal = function() { document.getElementById('blacklistModal').classList.remove('hidden'); history.pushState(null, null, "#blacklist"); };
 window.closeBlacklistModal = function() { document.getElementById('blacklistModal').classList.add('hidden'); };
 
-function loadHistory() { orderHistory = JSON.parse(localStorage.getItem(`smscode_history_${activeAccountName}`)) || []; renderHistory(); }
+function loadHistory() { 
+    orderHistory = JSON.parse(localStorage.getItem(getDeviceHistoryKey(activeAccountName))) || []; 
+    renderHistory(); 
+}
 function saveToHistory(order, status) {
     if (!order) return;
     const historyItem = { id: order.id, phone: order.phone, serviceName: order.serviceName || currentServiceName, operatorName: order.operatorName || getProviderName(order.phone), price: order.price, otp: order.otp || "-", status: status, date: Date.now() };
     orderHistory.unshift(historyItem); if (orderHistory.length > 50) orderHistory.pop(); 
-    localStorage.setItem(`smscode_history_${activeAccountName}`, JSON.stringify(orderHistory)); renderHistory();
+    localStorage.setItem(getDeviceHistoryKey(activeAccountName), JSON.stringify(orderHistory)); 
+    renderHistory();
 }
 function renderHistory() {
     const list = document.getElementById('history-list'); if (!list) return;
-    if (orderHistory.length === 0) { list.innerHTML = '<div class="status-text-mini" style="text-align:center;">Belum ada riwayat.</div>'; return; }
+    if (orderHistory.length === 0) { list.innerHTML = '<div class="status-text-mini" style="text-align:center;">Belum ada riwayat di perangkat ini.</div>'; return; }
     list.innerHTML = "";
     orderHistory.forEach(item => {
         const card = document.createElement('div'); card.style = "background: var(--bg-card); padding: 10px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 11px;";
@@ -216,7 +288,7 @@ function renderHistory() {
 }
 window.openHistoryModal = function() { document.getElementById('historyModal').classList.remove('hidden'); history.pushState(null, null, "#history"); };
 window.closeHistoryModal = function() { document.getElementById('historyModal').classList.add('hidden'); };
-window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan?")) { orderHistory = []; localStorage.removeItem(`smscode_history_${activeAccountName}`); renderHistory(); } };
+window.clearHistory = function() { if(confirm("Hapus semua riwayat pesanan di HP ini?")) { orderHistory = []; localStorage.removeItem(getDeviceHistoryKey(activeAccountName)); renderHistory(); } };
 
 // === FAST BOOT ACCOUNT MANAGEMENT ===
 async function fetchAccounts() {
@@ -247,19 +319,6 @@ async function fetchAccounts() {
         }
     }
 }
-
-window.openAccountModal = function() {
-    const container = document.getElementById('accountListContainer'); container.innerHTML = '<div class="status-text-mini">Memuat akun...</div>';
-    document.getElementById('accountModal').classList.remove('hidden'); history.pushState(null, null, "#account");
-    container.innerHTML = "";
-    cachedAccounts.forEach(acc => {
-        const btn = document.createElement('button'); const isActive = (acc === activeAccountName); btn.id = `btn-acc-${acc}`;
-        btn.style = `width: 100%; padding: 12px 14px; border-radius: 12px; font-size: 13px; font-weight: bold; text-align: left; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.15);`;
-        btn.innerHTML = `<div style="display:flex; align-items:center; gap:6px;"><span>👤 ${acc}</span> ${isActive ? '<i class="fas fa-check-circle"></i>' : ''}</div> <span id="bal-${acc}" style="font-size:14px; font-weight: 900; color:var(--text-secondary);"><i class="fas fa-spinner fa-spin"></i></span>`;
-        btn.onclick = () => { switchAccount(acc); closeAccountModal(); }; container.appendChild(btn); fetchBalanceForAccount(acc);
-    });
-};
-window.closeAccountModal = function() { document.getElementById('accountModal').classList.add('hidden'); };
 
 async function fetchBalanceForAccount(accName) {
     try {
@@ -293,18 +352,24 @@ window.switchAccount = function(accountName) {
 function loginAccount(accountName) { 
     activeAccountName = accountName; 
     if (document.getElementById('currentAccountBadge')) document.getElementById('currentAccountBadge').innerText = accountName;
+    if (document.getElementById('settingsActiveAccountName')) document.getElementById('settingsActiveAccountName').innerText = accountName;
     if (currentAccountName) currentAccountName.innerText = accountName; 
     setAccountViewingStatus(true); 
     
     const now = Date.now(); 
-    const rawOrders = JSON.parse(localStorage.getItem(`orders_${accountName}`)) || []; 
+    // Hanya memuat pesanan milik perangkat (HP) ini sendiri agar tidak bercampur antar HP
+    const rawOrders = JSON.parse(localStorage.getItem(getDeviceOrdersKey(accountName))) || []; 
     activeOrders = rawOrders.filter(o => o.expiresAt > now); 
     saveToStorage(); 
     loadHistory(); 
     initMainApp(); 
 }
 
-function saveToStorage() { localStorage.setItem(`orders_${activeAccountName}`, JSON.stringify(activeOrders)); updateAccountOrdersStatus(); renderOrders(); }
+function saveToStorage() { 
+    localStorage.setItem(getDeviceOrdersKey(activeAccountName), JSON.stringify(activeOrders)); 
+    updateAccountOrdersStatus(); 
+    renderOrders(); 
+}
 
 function showToast(pesan, type = "success") { 
     const toast = document.getElementById("toast"); 
@@ -345,7 +410,7 @@ async function fetchBalance() {
     } 
 }
 
-// === FITUR PILIH LAYANAN + FAVORIT (DARI OTP CEPAT) ===
+// === FITUR PILIH LAYANAN + FAVORIT ===
 function isFavorite(serviceName) {
     const normName = String(serviceName || "").toLowerCase().trim();
     return favoriteServices.includes(normName);
@@ -569,7 +634,6 @@ async function ensureCountryAndServices() {
         allServices = servicesRes.data || [];
         localStorage.setItem('smscode_services_cache', JSON.stringify(allServices));
     } else {
-        // Segarkan daftar layanan di latar belakang tanpa menghambat loading
         apiCall(`/catalog/services?country_id=${currentCountryId}`).then(res => {
             if (res && res.success && Array.isArray(res.data)) {
                 allServices = res.data;
@@ -595,7 +659,6 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
     const btnSvcText = document.getElementById('btnServiceSelectText');
     if (btnSvcText && currentServiceName) btnSvcText.innerText = currentServiceName.toUpperCase();
 
-    // Gunakan memori cache jika layanan sudah pernah dibuka dan bukan paksaan refresh
     if (!forceRefresh && currentServiceId && catalogMemoryCache[currentServiceId]) {
         cachedOperatorsList = catalogMemoryCache[currentServiceId].operators;
         availableProducts = catalogMemoryCache[currentServiceId].products;
@@ -609,7 +672,6 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
     const refreshIcon = document.getElementById('catalogRefreshIcon');
     if (refreshIcon) refreshIcon.classList.add('fa-spin');
 
-    // Cek Cache LocalStorage untuk render 0ms saat pertama kali buka aplikasi
     const localCacheKey = `smscode_cat_${currentServiceId || 'default'}`;
     const savedLocalCat = JSON.parse(localStorage.getItem(localCacheKey));
     if (!forceRefresh && savedLocalCat && savedLocalCat.operators && savedLocalCat.products) {
@@ -632,7 +694,6 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
             operators = [{ operator_id: null, code: "any", name: "ACAK" }];
         }
 
-        // Ambil produk tiap operator secara paralel sesuai spesifikasi OpenAPI
         const productRequests = operators.map(op => {
             const opQuery = op.operator_id === null ? "" : `&operator_id=${op.operator_id}`;
             return apiCall(`/catalog/products?country_id=${currentCountryId}&platform_id=${currentServiceId}${opQuery}&sort=price_asc&limit=100`);
@@ -723,7 +784,44 @@ if (btnOrder) {
     };
 }
 
-// === RENDER KARTU ORDER & COLLAPSIBLE OLD ORDERS (FITUR OTP CEPAT) ===
+// === KOTAK MENUNGGU OTP KOSONG (SAAT BELUM ADA PESANAN) ===
+function createEmptyOrderCard() {
+    const card = document.createElement("div");
+    card.className = "order-card empty-card";
+    const fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
+    card.innerHTML = `
+        <div class="order-header">
+            <div class="order-info-left" style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 28px; height: 28px; background: var(--bg-card); border-radius: 6px; padding: 3px; display: flex; justify-content: center; align-items: center; flex-shrink: 0; border: 1px solid var(--border-color);">
+                    <img src="${fallbackImg}" style="max-width: 100%; max-height: 100%; object-fit: contain; opacity: 0.45;">
+                </div>
+                <div style="text-align: left;">
+                    <div class="order-id-label" style="display:inline-block; margin-bottom:2px;">#- (BELUM ADA PESANAN)</div>
+                    <div class="order-price" style="display:block; color: var(--text-secondary);">Rp -</div>
+                </div>
+            </div>
+            <span class="timer" style="color: var(--text-secondary);">--:--</span>
+        </div>
+        <div class="phone-row">
+            <span class="phone-number" style="color: var(--text-secondary); font-size: 16px !important; letter-spacing: 2px;">- - - -</span>
+            <button class="btn-copy" disabled><i class="fas fa-copy"></i></button>
+        </div>
+        <div class="otp-display empty-otp-box">
+            <div style="font-size: 13px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1.5px; text-transform: uppercase;">
+                <i class="fas fa-inbox" style="margin-right: 6px; opacity: 0.7;"></i> Belum Ada Pesanan
+            </div>
+        </div>
+        <div class="action-buttons-grid">
+            <button class="btn-replace" disabled><i class="fas fa-sync-alt"></i> Ganti</button>
+            <button class="btn-resend" disabled><i class="fas fa-envelope"></i> Ulang</button>
+            <button class="btn-danger" disabled><i class="fas fa-times"></i> Batal</button>
+            <button class="btn-success" disabled><i class="fas fa-check"></i> Selesai</button>
+        </div>
+    `;
+    return card;
+}
+
+// === RENDER KARTU ORDER AKTIF ===
 function createOrderCard(order) {
     const now = Date.now();
     const card = document.createElement("div"); 
@@ -804,28 +902,41 @@ function createOrderCard(order) {
     return card;
 }
 
+// === RENDER KOTAK UTAMA + MENU PESANAN LAMA (SELALU TAMPIL) ===
 function renderOrders() {
     if (!activeOrdersContainer) return;
-    if (activeOrders.length === 0) { 
-        activeOrdersContainer.innerHTML = '<div class="status-text-mini">Belum ada pesanan aktif.</div>'; 
-        isDroplistOpen = false;
-        return; 
-    }
-    
     activeOrdersContainer.innerHTML = ""; 
-    activeOrdersContainer.appendChild(createOrderCard(activeOrders[0]));
 
-    if (activeOrders.length > 1) {
-        const oldOrdersCount = activeOrders.length - 1;
-        const wrapper = document.createElement("div"); 
-        wrapper.className = "old-orders-wrapper";
-        
-        const btnToggle = document.createElement("button"); 
-        btnToggle.className = `btn-droplist ${isDroplistOpen ? 'open' : ''}`; 
-        btnToggle.innerHTML = `<span><i class="fas fa-history"></i> Lihat ${oldOrdersCount} Pesanan Lama</span> <i class="fas fa-chevron-${isDroplistOpen ? 'up' : 'down'}"></i>`; 
+    // 1. Kotak Utama: Jika kosong tampilkan kotak placeholder, jika ada tampilkan pesanan terbaru
+    if (activeOrders.length === 0) {
+        isDroplistOpen = false;
+        activeOrdersContainer.appendChild(createEmptyOrderCard());
+    } else {
+        activeOrdersContainer.appendChild(createOrderCard(activeOrders[0]));
+    }
+
+    // 2. Menu Dropdown Pesanan Lama: Selalu ada meskipun 0 pesanan lama
+    const oldOrdersCount = Math.max(0, activeOrders.length - 1);
+    const hasOldOrders = oldOrdersCount > 0;
+    if (!hasOldOrders) isDroplistOpen = false;
+
+    const wrapper = document.createElement("div"); 
+    wrapper.className = "old-orders-wrapper";
+    
+    const btnToggle = document.createElement("button"); 
+    btnToggle.className = `btn-droplist ${(isDroplistOpen && hasOldOrders) ? 'open' : ''} ${!hasOldOrders ? 'disabled' : ''}`; 
+    btnToggle.disabled = !hasOldOrders;
+    btnToggle.innerHTML = `
+        <span><i class="fas fa-history"></i> Lihat ${oldOrdersCount} Pesanan Lama</span>
+        <i class="fas fa-chevron-${(isDroplistOpen && hasOldOrders) ? 'up' : 'down'}"></i>
+    `; 
+    
+    if (hasOldOrders) {
         btnToggle.onclick = () => { isDroplistOpen = !isDroplistOpen; renderOrders(); };
-        wrapper.appendChild(btnToggle);
-        
+    }
+    wrapper.appendChild(btnToggle);
+    
+    if (hasOldOrders) {
         const content = document.createElement("div"); 
         content.className = `old-orders-content ${isDroplistOpen ? 'show' : ''}`;
         
@@ -840,11 +951,12 @@ function renderOrders() {
             content.appendChild(createOrderCard(activeOrders[i])); 
         }
         wrapper.appendChild(content); 
-        activeOrdersContainer.appendChild(wrapper);
     }
+
+    activeOrdersContainer.appendChild(wrapper);
 }
 
-// === WEB WORKER TIMER & PENGECEKAN WAKTU HABIS (FITUR OTP CEPAT) ===
+// === WEB WORKER TIMER & PENGECEKAN WAKTU HABIS ===
 function forceCheckOverdueOrders() {
     let needsSave = false;
     const now = Date.now();
@@ -884,7 +996,6 @@ function startTimerTick() {
                 else timerElement.style.color = "var(--text-primary)";
             }
             
-            // Auto-cancel pada sisa 10 menit jika belum ada OTP
             if (timeLeft <= 600000 && order.status !== "OTP_RECEIVED" && !order.otp && !order.isResent && !order.isAutoCanceling) { 
                 order.isAutoCanceling = true; 
                 cancelSpecificOrder(order.id, true); 
@@ -925,7 +1036,7 @@ function startTimerTick() {
     timerWorker.postMessage('start');
 }
 
-// === POLLING RINGAN DENGAN EKSTRAKSI REGEX OTP_MESSAGE ===
+// === POLLING KHUSUS PESANAN MILIK PERANGKAT INI SAJA ===
 function startPolling() {
     if (pollingInterval) clearInterval(pollingInterval);
     
@@ -936,10 +1047,10 @@ function startPolling() {
             const res = await apiCall('/orders/active');
             if (res.success && Array.isArray(res.data)) {
                 let changed = false;
+                // Hanya mencocokkan ID pesanan yang ada di localOrder perangkat ini
                 activeOrders.forEach(localOrder => {
                     const srvOrder = res.data.find(s => s.id === localOrder.id);
                     if (srvOrder) {
-                        // Ekstraksi OTP dari otp_code atau fallback regex dari otp_message sesuai OpenAPI
                         let extractedOtp = srvOrder.otp_code;
                         if (!extractedOtp && srvOrder.otp_message) {
                             let match = String(srvOrder.otp_message).match(/\d{4,8}/);
@@ -971,54 +1082,6 @@ function startPolling() {
 
     runPoll();
     pollingInterval = setInterval(runPoll, 6000);
-}
-
-async function syncServerOrders() {
-    try {
-        const res = await apiCall('/orders?limit=20'); 
-        if (res.success && res.data) {
-            let serverOrders = Array.isArray(res.data) ? res.data : (res.data.data || []);
-            serverOrders = serverOrders.filter(o => o.status === 'ACTIVE' || o.status === 'OTP_RECEIVED');
-            let changed = false;
-            serverOrders.forEach(order => {
-                if (!activeOrders.find(o => o.id === order.id)) {
-                    let syncedPrice = order.amount || order.price || 0;
-                    if (syncedPrice == 0 && order.product_id && availableProducts.length > 0) { 
-                        const matchProduct = availableProducts.find(p => String(p.id) === String(order.product_id)); 
-                        if (matchProduct) syncedPrice = matchProduct.price; 
-                    }
-                    const exp = order.expires_at ? new Date(order.expires_at).getTime() : Date.now() + (20*60*1000);
-                    const cTime = order.created_at ? new Date(order.created_at).getTime() : (exp - (20*60*1000));
-                    const cancelUnlock = order.cancel_available_at ? new Date(order.cancel_available_at).getTime() : (cTime + (120*1000));
-                    
-                    let extractedOtp = order.otp_code;
-                    if (!extractedOtp && order.otp_message) {
-                        let match = String(order.otp_message).match(/\d{4,8}/);
-                        extractedOtp = match ? match[0] : order.otp_message;
-                    }
-
-                    activeOrders.unshift({ 
-                        id: order.id, 
-                        productId: order.product_id, 
-                        serviceName: currentServiceName,
-                        operatorName: order.operator_name || getProviderName(order.phone_number),
-                        phone: order.phone_number, 
-                        price: syncedPrice, 
-                        otp: extractedOtp, 
-                        status: order.status, 
-                        createdAt: cTime,
-                        expiresAt: exp, 
-                        cancelUnlockTime: cancelUnlock, 
-                        isAutoCanceling: false,
-                        isResent: false
-                    });
-                    changed = true;
-                }
-            });
-            if (changed) saveToStorage(); 
-            if (activeOrders.length > 0) { startPolling(); startTimerTick(); }
-        }
-    } catch (e) {}
 }
 
 function removeOrderWithAnimation(idStr, callback) { const card = document.getElementById(`order-card-${idStr}`); if (card) { card.classList.add('removing'); setTimeout(() => { callback(); }, 300); } else { callback(); } }
@@ -1168,31 +1231,28 @@ window.finishSpecificOrder = async function(id) {
     if (btnFinish) { btnFinish.disabled = true; btnFinish.innerHTML = '<div class="loader"></div>'; }
     const oldOrder = activeOrders.find(o => String(o.id) === String(id)); 
     if (oldOrder) saveToHistory(oldOrder, "SUKSES");
-    if (appSettings.autoCopy) { copyToClipboard(appSettings.password, "Pesanan Selesai & Sandi Disalin!"); } 
     recordStat('success');
     try { await apiCall('/orders/finish', 'POST', { id: parseInt(id) }); } catch (e) {} 
     removeOrderWithAnimation(id, () => { 
         activeOrders = activeOrders.filter(o => o.id !== id); 
         if (activeOrders.length <= 1) isDroplistOpen = false;
         saveToStorage(); 
+        showToast("Pesanan Selesai!");
     });
 };
 
-// === INISIALISASI PARALEL ===
+// === INISIALISASI PARALEL TANPA SINKRONISASI ANTAR HP ===
 function initMainApp() { 
     renderOrders(); 
     if (activeOrders.length > 0) { startPolling(); startTimerTick(); }
     
     fetchBalance();
     loadCatalogForCurrentService(false);
-    syncServerOrders(); 
 }
 
 window.onload = () => { 
-    relocateBalanceUI(); 
     setAccountViewingStatus(false); 
     history.pushState(null, null, window.location.href); 
     initUsedNumbersSync(); 
-    renderMainButtons(); 
     fetchAccounts(); 
 };
