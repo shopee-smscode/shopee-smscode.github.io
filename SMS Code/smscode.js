@@ -233,9 +233,10 @@ window.handlePriceChange = function() {
     localStorage.setItem('smscode_selected_product', selectedProductId);
     if (btnOrder) btnOrder.disabled = !selectedProductId;
 
-    // FITUR BARU: Update label harga di dalam kartu operator secara realtime
+    // UPDATE HARGA DINAMIS DI DALAM KOTAK KARTU OPERATOR SAAT INI
     const selectedOpIdStr = localStorage.getItem('smscode_selected_op') || "null";
     const priceLabelEl = document.getElementById(`price-label-${selectedOpIdStr}`);
+    
     if (priceLabelEl && selectedProductId && availableProducts.length > 0) {
         const productInfo = availableProducts.find(p => String(p.id) === String(selectedProductId));
         if (productInfo) {
@@ -245,53 +246,77 @@ window.handlePriceChange = function() {
     }
 };
 
-function renderOperatorGrid(operators, products) {
+function renderOperatorGrid(apiOperators, products) {
     const grid = document.getElementById('operatorGrid');
     if (!grid) return;
     grid.innerHTML = "";
     
     const formatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
     
-    // Hanya tampilkan operator yang memiliki stok/produk
-    const activeOps = operators.filter(op => products.some(p => p.operator_id === op.operator_id));
-    
-    activeOps.forEach(op => {
-        const opProducts = products.filter(p => p.operator_id === op.operator_id);
-        // Harga default untuk ditampilkan di grid (ambil yang termurah)
-        const minPrice = opProducts.length > 0 ? Math.min(...opProducts.map(p => p.price)) : 0;
-        const opIdStr = op.operator_id === null ? "null" : String(op.operator_id);
-        const opName = op.operator_id === null ? "Acak" : (op.name || op.code);
+    // DEFINISI HARDCODE 6 OPERATOR INDONESIA AGAR SELALU MUNCUL DI GRID
+    const INDO_OPS = [
+        { key: "any", name: "ACAK", iconHtml: '<i class="fas fa-random" style="color:#3b82f6;"></i>' },
+        { key: "xl", name: "AXIS (XL AXIATA)", iconHtml: '<span style="color:#0000ff;font-weight:900;">XL</span>' },
+        { key: "indosat", name: "INDOSAT OOREDOO", iconHtml: '<span style="color:#ffcc00;font-weight:900;font-style:italic;">im3</span>' },
+        { key: "telkomsel", name: "TELKOMSEL", iconHtml: '<span style="color:white;background:#ed1c24;font-weight:900;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:14px;">T</span>' },
+        { key: "three", name: "THREE", iconHtml: '<span style="font-weight:900;font-size:20px;">3</span>' },
+        { key: "smartfren", name: "SMARTFREN", iconHtml: '<span style="color:#e91e63;font-weight:900;font-size:10px;">SF</span>' }
+    ];
+
+    // Pemetaan Alias agar kata kunci API nyambung ke Grid UI
+    const matchMap = {
+        "xl": ["xl", "axis"],
+        "indosat": ["indosat", "im3", "isat"],
+        "telkomsel": ["telkomsel", "tsel"],
+        "three": ["three", "tri", "hutchison", "3"],
+        "smartfren": ["smartfren"]
+    };
+
+    INDO_OPS.forEach(opDef => {
+        let actualOpId = "null"; // Default Acak
         
+        if (opDef.key !== "any") {
+            const matches = matchMap[opDef.key];
+            const foundApiOp = apiOperators.find(o => o.code && matches.some(m => o.code.toLowerCase().includes(m)));
+            
+            if (foundApiOp) {
+                actualOpId = String(foundApiOp.operator_id);
+            } else {
+                actualOpId = "not_found_" + opDef.key; // Dummy ID jika API mengembalikan kosong (stok habis)
+            }
+        }
+        
+        const opProducts = products.filter(p => String(p.operator_id) === actualOpId);
+        
+        // Default harga adalah harga produk termurah. (Akan tertimpa saat dropdown dipilih)
+        const minPrice = opProducts.length > 0 ? Math.min(...opProducts.map(p => p.price)) : 0;
+        const displayPrice = minPrice > 0 ? formatter.format(minPrice) : "-";
+
         const card = document.createElement("div");
         card.className = "operator-card";
-        card.id = `op-card-${opIdStr}`;
-        
-        let iconHtml = '<i class="fas fa-signal"></i>';
-        const lowerName = opName.toLowerCase();
-        if(lowerName.includes('acak')) iconHtml = '<i class="fas fa-random" style="color:#3b82f6;"></i>';
-        else if(lowerName.includes('telkomsel')) iconHtml = '<span style="color:white;background:#ed1c24;font-weight:900;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:14px;">T</span>';
-        else if(lowerName.includes('indosat') || lowerName.includes('im3')) iconHtml = '<span style="color:#ffcc00;font-weight:900;font-style:italic;">im3</span>';
-        else if(lowerName.includes('xl') || lowerName.includes('axis')) iconHtml = '<span style="color:#0000ff;font-weight:900;">XL</span>';
-        else if(lowerName.includes('three') || lowerName.includes('tri') || opName === '3') iconHtml = '<span style="font-weight:900;font-size:20px;">3</span>';
-        else if(lowerName.includes('smartfren')) iconHtml = '<span style="color:#e91e63;font-weight:900;font-size:10px;">SF</span>';
-
+        card.id = `op-card-${actualOpId}`;
         card.innerHTML = `
-            <div class="op-icon">${iconHtml}</div>
-            <div class="op-name">${opName}</div>
-            <div class="op-price" id="price-label-${opIdStr}">${formatter.format(minPrice)}</div>
+            <div class="op-icon">${opDef.iconHtml}</div>
+            <div class="op-name">${opDef.name}</div>
+            <div class="op-price" id="price-label-${actualOpId}">${displayPrice}</div>
         `;
         
-        card.onclick = () => selectOperator(opIdStr, opProducts);
+        card.onclick = () => selectOperator(actualOpId, opProducts);
         grid.appendChild(card);
     });
     
     // Auto-select operator
     let savedOp = localStorage.getItem('smscode_selected_op') || "null";
-    const opExists = activeOps.some(o => (o.operator_id === null ? "null" : String(o.operator_id)) === savedOp);
-    if(!opExists && activeOps.length > 0) savedOp = activeOps[0].operator_id === null ? "null" : String(activeOps[0].operator_id);
+    let targetOpId = savedOp;
     
-    const initialProducts = products.filter(p => (p.operator_id === null ? "null" : String(p.operator_id)) === savedOp);
-    selectOperator(savedOp, initialProducts);
+    // Cek apakah operator yang tersimpan memiliki produk, jika tidak, kembali ke Acak ("null")
+    let initialProducts = products.filter(p => String(p.operator_id) === targetOpId);
+    if(initialProducts.length === 0 && targetOpId !== "null") {
+        targetOpId = "null";
+        initialProducts = products.filter(p => String(p.operator_id) === targetOpId);
+    }
+    
+    selectOperator(targetOpId, initialProducts);
 }
 
 function selectOperator(opIdStr, opProducts) {
@@ -315,6 +340,7 @@ function selectOperator(opIdStr, opProducts) {
         return;
     }
     
+    // Isi Dropdown dengan pilihan harga & stok
     opProducts.forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.id;
@@ -330,7 +356,7 @@ function selectOperator(opIdStr, opProducts) {
     
     selectEl.value = savedProd;
     
-    // Paksa update UI harga di kartu
+    // Paksa eksekusi update UI harga
     window.handlePriceChange();
 }
 
@@ -366,7 +392,7 @@ async function loadShopeeIndonesia() {
             // Urutkan produk berdasarkan harga dari termurah
             availableProducts.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
             
-            // Perbaikan jika API mengembalikan Acak secara implisit melalui produk tanpa operator_id
+            // Masukkan "Acak" (null) ke daftar operator API jika ada produk yang nilainya null
             const hasAny = availableProducts.some(p => p.operator_id === null);
             if (hasAny && !operators.find(o => o.operator_id === null)) {
                 operators.unshift({ operator_id: null, name: "Acak", code: "any" });
@@ -408,7 +434,16 @@ function renderOrders() {
     activeOrders.forEach(order => {
         const card = document.createElement("div"); card.className = "order-card"; card.id = `order-card-${order.id}`; 
         let isSuccess = (order.status === "OTP_RECEIVED" && order.otp); const wait = order.cancelUnlockTime - now;
-        let otpHtml = isSuccess ? `<div class="otp-title">KODE OTP</div><div class="otp-code">${formatOTP(order.otp)}</div>` : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
+        
+        // PENAMBAHAN TOMBOL SALIN (COPY) DI SAMPING KODE OTP SEPERTI PERMINTAAN ANDA
+        let otpHtml = isSuccess ? `
+            <div class="otp-title">KODE OTP</div>
+            <div style="display:flex; align-items:center; justify-content:center; gap:10px;">
+                <div class="otp-code" style="margin:0 !important;">${formatOTP(order.otp)}</div>
+                <button onclick="copyToClipboard('${order.otp}')" style="background:var(--primary-color); color:var(--bg-body); border:none; border-radius:8px; width:44px; height:44px; cursor:pointer; font-size:18px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition:0.2s;"><i class="fas fa-copy"></i></button>
+            </div>` 
+            : `<div class="waiting-animation"><div class="dot-pulse"></div><div class="dot-pulse"></div></div><div class="waiting-text">MENUNGGU...</div>`;
+        
         const passProductId = order.productId ? `'${order.productId}'` : 'null'; const providerName = getProviderName(order.phone);
         let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
         if (isSuccess) { finishBtnAttr = ""; resendBtnAttr = ""; cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; } else if (wait <= 0 && !order.isAutoCanceling) { cancelBtnAttr = ""; replaceBtnAttr = ""; resendBtnAttr = "disabled"; } else if (order.isAutoCanceling) { cancelBtnAttr = "disabled"; replaceBtnAttr = "disabled"; resendBtnAttr = "disabled"; }
