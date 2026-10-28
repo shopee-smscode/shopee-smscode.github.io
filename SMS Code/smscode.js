@@ -1,6 +1,9 @@
 const BASE_URL = "https://sms-code-proxy.masreno6pro.workers.dev"; 
+const DEFAULT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
 
-const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+let notifSound = new Audio(DEFAULT_SOUND_URL);
+let activeAudioObjectUrl = null;
+
 const firebaseConfig = { apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0", authDomain: "catatanku-app-ce60b.firebaseapp.com", databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "catatanku-app-ce60b", storageBucket: "catatanku-app-ce60b.firebasestorage.app", messagingSenderId: "291744292263", appId: "1:291744292263:web:ab8d32ba52bc19cbffea82" };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database(); 
@@ -14,6 +17,8 @@ if (!DEVICE_ID) {
 
 let cachedAccounts = JSON.parse(localStorage.getItem('smscode_cached_accounts')) || [];
 let favoriteServices = JSON.parse(localStorage.getItem('smscode_favorites')) || ['shopee', 'whatsapp', 'telegram', 'tiktok'];
+let opPriceMap = JSON.parse(localStorage.getItem('smscode_op_price_map')) || {};
+let lastSelectedPriceVal = localStorage.getItem('smscode_selected_price_val') ? Number(localStorage.getItem('smscode_selected_price_val')) : null;
 
 let viewingPresenceRef = null;
 let activeAccountName = null;
@@ -43,6 +48,119 @@ const activeOrdersContainer = document.getElementById('activeOrdersContainer');
 const exitModal = document.getElementById('exitModal'); 
 
 const idrFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+
+// === SISTEM NADA NOTIFIKASI KUSTOM (LINK URL & INTERNAL STORAGE VIA INDEXEDDB) ===
+function openAudioDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open('smscode_audio_db', 1);
+        req.onupgradeneeded = (e) => {
+            const idb = e.target.result;
+            if (!idb.objectStoreNames.contains('sounds')) {
+                idb.createObjectStore('sounds');
+            }
+        };
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = (e) => reject(e.target.error);
+    });
+}
+
+async function saveAudioBlobToDB(blob, fileName) {
+    const idb = await openAudioDB();
+    return new Promise((resolve, reject) => {
+        const tx = idb.transaction('sounds', 'readwrite');
+        tx.objectStore('sounds').put(blob, 'custom_otp_sound');
+        tx.oncomplete = () => {
+            localStorage.setItem('smscode_sound_config', JSON.stringify({ type: 'file', name: fileName }));
+            resolve();
+        };
+        tx.onerror = (e) => reject(e.target.error);
+    });
+}
+
+async function loadCustomNotificationSound() {
+    const cfg = JSON.parse(localStorage.getItem('smscode_sound_config')) || { type: 'default', name: 'Nada Bawaan (Default)', url: DEFAULT_SOUND_URL };
+    const labelEl = document.getElementById('currentSoundLabel');
+    const urlInput = document.getElementById('soundUrlInput');
+
+    if (cfg.type === 'url' && cfg.url) {
+        notifSound = new Audio(cfg.url);
+        if (labelEl) labelEl.innerText = `Link: ${cfg.url}`;
+        if (urlInput) urlInput.value = cfg.url;
+    } else if (cfg.type === 'file') {
+        try {
+            const idb = await openAudioDB();
+            const tx = idb.transaction('sounds', 'readonly');
+            const req = tx.objectStore('sounds').get('custom_otp_sound');
+            req.onsuccess = () => {
+                if (req.result) {
+                    if (activeAudioObjectUrl) URL.revokeObjectURL(activeAudioObjectUrl);
+                    activeAudioObjectUrl = URL.createObjectURL(req.result);
+                    notifSound = new Audio(activeAudioObjectUrl);
+                    if (labelEl) labelEl.innerText = `File HP: ${cfg.name || 'Audio Kustom'}`;
+                    if (urlInput) urlInput.value = '';
+                } else {
+                    notifSound = new Audio(DEFAULT_SOUND_URL);
+                    if (labelEl) labelEl.innerText = 'Nada Bawaan (Default)';
+                }
+            };
+        } catch (e) {
+            notifSound = new Audio(DEFAULT_SOUND_URL);
+        }
+    } else {
+        notifSound = new Audio(DEFAULT_SOUND_URL);
+        if (labelEl) labelEl.innerText = 'Nada Bawaan (Default)';
+        if (urlInput) urlInput.value = '';
+    }
+}
+
+function playNotifSound() {
+    if (!notifSound) notifSound = new Audio(DEFAULT_SOUND_URL);
+    notifSound.currentTime = 0;
+    notifSound.play().catch(() => {});
+}
+
+window.testNotifSound = function() {
+    playNotifSound();
+    showToast("🔊 Memutar nada notifikasi...");
+};
+
+window.handleSoundFileSelect = async function(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('audio/')) {
+        showToast("Pilih file berformat audio (MP3/WAV/OGG)!", "error");
+        return;
+    }
+    try {
+        await saveAudioBlobToDB(file, file.name);
+        await loadCustomNotificationSound();
+        setTimeout(() => playNotifSound(), 150);
+        showToast(`Nada "${file.name}" disimpan!`);
+    } catch (e) {
+        showToast("Gagal menyimpan file audio.", "error");
+    }
+    event.target.value = '';
+};
+
+window.saveSoundUrl = async function() {
+    const inputEl = document.getElementById('soundUrlInput');
+    const url = (inputEl ? inputEl.value : '').trim();
+    if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+        showToast("Masukkan link URL audio yang valid (https://...)", "error");
+        return;
+    }
+    localStorage.setItem('smscode_sound_config', JSON.stringify({ type: 'url', name: url, url: url }));
+    await loadCustomNotificationSound();
+    playNotifSound();
+    showToast("Link nada notifikasi disimpan!");
+};
+
+window.resetDefaultSound = async function() {
+    localStorage.removeItem('smscode_sound_config');
+    await loadCustomNotificationSound();
+    playNotifSound();
+    showToast("Kembali ke nada notifikasi bawaan!");
+};
 
 function getDeviceOrdersKey(accName) {
     return `orders_${DEVICE_ID}_${accName}`;
@@ -126,6 +244,7 @@ async function apiCall(endpoint, method = "GET", body = null, customAccount = nu
 window.openSettingsModal = function() {
     const activeLabel = document.getElementById('settingsActiveAccountName');
     if (activeLabel) activeLabel.innerText = activeAccountName || "Belum dipilih";
+    loadCustomNotificationSound();
     document.getElementById('settingsModal').classList.remove('hidden');
     history.pushState(null, null, "#settings");
     renderAccountListInSettings();
@@ -507,7 +626,30 @@ window.filterServices = function() {
     });
 };
 
-// === GRID OPERATOR & DROPDOWN HARGA (ZERO FLICKER) ===
+// === GRID OPERATOR & PENYIMPANAN HARGA PERSISTEN ANTAR OPERATOR ===
+function getPreferredProductForOperator(opIdStr, opProducts) {
+    if (!opProducts || opProducts.length === 0) return null;
+    const svcOpKey = `${currentServiceId || 'def'}_${opIdStr}`;
+
+    // 1. Prioritaskan harga global yang terakhir dipilih pengguna (agar saat ganti operator harga tetap sama!)
+    if (lastSelectedPriceVal !== null) {
+        const exactGlobalPriceMatch = opProducts.find(p => Number(p.price) === Number(lastSelectedPriceVal));
+        if (exactGlobalPriceMatch) return exactGlobalPriceMatch;
+    }
+
+    // 2. Jika harga tersebut tidak ada di operator ini, cek histori harga terakhir khusus operator ini
+    const savedForOp = opPriceMap[svcOpKey];
+    if (savedForOp) {
+        const byId = opProducts.find(p => String(p.id) === String(savedForOp.productId));
+        if (byId) return byId;
+        const byPrice = opProducts.find(p => Number(p.price) === Number(savedForOp.price));
+        if (byPrice) return byPrice;
+    }
+
+    // 3. Fallback ke produk pertama jika belum pernah ada pilihan
+    return opProducts[0];
+}
+
 window.handlePriceChange = function() {
     const selectEl = document.getElementById('priceSelect');
     if (!selectEl) return;
@@ -517,12 +659,38 @@ window.handlePriceChange = function() {
     if (btnOrder) btnOrder.disabled = !selectedProductId;
 
     const selectedOpIdStr = localStorage.getItem('smscode_selected_op') || "null";
-    const priceLabelEl = document.getElementById(`price-label-${selectedOpIdStr}`);
     
-    if (priceLabelEl && selectedProductId && availableProducts.length > 0) {
+    if (selectedProductId && availableProducts.length > 0) {
         const productInfo = availableProducts.find(p => String(p.id) === String(selectedProductId));
         if (productInfo) {
-            priceLabelEl.innerText = idrFormatter.format(productInfo.price);
+            // Simpan harga terakhir secara global & spesifik per operator
+            lastSelectedPriceVal = Number(productInfo.price);
+            localStorage.setItem('smscode_selected_price_val', String(lastSelectedPriceVal));
+            
+            const svcOpKey = `${currentServiceId || 'def'}_${selectedOpIdStr}`;
+            opPriceMap[svcOpKey] = { productId: String(productInfo.id), price: Number(productInfo.price) };
+            localStorage.setItem('smscode_op_price_map', JSON.stringify(opPriceMap));
+
+            // Update label harga pada kartu operator yang sedang aktif
+            const priceLabelEl = document.getElementById(`price-label-${selectedOpIdStr}`);
+            if (priceLabelEl) {
+                priceLabelEl.innerText = idrFormatter.format(productInfo.price);
+            }
+
+            // Sinkronkan juga label harga pada kartu operator lain yang memiliki tier harga yang sama
+            cachedOperatorsList.forEach(op => {
+                const otherOpIdStr = op.operator_id === null ? "null" : String(op.operator_id);
+                if (otherOpIdStr === selectedOpIdStr) return;
+                const otherOpProducts = availableProducts.filter(p => (p.operator_id === null ? "null" : String(p.operator_id)) === otherOpIdStr);
+                const matchingTier = otherOpProducts.find(p => Number(p.price) === lastSelectedPriceVal);
+                if (matchingTier) {
+                    const otherSvcOpKey = `${currentServiceId || 'def'}_${otherOpIdStr}`;
+                    opPriceMap[otherSvcOpKey] = { productId: String(matchingTier.id), price: Number(matchingTier.price) };
+                    const otherLabelEl = document.getElementById(`price-label-${otherOpIdStr}`);
+                    if (otherLabelEl) otherLabelEl.innerText = idrFormatter.format(matchingTier.price);
+                }
+            });
+            localStorage.setItem('smscode_op_price_map', JSON.stringify(opPriceMap));
         }
     }
 };
@@ -549,7 +717,10 @@ function renderOperatorGrid(operators, products) {
 
         const logoImg = getOperatorLogo(opName === "ACAK" ? "random" : (opName + " " + (op.code || "")));
         const fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
-        const minPrice = opProducts[0].price;
+        
+        // Tampilkan harga yang tersimpan / sesuai pilihan terakhir, bukan mereset ke harga terendah
+        const preferredProd = getPreferredProductForOperator(opIdStr, opProducts);
+        const displayCardPrice = preferredProd ? preferredProd.price : opProducts[0].price;
 
         const card = document.createElement("div");
         card.className = "operator-card";
@@ -558,7 +729,7 @@ function renderOperatorGrid(operators, products) {
         card.innerHTML = `
             <div class="op-logo-container"><img src="${logoImg}" onerror="this.src='${fallbackImg}';" class="op-logo"></div>
             <div class="op-name">${opName}</div>
-            <div class="op-price" id="price-label-${opIdStr}">${idrFormatter.format(minPrice)}</div>
+            <div class="op-price" id="price-label-${opIdStr}">${idrFormatter.format(displayCardPrice)}</div>
         `;
         
         card.onclick = () => selectOperator(opIdStr, opProducts);
@@ -617,11 +788,10 @@ function selectOperator(opIdStr, opProducts) {
     
     selectEl.disabled = false;
     
-    let savedProd = localStorage.getItem('smscode_selected_product');
-    let prodExists = opProducts.some(p => String(p.id) === savedProd);
-    if (!prodExists) savedProd = String(opProducts[0].id);
+    // Pertahankan harga yang dipilih sebelumnya saat berpindah operator!
+    const targetProduct = getPreferredProductForOperator(opIdStr, opProducts);
+    selectEl.value = targetProduct ? String(targetProduct.id) : String(opProducts[0].id);
     
-    selectEl.value = savedProd;
     window.handlePriceChange();
 }
 
@@ -848,7 +1018,7 @@ function createEmptyOrderCard() {
     return card;
 }
 
-// === RENDER KARTU ORDER AKTIF (DISESUAIKAN DENGAN OTP CEPAT) ===
+// === RENDER KARTU ORDER AKTIF ===
 function createOrderCard(order) {
     const now = Date.now();
     const card = document.createElement("div"); 
@@ -876,7 +1046,6 @@ function createOrderCard(order) {
     const passProductId = order.productId ? `'${order.productId}'` : 'null'; 
     let cancelBtnAttr = "disabled"; let replaceBtnAttr = "disabled"; let resendBtnAttr = "disabled"; let finishBtnAttr = "disabled";
     
-    // LOGIKA TOMBOL PERSIS SEPERTI OTP CEPAT:
     if (isSuccess) { 
         finishBtnAttr = ""; 
         resendBtnAttr = ""; 
@@ -884,7 +1053,6 @@ function createOrderCard(order) {
         replaceBtnAttr = "disabled"; 
     } else {
         if (order.isResent) {
-            // Jika sudah klik Ulang dan sedang menunggu SMS ke-2, tombol Selesai tetap aktif
             cancelBtnAttr = "disabled";
             replaceBtnAttr = "disabled";
             resendBtnAttr = "disabled";
@@ -987,7 +1155,7 @@ function renderOrders() {
     activeOrdersContainer.replaceChildren(fragment);
 }
 
-// === WEB WORKER TIMER & PENGECEKAN WAKTU HABIS (PERSIS OTP CEPAT) ===
+// === WEB WORKER TIMER & PENGECEKAN WAKTU HABIS ===
 function forceCheckOverdueOrders() {
     let needsSave = false;
     const now = Date.now();
@@ -1045,7 +1213,6 @@ function startTimerTick() {
                 else timerElement.style.color = "var(--text-primary)";
             }
             
-            // Auto-cancel pada sisa 10 menit HANYA jika belum pernah dapat OTP dan belum pernah di-Ulang
             if (timeLeft <= 600000 && !order.hasReceivedOTP && !order.otp && !order.isResent && !order.isAutoCanceling) { 
                 order.isAutoCanceling = true; 
                 cancelSpecificOrder(order.id, true); 
@@ -1086,7 +1253,7 @@ function startTimerTick() {
     timerWorker.postMessage('start');
 }
 
-// === POLLING CERDAS DENGAN FILTER SMS_REVISION (AGAR TOMBOL ULANG TIDAK BUG) ===
+// === POLLING CERDAS DENGAN FILTER SMS_REVISION & NADA NOTIFIKASI KUSTOM ===
 function startPolling() {
     if (pollingInterval) clearInterval(pollingInterval);
     
@@ -1098,7 +1265,6 @@ function startPolling() {
             if (res.success && Array.isArray(res.data)) {
                 let changed = false;
                 activeOrders.forEach(localOrder => {
-                    // Hanya periksa order yang sedang menunggu SMS
                     if (localOrder.status === "Recieved" || localOrder.status === "Done" || localOrder.otp) return;
 
                     const srvOrder = res.data.find(s => String(s.id) === String(localOrder.id));
@@ -1114,21 +1280,19 @@ function startPolling() {
                         let isNewValidOtp = false;
 
                         if (localOrder.isResent) {
-                            // Jika pesanan baru saja di-Ulang (Resend), abaikan OTP lama dari revisi sebelumnya!
                             if (srvRev > (localOrder.lastSmsRevision || 1) && extractedOtp) {
                                 isNewValidOtp = true;
                             } else if (srvOrder.status === "OTP_RECEIVED" && extractedOtp && extractedOtp !== localOrder.lastOtp) {
                                 isNewValidOtp = true;
                             }
                         } else {
-                            // Pesanan normal (OTP pertama)
                             if ((srvOrder.status === "OTP_RECEIVED" || extractedOtp) && extractedOtp) {
                                 isNewValidOtp = true;
                             }
                         }
 
                         if (isNewValidOtp) {
-                            notifSound.play().catch(() => {});
+                            playNotifSound();
                             localOrder.status = "Recieved";
                             localOrder.otp = extractedOtp;
                             localOrder.lastOtp = extractedOtp;
@@ -1157,7 +1321,7 @@ function startPolling() {
     pollingInterval = setInterval(runPoll, 4000);
 }
 
-// === AKSI ORDER: GANTI, ULANG, BATAL, BATAL SEMUA, SELESAI (DISESUAIKAN DENGAN OTP CEPAT) ===
+// === AKSI ORDER: GANTI, ULANG, BATAL, BATAL SEMUA, SELESAI ===
 window.replaceSpecificOrder = async function(orderId, productId) {
     const btn = document.getElementById(`btn-replace-${orderId}`); 
     const targetProductId = selectedProductId || ((productId && productId !== 'null') ? productId : null);
@@ -1235,7 +1399,6 @@ window.replaceSpecificOrder = async function(orderId, productId) {
     }
 };
 
-// FUNGSI ULANG (RESEND) PERSIS SEPERTI OTP CEPAT
 window.resendSpecificOrder = async function(id) {
     const btnResend = document.getElementById(`btn-resend-${id}`);
     if (btnResend) { btnResend.disabled = true; btnResend.innerHTML = '<div class="loader"></div>'; }
@@ -1248,7 +1411,6 @@ window.resendSpecificOrder = async function(id) {
             if (idx !== -1) {
                 saveToHistory({ ...activeOrders[idx] }, "MINTA ULANG");
                 
-                // Simpan OTP & revisi terakhir agar polling tidak mengambil ulang OTP lama
                 activeOrders[idx].lastOtp = activeOrders[idx].otp;
                 activeOrders[idx].lastSmsRevision = activeOrders[idx].smsRevision || 1;
                 activeOrders[idx].status = "Waiting SMS";
@@ -1268,7 +1430,6 @@ window.resendSpecificOrder = async function(id) {
     }
 };
 
-// FUNGSI SELESAI (FINISH) PERSIS SEPERTI OTP CEPAT
 window.finishSpecificOrder = async function(orderId) {
     const btn = document.getElementById(`btn-finish-${orderId}`);
     if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
@@ -1280,7 +1441,6 @@ window.finishSpecificOrder = async function(orderId) {
     try {
         const res = await apiCall('/orders/finish', 'POST', { id: parseInt(orderId) });
         
-        // Sukses di server, atau sudah berstatus terminal (NOT_FOUND / CONFLICT)
         if (res.success || (res.error && (res.error.code === 'NOT_FOUND' || res.error.code === 'CONFLICT'))) {
             saveToHistory(orderToSave, "SELESAI");
             recordStat('success');
@@ -1380,7 +1540,7 @@ window.cancelAllOldOrders = async function() {
     }
 };
 
-// === INISIALISASI PARALEL TANPA SINKRONISASI ANTAR HP ===
+// === INISIALISASI PARALEL ===
 function initMainApp() { 
     renderOrders(); 
     if (activeOrders.length > 0) { startPolling(); startTimerTick(); }
@@ -1390,6 +1550,7 @@ function initMainApp() {
 }
 
 window.onload = () => { 
+    loadCustomNotificationSound();
     setAccountViewingStatus(false); 
     history.pushState(null, null, window.location.href); 
     initUsedNumbersSync(); 

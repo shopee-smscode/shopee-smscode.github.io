@@ -7,7 +7,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="smscode.css?v=31">
+    <link rel="stylesheet" href="smscode.css?v=32">
     
     <!-- SKRIP PENGINGAT APLIKASI -->
     <script>
@@ -34,7 +34,7 @@
 <body class="theme-smscode">
     <div id="appView" class="container">
         
-        <!-- TOP ACTIONS BAR -->
+        <!-- TOP ACTIONS BAR (POSISI TOPUP & NOTE SUDAH DITUKAR) -->
         <div class="top-bar-modern">
             <div style="display: flex; gap: 6px; align-items: center;">
                 <div class="dropdown">
@@ -51,10 +51,11 @@
             </div>
             
             <div style="display: flex; gap: 6px; align-items: center;">
-                <button onclick="openIframeNoteModal()" class="btn-top-action" title="Catatan"><i class="fas fa-sticky-note"></i></button>
+                <!-- TOMBOL TOP UP DI KIRI, TOMBOL NOTE DI KANAN -->
                 <button onclick="window.open('https://smscode.gg/dashboard', '_blank')" class="dropbtn-icon" style="color: var(--success-color); border-color: var(--success-color);" title="Top Up Saldo">
                     <i class="fas fa-plus-circle"></i>
                 </button>
+                <button onclick="openIframeNoteModal()" class="btn-top-action" title="Catatan"><i class="fas fa-sticky-note"></i></button>
                 <div class="dropdown">
                     <button class="dropbtn-icon" onclick="toggleMenuDropdown()">
                         <i class="fas fa-bars"></i>
@@ -132,12 +133,39 @@
         </div>
     </div>
 
-    <!-- MODAL PENGATURAN & GANTI AKUN MODERN -->
+    <!-- MODAL PENGATURAN, NADA NOTIFIKASI & GANTI AKUN MODERN -->
     <div id="settingsModal" class="modal hidden">
-        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+        <div class="modal-content" style="max-height: 88vh; display: flex; flex-direction: column;">
             <div class="modal-header">
                 <h3 class="modal-title"><i class="fas fa-sliders-h"></i> Pengaturan & Akun</h3>
                 <button onclick="closeSettingsModal()" class="btn-danger" style="width: 30px; height: 30px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+
+            <!-- PENGATURAN NADA NOTIFIKASI OTP -->
+            <div class="settings-section-label">
+                <span><i class="fas fa-volume-up" style="color: var(--primary-color); margin-right: 4px;"></i> Nada Notifikasi OTP</span>
+            </div>
+            <div class="sound-settings-card">
+                <div class="sound-status-row">
+                    <span style="font-size: 10px; color: var(--text-secondary); font-weight: 800; text-transform: uppercase;">Aktif:</span>
+                    <span id="currentSoundLabel" class="sound-current-name">Nada Bawaan (Default)</span>
+                </div>
+                <input type="file" id="soundFileInput" accept="audio/*" class="hidden" onchange="handleSoundFileSelect(event)">
+                <div class="sound-btn-row">
+                    <button onclick="document.getElementById('soundFileInput').click()" class="btn-sound-action primary">
+                        <i class="fas fa-folder-open"></i> File HP
+                    </button>
+                    <button onclick="testNotifSound()" class="btn-sound-action test">
+                        <i class="fas fa-play"></i> Tes Nada
+                    </button>
+                    <button onclick="resetDefaultSound()" class="btn-sound-action">
+                        <i class="fas fa-undo"></i> Default
+                    </button>
+                </div>
+                <div class="sound-url-row">
+                    <input type="url" id="soundUrlInput" class="form-input" placeholder="Tempel link URL audio (https://...mp3)" style="height: 32px; font-size: 11px;">
+                    <button onclick="saveSoundUrl()" class="btn-save-url">Simpan</button>
+                </div>
             </div>
             
             <!-- Banner Akun Aktif -->
@@ -240,6 +268,6 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <script src="smscode.js?v=31"></script>
+    <script src="smscode.js?v=32"></script>
 </body>
 </html>
