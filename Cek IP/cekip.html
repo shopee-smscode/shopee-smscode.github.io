@@ -2,7 +2,8 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Mencegah zoom dan mengatur ukuran viewport -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>IP Record & Validator (Multi-Time Log)</title>
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -20,6 +21,7 @@
       --green: #22c55e;
       --green-bg: rgba(34, 197, 94, 0.12);
       --red: #ef4444;
+      --red-hover: #dc2626;
       --red-bg: rgba(239, 68, 68, 0.12);
       --border: #2a2e3d;
     }
@@ -30,13 +32,22 @@
       padding: 0;
     }
 
-    body {
-      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    /* Mengunci layar agar tidak bisa di scroll */
+    html, body {
+      height: 100dvh;
+      overflow: hidden;
       background-color: var(--bg-main);
       color: var(--text-main);
-      padding: 14px;
-      max-width: 720px;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      max-width: 600px;
       margin: 0 auto;
+      padding: 12px;
     }
 
     /* Header */
@@ -44,17 +55,18 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding-bottom: 12px;
-      margin-bottom: 14px;
+      padding-bottom: 10px;
+      margin-bottom: 10px;
       border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
     }
     .header h1 {
-      font-size: 18px;
+      font-size: 16px;
       color: var(--accent);
       letter-spacing: 0.5px;
     }
     .db-badge {
-      font-size: 11px;
+      font-size: 10px;
       padding: 4px 8px;
       border-radius: 6px;
       background: var(--bg-input);
@@ -69,14 +81,14 @@
 
     /* Status Alert Banner */
     .status-banner {
-      padding: 14px;
-      border-radius: 10px;
-      margin-bottom: 14px;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 12px;
       text-align: center;
       font-weight: bold;
       border: 1px solid var(--border);
       background: var(--bg-card);
-      transition: all 0.2s ease;
+      flex-shrink: 0;
     }
     .status-banner.fresh {
       background: var(--green-bg);
@@ -89,63 +101,64 @@
       color: var(--red);
     }
     .status-sub {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: normal;
       margin-top: 4px;
       color: var(--text-main);
     }
 
-    /* Grid IP Saat Ini & Sebelumnya */
+    /* Grid IP Saat Ini & Sebelumnya - Disesuaikan agar muat 1 layar */
     .ip-comparison {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 10px;
-      margin-bottom: 14px;
-    }
-    @media (max-width: 500px) {
-      .ip-comparison {
-        grid-template-columns: 1fr;
-      }
+      flex-grow: 1;
+      overflow: hidden; /* Mencegah overflow */
     }
 
     .card {
       background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px;
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
     }
     .card-title {
-      font-size: 11px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.8px;
       color: var(--text-muted);
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       font-weight: 700;
     }
     .ip-number {
-      font-size: 20px;
+      font-size: 18px;
       font-weight: 800;
       color: var(--accent);
-      margin-bottom: 10px;
+      margin-bottom: 6px;
       word-break: break-all;
     }
     .ip-number.prev {
       color: var(--text-main);
-      font-size: 18px;
+      font-size: 16px;
     }
 
     .info-list {
-      font-size: 12px;
-      line-height: 1.6;
+      font-size: 11px;
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
     }
     .info-row {
       display: flex;
       justify-content: space-between;
       border-bottom: 1px dashed rgba(255,255,255,0.06);
-      padding: 3px 0;
+      padding: 2px 0;
     }
     .info-label {
       color: var(--text-muted);
@@ -158,231 +171,247 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    
     .time-list-box {
-      margin-top: 6px;
+      margin-top: 4px;
       background: var(--bg-input);
-      padding: 6px 8px;
-      border-radius: 6px;
-      font-size: 11px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-size: 10px;
       color: var(--text-muted);
-      max-height: 80px;
       overflow-y: auto;
+      flex-grow: 1; /* Mengisi sisa ruang di dalam card */
+      max-height: 45px;
     }
 
-    /* Controls */
-    .actions {
+    /* Layout Tombol Aksi */
+    .controls-container {
+      margin-top: 12px;
       display: flex;
+      flex-direction: column;
       gap: 8px;
-      margin-bottom: 16px;
+      flex-shrink: 0;
     }
+    
+    .btn-row-1 {
+      display: flex;
+      width: 100%;
+    }
+    
+    .btn-row-2 {
+      display: flex;
+      width: 100%;
+      gap: 8px;
+    }
+
     .btn {
-      flex: 1;
-      padding: 11px 14px;
+      padding: 12px 10px;
       border: none;
       border-radius: 8px;
       font-weight: 700;
       font-size: 13px;
       cursor: pointer;
-      transition: 0.15s;
       text-transform: uppercase;
       letter-spacing: 0.5px;
+      text-align: center;
+      flex: 1; /* Membuat lebar seimbang */
     }
+    .btn:active {
+      transform: scale(0.98);
+    }
+    
     .btn-primary {
       background: var(--accent);
       color: #000;
     }
-    .btn-primary:hover {
+    .btn-primary:active {
       background: var(--accent-hover);
     }
+    
     .btn-secondary {
       background: var(--bg-input);
       color: var(--text-main);
       border: 1px solid var(--border);
-      flex: 0.4;
     }
-    .btn-secondary:hover {
+    .btn-secondary:active {
       border-color: var(--accent);
     }
 
-    /* History Section */
-    .history-header {
+    .btn-danger {
+      background: var(--red);
+      color: #fff;
+    }
+    .btn-danger:active {
+      background: var(--red-hover);
+    }
+
+    /* Modal Konfirmasi */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.85);
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
-      gap: 8px;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
     }
-    .history-header h2 {
-      font-size: 14px;
-      color: var(--text-main);
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
     }
-    .search-input {
-      background: var(--bg-input);
-      border: 1px solid var(--border);
-      color: var(--text-main);
-      padding: 7px 10px;
-      border-radius: 6px;
-      font-size: 12px;
-      width: 180px;
-    }
-    .search-input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    .history-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      max-height: 380px;
-      overflow-y: auto;
-    }
-    .history-item {
+    .modal-card {
       background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      font-size: 12px;
-    }
-    .history-item.active-ip {
-      border-left: 3px solid var(--accent);
-    }
-    .h-left strong {
-      font-size: 14px;
-      color: var(--accent);
-      display: block;
-      margin-bottom: 2px;
-    }
-    .h-meta {
-      color: var(--text-muted);
-      font-size: 11.5px;
-      margin-bottom: 4px;
-    }
-    .h-times-sub {
-      font-size: 10.5px;
-      color: var(--text-muted);
-      line-height: 1.4;
-    }
-    .h-right {
-      text-align: right;
-      min-width: 130px;
-    }
-    .badge-status {
-      display: inline-block;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 10.5px;
-      font-weight: bold;
-      margin-bottom: 4px;
-    }
-    .badge-status.safe {
-      background: var(--green-bg);
-      color: var(--green);
-      border: 1px solid var(--green);
-    }
-    .badge-status.limit {
-      background: var(--red-bg);
-      color: var(--red);
       border: 1px solid var(--red);
+      border-radius: 12px;
+      padding: 20px;
+      width: 90%;
+      max-width: 320px;
+      text-align: center;
+      transform: translateY(20px);
+      transition: transform 0.3s ease;
+    }
+    .modal-overlay.active .modal-card {
+      transform: translateY(0);
+    }
+    .modal-icon {
+      font-size: 32px;
+      color: var(--red);
+      margin-bottom: 10px;
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: var(--text-main);
+      margin-bottom: 8px;
+    }
+    .modal-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
     }
   </style>
 </head>
 <body>
 
-  <div class="header">
-    <h1>IP RECORD DAN VALIDATOR</h1>
-    <span id="db-status" class="db-badge">MENGHUBUNGKAN DB...</span>
-  </div>
+  <div class="app-container">
+    <div class="header">
+      <h1>IP VALIDATOR</h1>
+      <span id="db-status" class="db-badge">MENGHUBUNGKAN DB...</span>
+    </div>
 
-  <!-- Banner Status IP -->
-  <div id="status-banner" class="status-banner">
-    <div id="status-title">MENDETEKSI IP ADDRESS...</div>
-    <div id="status-sub" class="status-sub">Mohon tunggu sebentar</div>
-  </div>
+    <!-- Banner Status IP -->
+    <div id="status-banner" class="status-banner">
+      <div id="status-title">MENUNGGU PEMERIKSAAN</div>
+      <div id="status-sub" class="status-sub">Tekan tombol Cek IP di bawah.</div>
+    </div>
 
-  <!-- Perbandingan IP Saat Ini vs IP Sebelumnya -->
-  <div class="ip-comparison">
-    <!-- IP Saat Ini -->
-    <div class="card">
-      <div class="card-title">
-        <span>IP SAAT INI</span>
-        <span id="curr-badge" style="color: var(--accent);">AKTIF</span>
+    <!-- Perbandingan IP Saat Ini vs IP Sebelumnya -->
+    <div class="ip-comparison">
+      <!-- IP Saat Ini -->
+      <div class="card">
+        <div class="card-title">
+          <span>IP SAAT INI</span>
+          <span id="curr-badge" style="color: var(--text-muted);">MENUNGGU</span>
+        </div>
+        <div class="ip-number">
+          <span id="curr-ip">-</span>
+        </div>
+        <div class="info-list">
+          <div class="info-row">
+            <span class="info-label">Negara:</span>
+            <span id="curr-country" class="info-val">-</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Kota/Wilayah:</span>
+            <span id="curr-city" class="info-val">-</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">ISP:</span>
+            <span id="curr-isp" class="info-val">-</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Penggunaan:</span>
+            <span id="curr-count" class="info-val">-</span>
+          </div>
+          <div style="margin-top: 4px; font-weight: 600; color: var(--text-muted); font-size: 10px;">Riwayat Waktu:</div>
+          <div id="curr-times-list" class="time-list-box">-</div>
+        </div>
       </div>
-      <div class="ip-number">
-        <span id="curr-ip">-</span>
-      </div>
-      <div class="info-list">
-        <div class="info-row">
-          <span class="info-label">Negara:</span>
-          <span id="curr-country" class="info-val">-</span>
+
+      <!-- IP Sebelumnya -->
+      <div class="card">
+        <div class="card-title">
+          <span>IP SEBELUMNYA</span>
+          <span id="prev-diff-badge" style="color: var(--text-muted);">RIWAYAT SESI</span>
         </div>
-        <div class="info-row">
-          <span class="info-label">Kota / Wilayah:</span>
-          <span id="curr-city" class="info-val">-</span>
+        <div class="ip-number prev">
+          <span id="prev-ip">Belum ada</span>
         </div>
-        <div class="info-row">
-          <span class="info-label">ISP / Provider:</span>
-          <span id="curr-isp" class="info-val">-</span>
+        <div class="info-list">
+          <div class="info-row">
+            <span class="info-label">Negara:</span>
+            <span id="prev-country" class="info-val">-</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Kota/Wilayah:</span>
+            <span id="prev-city" class="info-val">-</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">ISP:</span>
+            <span id="prev-isp" class="info-val">-</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Penggunaan:</span>
+            <span id="prev-count" class="info-val">-</span>
+          </div>
+          <div style="margin-top: 4px; font-weight: 600; color: var(--text-muted); font-size: 10px;">Riwayat Waktu:</div>
+          <div id="prev-times-list" class="time-list-box">-</div>
         </div>
-        <div class="info-row">
-          <span class="info-label">Total Penggunaan:</span>
-          <span id="curr-count" class="info-val">-</span>
-        </div>
-        <div style="margin-top: 6px; font-weight: 600; color: var(--text-muted); font-size: 11px;">Riwayat Waktu Penggunaan:</div>
-        <div id="curr-times-list" class="time-list-box">-</div>
       </div>
     </div>
 
-    <!-- IP Sebelumnya -->
-    <div class="card">
-      <div class="card-title">
-        <span>IP SEBELUMNYA</span>
-        <span id="prev-diff-badge">RIWAYAT SESI</span>
+    <!-- Tombol Aksi Sejajar -->
+    <div class="controls-container">
+      <div class="btn-row-1">
+        <button class="btn btn-primary" onclick="periksaDanCatatIP()">CEK DAN VALIDASI IP</button>
       </div>
-      <div class="ip-number prev">
-        <span id="prev-ip">Belum ada</span>
-      </div>
-      <div class="info-list">
-        <div class="info-row">
-          <span class="info-label">Negara:</span>
-          <span id="prev-country" class="info-val">-</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Kota / Wilayah:</span>
-          <span id="prev-city" class="info-val">-</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">ISP / Provider:</span>
-          <span id="prev-isp" class="info-val">-</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Total Penggunaan:</span>
-          <span id="prev-count" class="info-val">-</span>
-        </div>
-        <div style="margin-top: 6px; font-weight: 600; color: var(--text-muted); font-size: 11px;">Riwayat Waktu Penggunaan:</div>
-        <div id="prev-times-list" class="time-list-box">-</div>
+      <div class="btn-row-2">
+        <button class="btn btn-secondary" onclick="salinIP()">SALIN IP</button>
+        <button class="btn btn-danger" onclick="bukaModalReset()">RESET DATABASE</button>
       </div>
     </div>
   </div>
 
-  <!-- Tombol Aksi -->
-  <div class="actions">
-    <button class="btn btn-primary" onclick="periksaDanCatatIP()">CEK DAN VALIDASI IP</button>
-    <button class="btn btn-secondary" onclick="salinIP()">SALIN IP</button>
+  <!-- Modal Konfirmasi Reset 1 -->
+  <div id="modal-reset-1" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-icon">⚠️</div>
+      <div class="modal-title">Reset Seluruh Data IP?</div>
+      <div class="modal-desc">Tindakan ini akan menghapus semua catatan riwayat penggunaan IP di database secara permanen. Anda yakin?</div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="tutupModal()">Batal</button>
+        <button class="btn btn-danger" onclick="lanjutKonfirmasiDua()">Ya, Lanjut</button>
+      </div>
+    </div>
   </div>
 
-  <!-- Riwayat Database -->
-  <div class="card">
-    <div class="history-header">
-      <h2>RIWAYAT DATABASE (<span id="total-records">0</span> IP)</h2>
-      <input type="text" id="search-ip" class="search-input" placeholder="Cari IP / Kota / ISP..." oninput="renderHistory()">
-    </div>
-    <div id="history-list" class="history-list">
-      <div style="text-align:center; color: var(--text-muted); padding: 20px; font-size: 12px;">
-        Memuat data riwayat IP...
+  <!-- Modal Konfirmasi Reset 2 -->
+  <div id="modal-reset-2" class="modal-overlay">
+    <div class="modal-card" style="border-color: #facc15;">
+      <div class="modal-icon" style="color: #facc15;">🚨</div>
+      <div class="modal-title">Konfirmasi Akhir</div>
+      <div class="modal-desc">Apakah Anda benar-benar yakin ingin mereset Firebase RTDB? Semua data tidak dapat dikembalikan.</div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="tutupModal()">Batal</button>
+        <button class="btn btn-primary" onclick="eksekusiResetDB()">HAPUS SEKARANG</button>
       </div>
     </div>
   </div>
@@ -401,10 +430,9 @@
       appId: "1:291744292263:web:ab8d32ba52bc19cbffea82"
     };
 
-    const MAX_IP_USAGE = 3; // Batas maksimal penggunaan 1 IP adalah 3x
+    const MAX_IP_USAGE = 3; 
     let useFirebase = false;
     let rtdbRef = null;
-    let allRecordsCache = [];
     let currentSessionIP = null;
 
     function initDatabase() {
@@ -412,14 +440,15 @@
       try {
         firebase.initializeApp(firebaseConfig);
         rtdbRef = firebase.database().ref('ip_records');
-        badge.textContent = "FIREBASE RTDB AKTIF";
+        badge.textContent = "RTDB AKTIF";
         badge.classList.add('online');
         useFirebase = true;
       } catch (err) {
         console.error("Firebase init error:", err);
-        badge.textContent = "MODE LOKAL (FALLBACK)";
+        badge.textContent = "MODE LOKAL";
       }
-      muatRiwayatDatabase();
+      // Memuat tampilan IP sebelumnya saja (karena tidak ada pengecekan otomatis)
+      tampilkanIPSebelumnya();
     }
 
     // =========================================================================
@@ -488,34 +517,6 @@
         localData[key] = recordData;
         localStorage.setItem('ip_records_db', JSON.stringify(localData));
       }
-      await muatRiwayatDatabase();
-    }
-
-    async function muatRiwayatDatabase() {
-      let records = [];
-      try {
-        if (useFirebase) {
-          const snap = await rtdbRef.once('value');
-          const val = snap.val() || {};
-          records = Object.values(val);
-        } else {
-          const localData = JSON.parse(localStorage.getItem('ip_records_db') || '{}');
-          records = Object.values(localData);
-        }
-      } catch (err) {
-        console.error("Gagal memuat database:", err);
-      }
-
-      // Urutkan berdasarkan waktu terakhir kali digunakan (terbaru di atas)
-      records.sort((a, b) => {
-        const lastA = a.usageTimes[a.usageTimes.length - 1];
-        const lastB = b.usageTimes[b.usageTimes.length - 1];
-        return new Date(lastB) - new Date(lastA);
-      });
-
-      allRecordsCache = records;
-      document.getElementById('total-records').textContent = records.length;
-      renderHistory();
     }
 
     // =========================================================================
@@ -526,10 +527,13 @@
       const titleEl = document.getElementById('status-title');
       const subEl = document.getElementById('status-sub');
       const countEl = document.getElementById('curr-count');
+      const badgeEl = document.getElementById('curr-badge');
 
       banner.className = 'status-banner';
-      titleEl.textContent = 'MENGECEK IP DAN MEMERIKSA DATABASE...';
-      subEl.textContent = 'Mengambil informasi jaringan dan memperbarui riwayat waktu...';
+      titleEl.textContent = 'MENGECEK IP DAN DATABASE...';
+      subEl.textContent = 'Harap tunggu...';
+      badgeEl.textContent = 'PROSES';
+      badgeEl.style.color = 'var(--accent)';
 
       tampilkanIPSebelumnya();
 
@@ -558,89 +562,88 @@
         let useCount = 1;
 
         if (!existingRecord) {
-          // PENGGUNAAN KE-1 (IP BARU)
+          // PENGGUNAAN KE-1
           usageTimes = [nowISO];
           useCount = 1;
 
           const newRecord = {
-            ip: ip,
-            country: country,
-            city: city,
-            isp: isp,
-            usageTimes: usageTimes,
-            useCount: useCount
+            ip: ip, country: country, city: city, isp: isp,
+            usageTimes: usageTimes, useCount: useCount
           };
 
           await simpanRecord(ip, newRecord);
 
           banner.className = 'status-banner fresh';
-          titleEl.textContent = `STATUS: IP FRESH (PENGGUNAAN KE-1 DARI ${MAX_IP_USAGE})`;
-          subEl.textContent = `IP ${ip} berhasil dicatat. Sisa kuota penggunaan: ${MAX_IP_USAGE - useCount}x lagi.`;
+          titleEl.textContent = `STATUS: IP FRESH (PENGGUNAAN KE-1)`;
+          subEl.textContent = `IP bersih. Sisa kuota: ${MAX_IP_USAGE - useCount}x.`;
           countEl.textContent = `1 / ${MAX_IP_USAGE} (Aman)`;
           countEl.style.color = 'var(--green)';
+          badgeEl.textContent = 'AMAN';
+          badgeEl.style.color = 'var(--green)';
+          
           document.getElementById('curr-times-list').innerHTML = renderListWaktu(usageTimes);
           bunyiNotifikasi(true);
 
-          simpanStateIPSebelumnya({
-            ip, country, city, isp, countText: `1 / ${MAX_IP_USAGE}`, usageTimes
-          });
+          simpanStateIPSebelumnya({ ip, country, city, isp, countText: `1 / ${MAX_IP_USAGE}`, usageTimes });
 
         } else {
-          // IP SUDAH ADA -> Tambahkan waktu saat ini ke dalam array usageTimes
+          // IP SUDAH ADA
           usageTimes = existingRecord.usageTimes || [];
-          usageTimes.push(nowISO); // Tambah catatan waktu baru
+          usageTimes.push(nowISO); 
           useCount = usageTimes.length;
 
           const updatedRecord = {
-            ip: ip,
-            country: country,
-            city: city,
-            isp: isp,
-            usageTimes: usageTimes,
-            useCount: useCount
+            ip: ip, country: country, city: city, isp: isp,
+            usageTimes: usageTimes, useCount: useCount
           };
 
           await simpanRecord(ip, updatedRecord);
 
           if (useCount <= MAX_IP_USAGE) {
-            // MASIH DALAM BATAS AMAN (PENGGUNAAN KE-2 ATAU KE-3)
+            // MASIH AMAN
             const sisa = MAX_IP_USAGE - useCount;
-            const infoSisa = sisa > 0 ? `Sisa kuota penggunaan: ${sisa}x lagi.` : `Ini adalah penggunaan terakhir yang diizinkan (ke-3).`;
+            const infoSisa = sisa > 0 ? `Sisa: ${sisa}x.` : `Penggunaan terakhir (ke-3).`;
 
             banner.className = 'status-banner fresh';
-            titleEl.textContent = `STATUS: IP AMAN (PENGGUNAAN KE-${useCount} DARI ${MAX_IP_USAGE})`;
-            subEl.textContent = `Waktu penggunaan saat ini berhasil direkam. ${infoSisa}`;
+            titleEl.textContent = `STATUS: IP AMAN (PENGGUNAAN KE-${useCount})`;
+            subEl.textContent = `Berhasil direkam. ${infoSisa}`;
             countEl.textContent = `${useCount} / ${MAX_IP_USAGE} (Aman)`;
             countEl.style.color = 'var(--green)';
+            badgeEl.textContent = 'AMAN';
+            badgeEl.style.color = 'var(--green)';
+            
             document.getElementById('curr-times-list').innerHTML = renderListWaktu(usageTimes);
             bunyiNotifikasi(true);
 
           } else {
-            // LEBIH DARI 3X (PENGGUNAAN KE-4 DST -> PERINGATAN MERAH)
+            // MELEBIHI BATAS
             banner.className = 'status-banner used';
-            titleEl.textContent = `PERINGATAN: IP MELEBIHI BATAS (DIGUNAKAN ${useCount}X DARI MAKSIMAL ${MAX_IP_USAGE}X)`;
-            subEl.textContent = `IP ini telah digunakan sebanyak ${useCount} kali dan melewati batas kuota 3x. Silakan ganti IP Anda.`;
-            countEl.textContent = `${useCount} / ${MAX_IP_USAGE} (Melebihi Batas)`;
+            titleEl.textContent = `PERINGATAN: IP OVERLIMIT (${useCount}X)`;
+            subEl.textContent = `Melewati batas 3x. Ganti IP Anda.`;
+            countEl.textContent = `${useCount} / ${MAX_IP_USAGE} (Batas Terlewati)`;
             countEl.style.color = 'var(--red)';
+            badgeEl.textContent = 'BAHAYA';
+            badgeEl.style.color = 'var(--red)';
+            
             document.getElementById('curr-times-list').innerHTML = renderListWaktu(usageTimes);
             bunyiNotifikasi(false);
           }
 
-          simpanStateIPSebelumnya({
-            ip, country, city, isp, countText: `${useCount} / ${MAX_IP_USAGE}`, usageTimes
-          });
+          simpanStateIPSebelumnya({ ip, country, city, isp, countText: `${useCount} / ${MAX_IP_USAGE}`, usageTimes });
         }
 
       } catch (error) {
         console.error(error);
         banner.className = 'status-banner used';
         titleEl.textContent = 'GAGAL MEMUAT DATA IP';
-        subEl.textContent = 'Periksa koneksi internet Anda lalu klik tombol Cek kembali.';
+        subEl.textContent = 'Periksa koneksi internet Anda.';
+        badgeEl.textContent = 'ERROR';
+        badgeEl.style.color = 'var(--red)';
       }
     }
 
     // =========================================================================
-    // 5. MANAJEMEN "IP SEBELUMNYA"
+    // 5. MANAJEMEN "IP SEBELUMNYA" & SALIN IP
     // =========================================================================
     function tampilkanIPSebelumnya() {
       const prevRaw = localStorage.getItem('last_checked_ip_state');
@@ -671,60 +674,51 @@
       localStorage.setItem('last_checked_ip_state', JSON.stringify(newState));
     }
 
-    // =========================================================================
-    // 6. RENDER RIWAYAT & SALIN IP
-    // =========================================================================
-    function renderHistory() {
-      const container = document.getElementById('history-list');
-      const keyword = document.getElementById('search-ip').value.toLowerCase();
-
-      const filtered = allRecordsCache.filter(item =>
-        item.ip.toLowerCase().includes(keyword) ||
-        item.city.toLowerCase().includes(keyword) ||
-        item.country.toLowerCase().includes(keyword) ||
-        item.isp.toLowerCase().includes(keyword)
-      );
-
-      if (filtered.length === 0) {
-        container.innerHTML = `<div style="text-align:center; color: var(--text-muted); padding: 18px; font-size: 12px;">Belum ada data IP yang cocok.</div>`;
-        return;
-      }
-
-      container.innerHTML = filtered.map(item => {
-        const isCurrent = item.ip === currentSessionIP ? 'active-ip' : '';
-        const count = item.useCount || (item.usageTimes ? item.usageTimes.length : 1);
-        const isOverLimit = count > MAX_IP_USAGE;
-        const badgeClass = isOverLimit ? 'limit' : 'safe';
-        const statusText = isOverLimit
-          ? `LEWAT BATAS (${count}/${MAX_IP_USAGE})`
-          : `TERPAKAI ${count}/${MAX_IP_USAGE}`;
-
-        const listWaktuHtml = (item.usageTimes || []).map((t, i) => `${i + 1}. ${formatWaktu(t)}`).join('<br>');
-
-        return `
-          <div class="history-item ${isCurrent}">
-            <div class="h-left">
-              <strong>${item.ip}</strong>
-              <div class="h-meta">${item.city}, ${item.country} | ${item.isp}</div>
-              <div class="h-times-sub"><strong>Waktu Sesi:</strong><br>${listWaktuHtml}</div>
-            </div>
-            <div class="h-right">
-              <span class="badge-status ${badgeClass}">${statusText}</span>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
     function salinIP() {
       if (!currentSessionIP) return;
       navigator.clipboard.writeText(currentSessionIP);
       alert(`IP ${currentSessionIP} berhasil disalin.`);
     }
 
-    // Jalankan saat halaman dibuka
+    // =========================================================================
+    // 6. MANAJEMEN RESET DATABASE (MODAL 2x KONFIRMASI)
+    // =========================================================================
+    function bukaModalReset() {
+      document.getElementById('modal-reset-1').classList.add('active');
+    }
+
+    function lanjutKonfirmasiDua() {
+      document.getElementById('modal-reset-1').classList.remove('active');
+      setTimeout(() => {
+        document.getElementById('modal-reset-2').classList.add('active');
+      }, 200); // Jeda singkat untuk efek transisi antar modal
+    }
+
+    function tutupModal() {
+      document.getElementById('modal-reset-1').classList.remove('active');
+      document.getElementById('modal-reset-2').classList.remove('active');
+    }
+
+    async function eksekusiResetDB() {
+      if (useFirebase) {
+        try {
+          await rtdbRef.remove(); // Menghapus seluruh record dari branch 'ip_records'
+          localStorage.removeItem('last_checked_ip_state');
+          alert("Database berhasil direset!");
+          location.reload(); // Refresh aplikasi ke kondisi awal
+        } catch (err) {
+          alert("Gagal mereset database. Periksa koneksi.");
+        }
+      } else {
+        localStorage.removeItem('ip_records_db');
+        localStorage.removeItem('last_checked_ip_state');
+        alert("Database lokal berhasil direset!");
+        location.reload();
+      }
+    }
+
+    // Inisialisasi awal saat pertama dibuka (Hanya setup DB, tidak ngecek IP otomatis)
     initDatabase();
-    periksaDanCatatIP();
   </script>
 </body>
 </html>
