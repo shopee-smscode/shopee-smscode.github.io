@@ -1,1 +1,730 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IP Record & Validator (Multi-Time Log)</title>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
+  <style>
+    :root {
+      --bg-main: #0b0c10;
+      --bg-card: #15171e;
+      --bg-input: #1f222d;
+      --accent: #facc15;
+      --accent-hover: #eab308;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --green: #22c55e;
+      --green-bg: rgba(34, 197, 94, 0.12);
+      --red: #ef4444;
+      --red-bg: rgba(239, 68, 68, 0.12);
+      --border: #2a2e3d;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      padding: 14px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .header h1 {
+      font-size: 18px;
+      color: var(--accent);
+      letter-spacing: 0.5px;
+    }
+    .db-badge {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .db-badge.online {
+      color: var(--green);
+      border-color: var(--green);
+    }
+
+    /* Status Alert Banner */
+    .status-banner {
+      padding: 14px;
+      border-radius: 10px;
+      margin-bottom: 14px;
+      text-align: center;
+      font-weight: bold;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      transition: all 0.2s ease;
+    }
+    .status-banner.fresh {
+      background: var(--green-bg);
+      border-color: var(--green);
+      color: var(--green);
+    }
+    .status-banner.used {
+      background: var(--red-bg);
+      border-color: var(--red);
+      color: var(--red);
+    }
+    .status-sub {
+      font-size: 12px;
+      font-weight: normal;
+      margin-top: 4px;
+      color: var(--text-main);
+    }
+
+    /* Grid IP Saat Ini & Sebelumnya */
+    .ip-comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 500px) {
+      .ip-comparison {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .card-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+    }
+    .ip-number {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--accent);
+      margin-bottom: 10px;
+      word-break: break-all;
+    }
+    .ip-number.prev {
+      color: var(--text-main);
+      font-size: 18px;
+    }
+
+    .info-list {
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dashed rgba(255,255,255,0.06);
+      padding: 3px 0;
+    }
+    .info-label {
+      color: var(--text-muted);
+    }
+    .info-val {
+      font-weight: 600;
+      text-align: right;
+      max-width: 65%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .time-list-box {
+      margin-top: 6px;
+      background: var(--bg-input);
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      max-height: 80px;
+      overflow-y: auto;
+    }
+
+    /* Controls */
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .btn {
+      flex: 1;
+      padding: 11px 14px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      transition: 0.15s;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+    }
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+    .btn-secondary {
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      flex: 0.4;
+    }
+    .btn-secondary:hover {
+      border-color: var(--accent);
+    }
+
+    /* History Section */
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      gap: 8px;
+    }
+    .history-header h2 {
+      font-size: 14px;
+      color: var(--text-main);
+    }
+    .search-input {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      width: 180px;
+    }
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 380px;
+      overflow-y: auto;
+    }
+    .history-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      font-size: 12px;
+    }
+    .history-item.active-ip {
+      border-left: 3px solid var(--accent);
+    }
+    .h-left strong {
+      font-size: 14px;
+      color: var(--accent);
+      display: block;
+      margin-bottom: 2px;
+    }
+    .h-meta {
+      color: var(--text-muted);
+      font-size: 11.5px;
+      margin-bottom: 4px;
+    }
+    .h-times-sub {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .h-right {
+      text-align: right;
+      min-width: 130px;
+    }
+    .badge-status {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10.5px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .badge-status.safe {
+      background: var(--green-bg);
+      color: var(--green);
+      border: 1px solid var(--green);
+    }
+    .badge-status.limit {
+      background: var(--red-bg);
+      color: var(--red);
+      border: 1px solid var(--red);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>IP RECORD DAN VALIDATOR</h1>
+    <span id="db-status" class="db-badge">MENGHUBUNGKAN DB...</span>
+  </div>
+
+  <!-- Banner Status IP -->
+  <div id="status-banner" class="status-banner">
+    <div id="status-title">MENDETEKSI IP ADDRESS...</div>
+    <div id="status-sub" class="status-sub">Mohon tunggu sebentar</div>
+  </div>
+
+  <!-- Perbandingan IP Saat Ini vs IP Sebelumnya -->
+  <div class="ip-comparison">
+    <!-- IP Saat Ini -->
+    <div class="card">
+      <div class="card-title">
+        <span>IP SAAT INI</span>
+        <span id="curr-badge" style="color: var(--accent);">AKTIF</span>
+      </div>
+      <div class="ip-number">
+        <span id="curr-ip">-</span>
+      </div>
+      <div class="info-list">
+        <div class="info-row">
+          <span class="info-label">Negara:</span>
+          <span id="curr-country" class="info-val">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Kota / Wilayah:</span>
+          <span id="curr-city" class="info-val">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">ISP / Provider:</span>
+          <span id="curr-isp" class="info-val">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Total Penggunaan:</span>
+          <span id="curr-count" class="info-val">-</span>
+        </div>
+        <div style="margin-top: 6px; font-weight: 600; color: var(--text-muted); font-size: 11px;">Riwayat Waktu Penggunaan:</div>
+        <div id="curr-times-list" class="time-list-box">-</div>
+      </div>
+    </div>
+
+    <!-- IP Sebelumnya -->
+    <div class="card">
+      <div class="card-title">
+        <span>IP SEBELUMNYA</span>
+        <span id="prev-diff-badge">RIWAYAT SESI</span>
+      </div>
+      <div class="ip-number prev">
+        <span id="prev-ip">Belum ada</span>
+      </div>
+      <div class="info-list">
+        <div class="info-row">
+          <span class="info-label">Negara:</span>
+          <span id="prev-country" class="info-val">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Kota / Wilayah:</span>
+          <span id="prev-city" class="info-val">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">ISP / Provider:</span>
+          <span id="prev-isp" class="info-val">-</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Total Penggunaan:</span>
+          <span id="prev-count" class="info-val">-</span>
+        </div>
+        <div style="margin-top: 6px; font-weight: 600; color: var(--text-muted); font-size: 11px;">Riwayat Waktu Penggunaan:</div>
+        <div id="prev-times-list" class="time-list-box">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tombol Aksi -->
+  <div class="actions">
+    <button class="btn btn-primary" onclick="periksaDanCatatIP()">CEK DAN VALIDASI IP</button>
+    <button class="btn btn-secondary" onclick="salinIP()">SALIN IP</button>
+  </div>
+
+  <!-- Riwayat Database -->
+  <div class="card">
+    <div class="history-header">
+      <h2>RIWAYAT DATABASE (<span id="total-records">0</span> IP)</h2>
+      <input type="text" id="search-ip" class="search-input" placeholder="Cari IP / Kota / ISP..." oninput="renderHistory()">
+    </div>
+    <div id="history-list" class="history-list">
+      <div style="text-align:center; color: var(--text-muted); padding: 20px; font-size: 12px;">
+        Memuat data riwayat IP...
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. KONFIGURASI FIREBASE REALTIME DATABASE
+    // =========================================================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyD8oux4DDAE8xB5EaQpnlhosUkK3HVlWL0",
+      authDomain: "catatanku-app-ce60b.firebaseapp.com",
+      databaseURL: "https://catatanku-app-ce60b-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "catatanku-app-ce60b",
+      storageBucket: "catatanku-app-ce60b.firebasestorage.app",
+      messagingSenderId: "291744292263",
+      appId: "1:291744292263:web:ab8d32ba52bc19cbffea82"
+    };
+
+    const MAX_IP_USAGE = 3; // Batas maksimal penggunaan 1 IP adalah 3x
+    let useFirebase = false;
+    let rtdbRef = null;
+    let allRecordsCache = [];
+    let currentSessionIP = null;
+
+    function initDatabase() {
+      const badge = document.getElementById('db-status');
+      try {
+        firebase.initializeApp(firebaseConfig);
+        rtdbRef = firebase.database().ref('ip_records');
+        badge.textContent = "FIREBASE RTDB AKTIF";
+        badge.classList.add('online');
+        useFirebase = true;
+      } catch (err) {
+        console.error("Firebase init error:", err);
+        badge.textContent = "MODE LOKAL (FALLBACK)";
+      }
+      muatRiwayatDatabase();
+    }
+
+    // =========================================================================
+    // 2. FUNGSI FORMAT WAKTU & AUDIO NOTIFIKASI
+    // =========================================================================
+    function formatWaktu(isoString) {
+      if (!isoString) return "-";
+      const date = new Date(isoString);
+      return date.toLocaleString('id-ID', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+    }
+
+    function renderListWaktu(timesArray) {
+      if (!timesArray || timesArray.length === 0) return "-";
+      return timesArray.map((t, idx) => `<div>${idx + 1}. ${formatWaktu(t)}</div>`).join('');
+    }
+
+    function bunyiNotifikasi(isSafe) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (isSafe) {
+          osc.frequency.setValueAtTime(880, ctx.currentTime);
+          gain.gain.setValueAtTime(0.1, ctx.currentTime);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.15);
+        } else {
+          osc.frequency.setValueAtTime(240, ctx.currentTime);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.35);
+        }
+      } catch (e) {}
+    }
+
+    // =========================================================================
+    // 3. OPERASI DATABASE
+    // =========================================================================
+    function ipToKey(ip) {
+      return ip.replace(/[\.\:]/g, '_');
+    }
+
+    async function ambilSatuRecord(ip) {
+      const key = ipToKey(ip);
+      if (useFirebase) {
+        const snap = await rtdbRef.child(key).once('value');
+        return snap.val();
+      } else {
+        const localData = JSON.parse(localStorage.getItem('ip_records_db') || '{}');
+        return localData[key] || null;
+      }
+    }
+
+    async function simpanRecord(ip, recordData) {
+      const key = ipToKey(ip);
+      if (useFirebase) {
+        await rtdbRef.child(key).set(recordData);
+      } else {
+        const localData = JSON.parse(localStorage.getItem('ip_records_db') || '{}');
+        localData[key] = recordData;
+        localStorage.setItem('ip_records_db', JSON.stringify(localData));
+      }
+      await muatRiwayatDatabase();
+    }
+
+    async function muatRiwayatDatabase() {
+      let records = [];
+      try {
+        if (useFirebase) {
+          const snap = await rtdbRef.once('value');
+          const val = snap.val() || {};
+          records = Object.values(val);
+        } else {
+          const localData = JSON.parse(localStorage.getItem('ip_records_db') || '{}');
+          records = Object.values(localData);
+        }
+      } catch (err) {
+        console.error("Gagal memuat database:", err);
+      }
+
+      // Urutkan berdasarkan waktu terakhir kali digunakan (terbaru di atas)
+      records.sort((a, b) => {
+        const lastA = a.usageTimes[a.usageTimes.length - 1];
+        const lastB = b.usageTimes[b.usageTimes.length - 1];
+        return new Date(lastB) - new Date(lastA);
+      });
+
+      allRecordsCache = records;
+      document.getElementById('total-records').textContent = records.length;
+      renderHistory();
+    }
+
+    // =========================================================================
+    // 4. CEK IP PUBLIK & PENCATATAN WAKTU SETIAP KALI DIGUNAKAN
+    // =========================================================================
+    async function periksaDanCatatIP() {
+      const banner = document.getElementById('status-banner');
+      const titleEl = document.getElementById('status-title');
+      const subEl = document.getElementById('status-sub');
+      const countEl = document.getElementById('curr-count');
+
+      banner.className = 'status-banner';
+      titleEl.textContent = 'MENGECEK IP DAN MEMERIKSA DATABASE...';
+      subEl.textContent = 'Mengambil informasi jaringan dan memperbarui riwayat waktu...';
+
+      tampilkanIPSebelumnya();
+
+      try {
+        const res = await fetch('https://ipwho.is/');
+        const data = await res.json();
+
+        if (!data.success) throw new Error('Gagal mengambil detail IP');
+
+        const ip = data.ip;
+        const country = `${data.country} (${data.country_code})`;
+        const city = `${data.city}, ${data.region}`;
+        const isp = (data.connection && data.connection.isp) ? data.connection.isp : (data.org || 'Tidak diketahui');
+        const nowISO = new Date().toISOString();
+
+        currentSessionIP = ip;
+
+        document.getElementById('curr-ip').textContent = ip;
+        document.getElementById('curr-country').textContent = country;
+        document.getElementById('curr-city').textContent = city;
+        document.getElementById('curr-isp').textContent = isp;
+
+        // Ambil data IP dari database
+        const existingRecord = await ambilSatuRecord(ip);
+        let usageTimes = [];
+        let useCount = 1;
+
+        if (!existingRecord) {
+          // PENGGUNAAN KE-1 (IP BARU)
+          usageTimes = [nowISO];
+          useCount = 1;
+
+          const newRecord = {
+            ip: ip,
+            country: country,
+            city: city,
+            isp: isp,
+            usageTimes: usageTimes,
+            useCount: useCount
+          };
+
+          await simpanRecord(ip, newRecord);
+
+          banner.className = 'status-banner fresh';
+          titleEl.textContent = `STATUS: IP FRESH (PENGGUNAAN KE-1 DARI ${MAX_IP_USAGE})`;
+          subEl.textContent = `IP ${ip} berhasil dicatat. Sisa kuota penggunaan: ${MAX_IP_USAGE - useCount}x lagi.`;
+          countEl.textContent = `1 / ${MAX_IP_USAGE} (Aman)`;
+          countEl.style.color = 'var(--green)';
+          document.getElementById('curr-times-list').innerHTML = renderListWaktu(usageTimes);
+          bunyiNotifikasi(true);
+
+          simpanStateIPSebelumnya({
+            ip, country, city, isp, countText: `1 / ${MAX_IP_USAGE}`, usageTimes
+          });
+
+        } else {
+          // IP SUDAH ADA -> Tambahkan waktu saat ini ke dalam array usageTimes
+          usageTimes = existingRecord.usageTimes || [];
+          usageTimes.push(nowISO); // Tambah catatan waktu baru
+          useCount = usageTimes.length;
+
+          const updatedRecord = {
+            ip: ip,
+            country: country,
+            city: city,
+            isp: isp,
+            usageTimes: usageTimes,
+            useCount: useCount
+          };
+
+          await simpanRecord(ip, updatedRecord);
+
+          if (useCount <= MAX_IP_USAGE) {
+            // MASIH DALAM BATAS AMAN (PENGGUNAAN KE-2 ATAU KE-3)
+            const sisa = MAX_IP_USAGE - useCount;
+            const infoSisa = sisa > 0 ? `Sisa kuota penggunaan: ${sisa}x lagi.` : `Ini adalah penggunaan terakhir yang diizinkan (ke-3).`;
+
+            banner.className = 'status-banner fresh';
+            titleEl.textContent = `STATUS: IP AMAN (PENGGUNAAN KE-${useCount} DARI ${MAX_IP_USAGE})`;
+            subEl.textContent = `Waktu penggunaan saat ini berhasil direkam. ${infoSisa}`;
+            countEl.textContent = `${useCount} / ${MAX_IP_USAGE} (Aman)`;
+            countEl.style.color = 'var(--green)';
+            document.getElementById('curr-times-list').innerHTML = renderListWaktu(usageTimes);
+            bunyiNotifikasi(true);
+
+          } else {
+            // LEBIH DARI 3X (PENGGUNAAN KE-4 DST -> PERINGATAN MERAH)
+            banner.className = 'status-banner used';
+            titleEl.textContent = `PERINGATAN: IP MELEBIHI BATAS (DIGUNAKAN ${useCount}X DARI MAKSIMAL ${MAX_IP_USAGE}X)`;
+            subEl.textContent = `IP ini telah digunakan sebanyak ${useCount} kali dan melewati batas kuota 3x. Silakan ganti IP Anda.`;
+            countEl.textContent = `${useCount} / ${MAX_IP_USAGE} (Melebihi Batas)`;
+            countEl.style.color = 'var(--red)';
+            document.getElementById('curr-times-list').innerHTML = renderListWaktu(usageTimes);
+            bunyiNotifikasi(false);
+          }
+
+          simpanStateIPSebelumnya({
+            ip, country, city, isp, countText: `${useCount} / ${MAX_IP_USAGE}`, usageTimes
+          });
+        }
+
+      } catch (error) {
+        console.error(error);
+        banner.className = 'status-banner used';
+        titleEl.textContent = 'GAGAL MEMUAT DATA IP';
+        subEl.textContent = 'Periksa koneksi internet Anda lalu klik tombol Cek kembali.';
+      }
+    }
+
+    // =========================================================================
+    // 5. MANAJEMEN "IP SEBELUMNYA"
+    // =========================================================================
+    function tampilkanIPSebelumnya() {
+      const prevRaw = localStorage.getItem('last_checked_ip_state');
+      if (!prevRaw) return;
+
+      const prev = JSON.parse(prevRaw);
+      document.getElementById('prev-ip').textContent = prev.ip;
+      document.getElementById('prev-country').textContent = prev.country;
+      document.getElementById('prev-city').textContent = prev.city;
+      document.getElementById('prev-isp').textContent = prev.isp;
+      document.getElementById('prev-count').textContent = prev.countText || '-';
+      document.getElementById('prev-times-list').innerHTML = renderListWaktu(prev.usageTimes);
+    }
+
+    function simpanStateIPSebelumnya(newState) {
+      const prevRaw = localStorage.getItem('last_checked_ip_state');
+      if (prevRaw) {
+        const prev = JSON.parse(prevRaw);
+        const diffBadge = document.getElementById('prev-diff-badge');
+        if (prev.ip === newState.ip) {
+          diffBadge.textContent = "IP SAMA";
+          diffBadge.style.color = "var(--red)";
+        } else {
+          diffBadge.textContent = "IP BERBEDA";
+          diffBadge.style.color = "var(--green)";
+        }
+      }
+      localStorage.setItem('last_checked_ip_state', JSON.stringify(newState));
+    }
+
+    // =========================================================================
+    // 6. RENDER RIWAYAT & SALIN IP
+    // =========================================================================
+    function renderHistory() {
+      const container = document.getElementById('history-list');
+      const keyword = document.getElementById('search-ip').value.toLowerCase();
+
+      const filtered = allRecordsCache.filter(item =>
+        item.ip.toLowerCase().includes(keyword) ||
+        item.city.toLowerCase().includes(keyword) ||
+        item.country.toLowerCase().includes(keyword) ||
+        item.isp.toLowerCase().includes(keyword)
+      );
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div style="text-align:center; color: var(--text-muted); padding: 18px; font-size: 12px;">Belum ada data IP yang cocok.</div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(item => {
+        const isCurrent = item.ip === currentSessionIP ? 'active-ip' : '';
+        const count = item.useCount || (item.usageTimes ? item.usageTimes.length : 1);
+        const isOverLimit = count > MAX_IP_USAGE;
+        const badgeClass = isOverLimit ? 'limit' : 'safe';
+        const statusText = isOverLimit
+          ? `LEWAT BATAS (${count}/${MAX_IP_USAGE})`
+          : `TERPAKAI ${count}/${MAX_IP_USAGE}`;
+
+        const listWaktuHtml = (item.usageTimes || []).map((t, i) => `${i + 1}. ${formatWaktu(t)}`).join('<br>');
+
+        return `
+          <div class="history-item ${isCurrent}">
+            <div class="h-left">
+              <strong>${item.ip}</strong>
+              <div class="h-meta">${item.city}, ${item.country} | ${item.isp}</div>
+              <div class="h-times-sub"><strong>Waktu Sesi:</strong><br>${listWaktuHtml}</div>
+            </div>
+            <div class="h-right">
+              <span class="badge-status ${badgeClass}">${statusText}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function salinIP() {
+      if (!currentSessionIP) return;
+      navigator.clipboard.writeText(currentSessionIP);
+      alert(`IP ${currentSessionIP} berhasil disalin.`);
+    }
+
+    // Jalankan saat halaman dibuka
+    initDatabase();
+    periksaDanCatatIP();
+  </script>
+</body>
+</html>
