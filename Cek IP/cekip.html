@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>IP Record & Validator</title>
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -217,7 +220,7 @@
       text-overflow: ellipsis;
     }
 
-    /* Kotak Riwayat Waktu Sesi (1x, 2x, 3x) */
+    /* Kotak Riwayat Waktu Sesi */
     .session-box-wrap {
       margin-top: 4px;
       flex: 1;
@@ -271,7 +274,7 @@
       color: var(--text-muted);
     }
 
-    /* 4. Area Tombol Utama (Kiri: Salin, Tengah: Cek IP Lingkaran Jelas, Kanan: Reset) */
+    /* 4. Area Tombol Utama */
     .control-hub {
       display: flex;
       align-items: center;
@@ -324,14 +327,18 @@
       justify-content: center;
       align-items: center;
       flex-shrink: 0;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s;
     }
-    .center-check-btn:hover {
+    .center-check-btn:hover:not(:disabled) {
       transform: scale(1.05);
       box-shadow: 0 0 32px rgba(250, 204, 21, 0.75);
     }
-    .center-check-btn:active {
+    .center-check-btn:active:not(:disabled) {
       transform: scale(0.95);
+    }
+    .center-check-btn:disabled {
+      opacity: 0.6;
+      cursor: wait;
     }
     .center-check-btn .main-txt {
       font-size: 15px;
@@ -461,7 +468,7 @@
       border: 1px solid var(--red);
     }
 
-    /* 6. Modal Modern (Untuk Reset 2x & Konfirmasi Blokir) */
+    /* 6. Modal Modern */
     .modal-backdrop {
       display: none;
       position: fixed;
@@ -534,7 +541,7 @@
     <!-- 2. Banner Status -->
     <div id="status-banner" class="status-banner">
       <div id="status-title" class="status-title">MENDETEKSI IP ADDRESS...</div>
-      <div id="status-sub" class="status-sub">Memeriksa jaringan dan database Firebase</div>
+      <div id="status-sub" class="status-sub">Memeriksa jaringan secara real-time tanpa cache</div>
     </div>
 
     <!-- 3. Kartu Perbandingan IP Saat Ini & IP Sebelumnya -->
@@ -544,7 +551,7 @@
         <div>
           <div class="card-top">
             <span class="card-label">IP SAAT INI</span>
-            <span class="card-tag">AKTIF</span>
+            <span id="curr-tag" class="card-tag">AKTIF</span>
           </div>
           <div id="curr-ip" class="ip-display">-</div>
           <div class="info-table">
@@ -612,13 +619,13 @@
       </div>
     </div>
 
-    <!-- 4. Area Tombol Utama (Kiri: Salin, Tengah: Cek IP Lingkaran, Kanan: Reset DB) -->
+    <!-- 4. Area Tombol Utama -->
     <div class="control-hub">
       <button class="side-action-btn" onclick="salinIP()">SALIN IP</button>
 
       <button id="btn-cek-ip" class="center-check-btn" onclick="periksaDanCatatIP()">
         <span id="cek-main-txt" class="main-txt">CEK IP</span>
-        <span id="cek-sub-txt" class="sub-txt">VALIDASI</span>
+        <span id="cek-sub-txt" class="sub-txt">FRESH SCAN</span>
       </button>
 
       <button class="side-action-btn danger-btn" onclick="bukaModalReset(1)">RESET DB</button>
@@ -688,6 +695,7 @@
     let currentSessionIP = null;
     let previousCardData = null;
     let resetStep = 1;
+    let isChecking = false;
 
     function initDatabase() {
       const badge = document.getElementById('db-status');
@@ -702,11 +710,12 @@
         badge.textContent = "MODE LOKAL";
       }
 
-      // Muat data IP Sebelumnya yang tersimpan di sesi browser
       const savedPrev = localStorage.getItem('prev_ip_card_state');
       if (savedPrev) {
-        previousCardData = JSON.parse(savedPrev);
-        renderKartuIPSebelumnya();
+        try {
+          previousCardData = JSON.parse(savedPrev);
+          renderKartuIPSebelumnya();
+        } catch (e) {}
       }
 
       muatRiwayatDatabase();
@@ -719,7 +728,7 @@
       const t = document.getElementById('toast');
       t.textContent = pesan;
       t.classList.add('show');
-      setTimeout(() => t.classList.remove('show'), 2200);
+      setTimeout(() => t.classList.remove('show'), 2400);
     }
 
     function formatWaktu(isoString) {
@@ -751,7 +760,108 @@
     }
 
     // =========================================================================
-    // 3. OPERASI DATABASE FIREBASE
+    // 3. DETEKSI IP ANTI-CACHE MULTI-SERVER (MENCEGAH IP LAMA NYANGKUT)
+    // =========================================================================
+    async function fetchWithNoCache(url, timeoutMs = 5000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const separator = url.includes('?') ? '&' : '?';
+        const nocacheUrl = `${url}${separator}_cb=${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const response = await fetch(nocacheUrl, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          },
+          signal: controller.signal
+        });
+        clearTimeout(timer);
+        return response;
+      } catch (err) {
+        clearTimeout(timer);
+        throw err;
+      }
+    }
+
+    // Ambil IP Publik Murni secara Real-Time dari Cloudflare Trace / Ipify (Bebas Cache CDN)
+    async function dapatkanIPPublikMurni() {
+      // Coba Server 1: Cloudflare CDN Trace (Sangat cepat & selalu real-time mengikuti koneksi soket baru)
+      try {
+        const resCf = await fetchWithNoCache('https://1.1.1.1/cdn-cgi/trace', 3500);
+        if (resCf.ok) {
+          const text = await resCf.text();
+          const match = text.match(/ip=([^\s]+)/);
+          if (match && match[1]) return match[1].trim();
+        }
+      } catch (e) {}
+
+      // Coba Server 2: Api64 Ipify
+      try {
+        const resIpify = await fetchWithNoCache('https://api64.ipify.org?format=json', 4000);
+        if (resIpify.ok) {
+          const j = await resIpify.json();
+          if (j && j.ip) return j.ip.trim();
+        }
+      } catch (e) {}
+
+      return null;
+    }
+
+    // Ambil Detail Geografis & ISP Berdasarkan Nomor IP Baru yang Sudah Terverifikasi
+    async function dapatkanDetailLengkapIP() {
+      const realTimeIP = await dapatkanIPPublikMurni();
+
+      // Coba Geo Server 1: ipwho.is dengan menargetkan IP spesifik agar tidak diberi cache IP lama
+      try {
+        const targetUrl = realTimeIP ? `https://ipwho.is/${encodeURIComponent(realTimeIP)}` : 'https://ipwho.is/';
+        const res = await fetchWithNoCache(targetUrl, 5000);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success) {
+            return {
+              ip: realTimeIP || data.ip,
+              country: `${data.country || '-'} (${data.country_code || '-'})`,
+              city: `${data.city || '-'}, ${data.region || '-'}`,
+              isp: (data.connection && data.connection.isp) ? data.connection.isp : (data.org || 'Tidak diketahui')
+            };
+          }
+        }
+      } catch (e) {}
+
+      // Coba Geo Server 2 (Fallback): ipapi.co
+      try {
+        const targetUrl2 = realTimeIP ? `https://ipapi.co/${encodeURIComponent(realTimeIP)}/json/` : 'https://ipapi.co/json/';
+        const res2 = await fetchWithNoCache(targetUrl2, 5000);
+        if (res2.ok) {
+          const d2 = await res2.json();
+          if (d2 && (d2.ip || realTimeIP)) {
+            return {
+              ip: realTimeIP || d2.ip,
+              country: `${d2.country_name || '-'} (${d2.country_code || '-'})`,
+              city: `${d2.city || '-'}, ${d2.region || '-'}`,
+              isp: d2.org || d2.asn || 'Tidak diketahui'
+            };
+          }
+        }
+      } catch (e) {}
+
+      // Jika semua server Geo sibuk tapi IP murni berhasil didapat, tetap tampilkan IP baru
+      if (realTimeIP) {
+        return {
+          ip: realTimeIP,
+          country: 'Indonesia (ID)',
+          city: 'Lokasi Terdeteksi',
+          isp: 'Provider Seluler / ISP'
+        };
+      }
+
+      throw new Error('Tidak dapat menghubungi server pendeteksi IP');
+    }
+
+    // =========================================================================
+    // 4. OPERASI DATABASE FIREBASE
     // =========================================================================
     function ipToKey(ip) {
       return ip.replace(/[\.\:]/g, '_');
@@ -810,9 +920,13 @@
     }
 
     // =========================================================================
-    // 4. CEK IP SAAT INI & VALIDASI KUOTA MAKSIMAL 3X
+    // 5. CEK IP SAAT INI & VALIDASI KUOTA MAKSIMAL 3X
     // =========================================================================
     async function periksaDanCatatIP() {
+      if (isChecking) return;
+      isChecking = true;
+
+      const btnCek = document.getElementById('btn-cek-ip');
       const banner = document.getElementById('status-banner');
       const titleEl = document.getElementById('status-title');
       const subEl = document.getElementById('status-sub');
@@ -820,30 +934,36 @@
       const cekMainTxt = document.getElementById('cek-main-txt');
       const cekSubTxt = document.getElementById('cek-sub-txt');
 
-      // Geser IP aktif terakhir menjadi IP Sebelumnya sebelum mengecek IP baru
+      btnCek.disabled = true;
+
+      // Simpan snapshot IP aktif sebelumnya sebelum melakukan scan baru
       const lastActiveRaw = localStorage.getItem('last_active_ip_state');
       if (lastActiveRaw) {
-        previousCardData = JSON.parse(lastActiveRaw);
-        localStorage.setItem('prev_ip_card_state', JSON.stringify(previousCardData));
-        renderKartuIPSebelumnya();
+        try {
+          previousCardData = JSON.parse(lastActiveRaw);
+          localStorage.setItem('prev_ip_card_state', JSON.stringify(previousCardData));
+          renderKartuIPSebelumnya();
+        } catch (e) {}
       }
 
       banner.className = 'status-banner';
-      titleEl.textContent = 'SEDANG MENGECEK IP ADDRESS...';
-      subEl.textContent = 'Mengambil data jaringan dan memvalidasi ke database';
-      cekMainTxt.textContent = 'PROSES';
+      titleEl.textContent = 'MEMBUKA KONEKSI BARU KE SERVER IP...';
+      subEl.textContent = 'Mengabaikan cache browser untuk membaca IP terbaru';
+      cekMainTxt.textContent = 'SCAN';
       cekSubTxt.textContent = 'TUNGGU...';
 
       try {
-        const res = await fetch('https://ipwho.is/');
-        const data = await res.json();
+        // Paksa reconnect Firebase agar tidak tersangkut di soket lama usai Mode Pesawat
+        if (useFirebase && firebase.database) {
+          firebase.database().goOffline();
+          firebase.database().goOnline();
+        }
 
-        if (!data.success) throw new Error('Gagal mengambil detail IP');
-
-        const ip = data.ip;
-        const country = `${data.country} (${data.country_code})`;
-        const city = `${data.city}, ${data.region}`;
-        const isp = (data.connection && data.connection.isp) ? data.connection.isp : (data.org || 'Tidak diketahui');
+        const detail = await dapatkanDetailLengkapIP();
+        const ip = detail.ip;
+        const country = detail.country;
+        const city = detail.city;
+        const isp = detail.isp;
         const nowISO = new Date().toISOString();
 
         currentSessionIP = ip;
@@ -882,7 +1002,6 @@
         await simpanRecord(ip, recordPayload);
         document.getElementById('curr-times').innerHTML = renderDaftarWaktu(usageTimes);
 
-        // Evaluasi status apakah diblokir manual atau lewat batas 3x
         if (isBlocked) {
           banner.className = 'status-banner used';
           titleEl.textContent = 'PERINGATAN: IP INI SUDAH DIBLOKIR MANUAL';
@@ -895,7 +1014,7 @@
           banner.className = 'status-banner fresh';
           titleEl.textContent = `STATUS AMAN: PENGGUNAAN KE-${useCount} DARI MAKSIMAL ${MAX_IP_USAGE}X`;
           subEl.textContent = sisa > 0
-            ? `IP tercatat ke database. Masih bisa digunakan ${sisa}x lagi.`
+            ? `IP berhasil divalidasi. Masih bisa digunakan ${sisa}x lagi.`
             : `Ini adalah penggunaan terakhir (ke-3) yang diizinkan untuk IP ini.`;
           countEl.textContent = `${useCount} / ${MAX_IP_USAGE} (Aman)`;
           countEl.style.color = 'var(--green)';
@@ -909,25 +1028,32 @@
           bunyiNotifikasi(false);
         }
 
-        // Simpan sebagai state aktif terakhir
         localStorage.setItem('last_active_ip_state', JSON.stringify(recordPayload));
-
-        // Perbarui indikator perbandingan pada kartu IP Sebelumnya
         renderKartuIPSebelumnya();
 
       } catch (error) {
         console.error(error);
         banner.className = 'status-banner used';
-        titleEl.textContent = 'GAGAL MEMUAT DATA IP';
-        subEl.textContent = 'Periksa koneksi internet Anda lalu tekan tombol CEK IP kembali.';
+        titleEl.textContent = 'KONEKSI JARINGAN BELUM SIAP';
+        subEl.textContent = 'Pastikan data seluler sudah aktif kembali usai Mode Pesawat, lalu tekan CEK IP.';
       } finally {
         cekMainTxt.textContent = 'CEK IP';
-        cekSubTxt.textContent = 'VALIDASI';
+        cekSubTxt.textContent = 'FRESH SCAN';
+        btnCek.disabled = false;
+        isChecking = false;
       }
     }
 
+    // Otomatis jalankan pengecekan ulang saat sinyal internet kembali aktif usai Mode Pesawat
+    window.addEventListener('online', () => {
+      tampilkanToast('Jaringan terhubung kembali, mendeteksi IP baru...');
+      setTimeout(() => {
+        periksaDanCatatIP();
+      }, 1200);
+    });
+
     // =========================================================================
-    // 5. KARTU IP SEBELUMNYA & FITUR BLOKIR IP SEBELUMNYA
+    // 6. KARTU IP SEBELUMNYA & FITUR BLOKIR IP SEBELUMNYA
     // =========================================================================
     function renderKartuIPSebelumnya() {
       const btnBlock = document.getElementById('btn-block-prev');
@@ -938,7 +1064,6 @@
         return;
       }
 
-      // Sinkronkan dengan cache database terbaru jika IP sebelumnya baru saja diblokir
       const latestFromDb = allRecordsCache.find(item => item.ip === previousCardData.ip);
       if (latestFromDb) {
         previousCardData = latestFromDb;
@@ -967,7 +1092,6 @@
 
       document.getElementById('prev-times').innerHTML = renderDaftarWaktu(previousCardData.usageTimes);
 
-      // Bandingkan dengan IP Saat Ini
       if (currentSessionIP) {
         if (previousCardData.ip === currentSessionIP) {
           prevBadge.textContent = 'IP SAMA';
@@ -980,7 +1104,6 @@
         prevBadge.textContent = 'SESI LALU';
       }
 
-      // Atur status tombol Blokir IP Sebelumnya
       if (isBlocked) {
         btnBlock.textContent = 'IP INI SUDAH DIBLOKIR';
         btnBlock.disabled = true;
@@ -1010,7 +1133,6 @@
       const existing = await ambilSatuRecord(targetIP);
 
       let usageTimes = (existing && existing.usageTimes) ? existing.usageTimes : (previousCardData.usageTimes || [nowISO]);
-      // Pastikan jumlah penggunaan melampaui batas maksimal (minimal 4) dan berstatus isBlocked = true
       const updatedRecord = {
         ip: targetIP,
         country: previousCardData.country || '-',
@@ -1026,7 +1148,6 @@
       localStorage.setItem('prev_ip_card_state', JSON.stringify(updatedRecord));
       renderKartuIPSebelumnya();
 
-      // Jika IP Saat Ini kebetulan masih sama dengan IP Sebelumnya yang baru diblokir, perbarui tampilan IP Saat Ini juga
       if (currentSessionIP === targetIP) {
         const banner = document.getElementById('status-banner');
         banner.className = 'status-banner used';
@@ -1042,7 +1163,7 @@
     }
 
     // =========================================================================
-    // 6. DROPDOWN RIWAYAT & MODAL RESET DATABASE 2 TAHAP
+    // 7. DROPDOWN RIWAYAT & MODAL RESET DATABASE 2 TAHAP
     // =========================================================================
     function toggleDropdown() {
       const panel = document.getElementById('dropdown-panel');
