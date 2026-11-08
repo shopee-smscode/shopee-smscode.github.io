@@ -7,7 +7,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="smscode.css?v=32">
+    <link rel="stylesheet" href="smscode.css?v=33">
     
     <!-- SKRIP PENGINGAT APLIKASI -->
     <script>
@@ -34,7 +34,7 @@
 <body class="theme-smscode">
     <div id="appView" class="container">
         
-        <!-- TOP ACTIONS BAR (POSISI TOPUP & NOTE SUDAH DITUKAR) -->
+        <!-- TOP ACTIONS BAR (TOPUP DI KIRI, NOTE DI KANAN) -->
         <div class="top-bar-modern">
             <div style="display: flex; gap: 6px; align-items: center;">
                 <div class="dropdown">
@@ -51,7 +51,6 @@
             </div>
             
             <div style="display: flex; gap: 6px; align-items: center;">
-                <!-- TOMBOL TOP UP DI KIRI, TOMBOL NOTE DI KANAN -->
                 <button onclick="window.open('https://smscode.gg/dashboard', '_blank')" class="dropbtn-icon" style="color: var(--success-color); border-color: var(--success-color);" title="Top Up Saldo">
                     <i class="fas fa-plus-circle"></i>
                 </button>
@@ -73,7 +72,7 @@
         <!-- HEADER DENGAN INDIKATOR AKUN & SALDO -->
         <div class="app-header-container">
             <div class="header-titles">
-                <h1>SMS Code 🇮🇩</h1>
+                <h1>SMS Code <span id="headerCountryFlag">🇮🇩</span></h1>
                 <p class="subtitle">👤 Akun: <strong id="currentAccountBadge" style="color: var(--primary-color);">Memuat...</strong></p>
                 <span id="currentAccountName" style="display:none;"></span>
             </div>
@@ -88,21 +87,33 @@
         <!-- CONTAINER PESANAN AKTIF & DROPDOWN PESANAN LAMA (SELALU TAMPIL) -->
         <div id="activeOrdersContainer"></div>
 
-        <!-- AREA PEMILIHAN LAYANAN, HARGA & GRID OPERATOR (FLEKSIBEL PRESISI) -->
+        <!-- AREA PEMILIHAN LAYANAN, NEGARA, HARGA & GRID OPERATOR -->
         <div class="catalog-section">
-            <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-shrink: 0;">
-                <div style="flex: 1; text-align: left; min-width: 0;">
-                    <label onclick="loadCatalogForCurrentService(true)" style="font-size: 10.5px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 5px; display: block; padding-left: 2px; cursor: pointer; user-select: none;" title="Ketuk untuk muat ulang harga & stok">
-                        Layanan <i id="catalogRefreshIcon" class="fas fa-sync-alt" style="font-size: 9.5px; margin-left: 2px;"></i>
+            <div class="catalog-controls-row">
+                <!-- KOLOM KIRI: LAYANAN -->
+                <div class="control-col">
+                    <label onclick="loadCatalogForCurrentService(true)" class="control-label" style="cursor: pointer; user-select: none;" title="Ketuk untuk muat ulang harga & stok">
+                        Layanan <i id="catalogRefreshIcon" class="fas fa-sync-alt" style="font-size: 9px; margin-left: 2px;"></i>
                     </label>
-                    <button onclick="openServiceModal()" class="form-input" style="text-align: left; font-weight: 800; font-size: 12.5px; padding: 0 12px; border-radius: 10px; background-color: var(--bg-card); cursor: pointer; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); color: var(--primary-color); height: 35px; margin: 0;">
+                    <button onclick="openServiceModal()" class="control-btn-selector">
                         <span id="btnServiceSelectText" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">SHOPEE</span>
-                        <i class="fas fa-search" style="font-size: 11px; flex-shrink: 0; margin-left: 6px;"></i>
+                        <i class="fas fa-search" style="font-size: 10px; flex-shrink: 0; margin-left: 4px;"></i>
                     </button>
                 </div>
-                <div style="flex-shrink: 0; width: 140px;">
-                    <label style="font-size: 10.5px; font-weight: 900; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 5px; display: block; text-align: center;">Pilih Harga</label>
-                    <select id="priceSelect" onchange="handlePriceChange()" class="form-input" style="height: 35px; padding: 0 8px; font-weight: 900; font-size: 12px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--primary-color); background-color: var(--bg-card); cursor: pointer; width: 100%; margin: 0; outline: none; text-align: center;">
+
+                <!-- KOLOM TENGAH: NEGARA (DI ANTARA LAYANAN & HARGA) -->
+                <div class="control-col">
+                    <label class="control-label" style="text-align: center;">Negara</label>
+                    <button onclick="openCountryModal()" class="control-btn-selector">
+                        <span id="btnCountrySelectText" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">🇮🇩 INDONESIA</span>
+                        <i class="fas fa-globe" style="font-size: 10px; flex-shrink: 0; margin-left: 4px;"></i>
+                    </button>
+                </div>
+
+                <!-- KOLOM KANAN: PILIH HARGA -->
+                <div class="control-col">
+                    <label class="control-label" style="text-align: center;">Pilih Harga</label>
+                    <select id="priceSelect" onchange="handlePriceChange()" class="form-input" style="height: 35px; padding: 0 4px; font-weight: 900; font-size: 11.5px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--primary-color); background-color: var(--bg-card); cursor: pointer; width: 100%; margin: 0; outline: none; text-align: center;">
                         <option value="">Memuat...</option>
                     </select>
                 </div>
@@ -114,6 +125,22 @@
             </div>
             
             <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
+        </div>
+    </div>
+
+    <!-- MODAL PILIH NEGARA (DENGAN PENCARIAN & BINTANG FAVORIT DI ATAS) -->
+    <div id="countryModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-globe-asia"></i> Pilih Negara</h3>
+                <button onclick="closeCountryModal()" class="btn-danger" style="width: 30px; height: 30px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <input type="text" id="searchCountryInput" class="form-input" placeholder="🔍 Cari negara atau kode (+62, Indonesia)..." oninput="filterCountries()" style="border-radius: 10px; font-weight: bold;">
+            </div>
+            <div id="countryListContainer" style="overflow-y: auto; flex: 1; padding-right: 4px; text-align: left; display: flex; flex-direction: column;">
+                <div class="status-text-mini">Memuat daftar negara...</div>
+            </div>
         </div>
     </div>
 
@@ -268,6 +295,6 @@
 
     <div id="toast" class="toast">Notifikasi!</div>
 
-    <script src="smscode.js?v=32"></script>
+    <script src="smscode.js?v=33"></script>
 </body>
 </html>

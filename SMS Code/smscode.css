@@ -176,6 +176,57 @@ body {
 .btn-primary:active:not(:disabled) { transform: scale(0.98); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* --- BARIS 3 KOLOM: LAYANAN, NEGARA & PILIH HARGA --- */
+.catalog-controls-row {
+    display: grid;
+    grid-template-columns: 1.15fr 1.05fr 0.95fr;
+    gap: 6px;
+    align-items: end;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+}
+.control-col {
+    min-width: 0;
+    text-align: left;
+}
+.control-label {
+    font-size: 10px;
+    font-weight: 900;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 4px;
+    display: block;
+    padding-left: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.control-btn-selector {
+    text-align: left;
+    font-weight: 800;
+    font-size: 11.5px;
+    padding: 0 9px;
+    border-radius: 10px;
+    background-color: var(--bg-card);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid var(--border-color);
+    color: var(--primary-color);
+    height: 35px;
+    margin: 0;
+    width: 100%;
+    transition: border-color 0.15s, transform 0.1s;
+}
+.control-btn-selector:active {
+    transform: scale(0.97);
+}
+.control-btn-selector:hover {
+    border-color: var(--primary-color);
+}
+
 /* --- SECTION KATALOG & GRID OPERATOR --- */
 .catalog-section { flex: 1.1; display: flex; flex-direction: column; justify-content: space-between; margin-top: 4px; }
 .operator-grid { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 8px; margin-bottom: 10px; }
@@ -189,7 +240,7 @@ body {
 .op-name { font-size: 10px; font-weight: 800; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-transform: uppercase; padding: 0 3px; line-height: 1.15; }
 .op-price { font-size: 11.5px; font-weight: 900; color: var(--primary-color); background: var(--bg-body); padding: 2px 8px; border-radius: 6px; box-shadow: inset 0 0 4px rgba(0,0,0,0.3); }
 
-/* --- MODAL PENGATURAN, NADA NOTIFIKASI & PILIH AKUN MODERN --- */
+/* --- MODAL PILIH NEGARA, LAYANAN & PENGATURAN MODERN --- */
 .form-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 9px; font-size: 12.5px; box-sizing: border-box; font-family: inherit; transition: border-color 0.15s; background: var(--bg-card); color: var(--text-primary); }
 .form-input:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px var(--shadow-color); }
 
@@ -199,6 +250,51 @@ body {
 .modal-title { margin: 0; color: var(--primary-color); font-size: 15px; font-weight: 900; display: flex; align-items: center; gap: 8px; }
 .modal-desc { font-size: 12px; color: var(--text-secondary); margin-bottom: 15px; }
 @keyframes popUp { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+/* Item List Modal Negara & Layanan */
+.modal-list-item {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 11px;
+    font-size: 12.5px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 2px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    cursor: pointer;
+    margin-bottom: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: all 0.15s ease;
+}
+.modal-list-item:hover {
+    background: var(--bg-card-hover);
+}
+.modal-list-item:active {
+    transform: scale(0.98);
+}
+.modal-list-item.active {
+    border-color: var(--primary-color);
+    background: var(--bg-body);
+    color: var(--primary-color);
+}
+.dial-badge {
+    font-size: 10.5px;
+    font-weight: 800;
+    color: var(--text-secondary);
+    background: var(--bg-body);
+    padding: 2px 7px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    margin-left: 6px;
+    flex-shrink: 0;
+}
+.modal-list-item.active .dial-badge {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
 
 .settings-active-banner { background: linear-gradient(135deg, rgba(249, 115, 22, 0.16), rgba(30, 41, 59, 0.9)); border: 1px solid var(--primary-color); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; text-align: left; flex-shrink: 0; }
 .settings-active-info .label { font-size: 9.5px; font-weight: 800; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.8px; display: block; }

@@ -17,7 +17,9 @@ if (!DEVICE_ID) {
 
 let cachedAccounts = JSON.parse(localStorage.getItem('smscode_cached_accounts')) || [];
 let favoriteServices = JSON.parse(localStorage.getItem('smscode_favorites')) || ['shopee', 'whatsapp', 'telegram', 'tiktok'];
+let favoriteCountries = JSON.parse(localStorage.getItem('smscode_fav_countries')) || ['indonesia'];
 let opPriceMap = JSON.parse(localStorage.getItem('smscode_op_price_map')) || {};
+let svcPriceMap = JSON.parse(localStorage.getItem('smscode_svc_price_map')) || {};
 let lastSelectedPriceVal = localStorage.getItem('smscode_selected_price_val') ? Number(localStorage.getItem('smscode_selected_price_val')) : null;
 
 let viewingPresenceRef = null;
@@ -26,10 +28,17 @@ let currentBalanceValue = 0;
 let activeOrders = [];
 let availableProducts = [];
 let cachedOperatorsList = [];
-let allServices = JSON.parse(localStorage.getItem('smscode_services_cache')) || [];
+let allCountries = JSON.parse(localStorage.getItem('smscode_countries_cache')) || [];
+let allServices = [];
+let servicesMemoryCache = {};
 let catalogMemoryCache = {}; 
 
+// === STATE NEGARA & LAYANAN (DEFAULT INDONESIA & DISIMPAN PERMANEN) ===
 let currentCountryId = localStorage.getItem('smscode_country_id') ? parseInt(localStorage.getItem('smscode_country_id')) : null;
+let currentCountryName = localStorage.getItem('smscode_country_name') || "Indonesia";
+let currentCountryEmoji = localStorage.getItem('smscode_country_emoji') || "🇮🇩";
+let currentCountryDial = localStorage.getItem('smscode_country_dial') || "62";
+
 let currentServiceId = localStorage.getItem('smscode_service_id') ? parseInt(localStorage.getItem('smscode_service_id')) : null;
 let currentServiceName = localStorage.getItem('smscode_service_name') || "Shopee";
 
@@ -48,6 +57,31 @@ const activeOrdersContainer = document.getElementById('activeOrdersContainer');
 const exitModal = document.getElementById('exitModal'); 
 
 const idrFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+
+function getDeviceOrdersKey(accName) {
+    return `orders_${DEVICE_ID}_${accName}`;
+}
+function getDeviceHistoryKey(accName) {
+    return `smscode_history_${DEVICE_ID}_${accName}`;
+}
+
+function updateBalanceDisplayUI(amount) {
+    currentBalanceValue = Number(amount) || 0;
+    const bDisplay = document.getElementById('balanceDisplay');
+    if (bDisplay) bDisplay.innerText = idrFormatter.format(currentBalanceValue);
+}
+
+function updateCountrySelectorUI() {
+    const btnCountryText = document.getElementById('btnCountrySelectText');
+    const flagEmoji = currentCountryEmoji || "🌐";
+    if (btnCountryText) {
+        btnCountryText.innerText = `${flagEmoji} ${String(currentCountryName || "Indonesia").toUpperCase()}`;
+    }
+    const headerFlag = document.getElementById('headerCountryFlag');
+    if (headerFlag) {
+        headerFlag.innerText = flagEmoji;
+    }
+}
 
 // === SISTEM NADA NOTIFIKASI KUSTOM (LINK URL & INTERNAL STORAGE VIA INDEXEDDB) ===
 function openAudioDB() {
@@ -161,19 +195,6 @@ window.resetDefaultSound = async function() {
     playNotifSound();
     showToast("Kembali ke nada notifikasi bawaan!");
 };
-
-function getDeviceOrdersKey(accName) {
-    return `orders_${DEVICE_ID}_${accName}`;
-}
-function getDeviceHistoryKey(accName) {
-    return `smscode_history_${DEVICE_ID}_${accName}`;
-}
-
-function updateBalanceDisplayUI(amount) {
-    currentBalanceValue = Number(amount) || 0;
-    const bDisplay = document.getElementById('balanceDisplay');
-    if (bDisplay) bDisplay.innerText = idrFormatter.format(currentBalanceValue);
-}
 
 // === DROPDOWN & MENU LOGIC ===
 window.toggleAppDropdown = function() {
@@ -305,7 +326,17 @@ window.refreshAllAccountBalances = function() {
 };
 
 function normalizePhone(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("0")) { p = "62" + p.substring(1); } return p; }
-function formatPhoneNumber(phone) { if (!phone) return ""; let p = String(phone).replace(/\D/g, ""); if (p.startsWith("62")) { p = "0" + p.substring(2); } return p.replace(/(.{4})/g, '$1 ').trim(); }
+function formatPhoneNumber(phone) { 
+    if (!phone) return ""; 
+    let raw = String(phone).trim();
+    let digits = raw.replace(/\D/g, ""); 
+    if (digits.startsWith("62")) { 
+        digits = "0" + digits.substring(2); 
+        return digits.replace(/(.{4})/g, '$1 ').trim(); 
+    }
+    const prefixPlus = raw.startsWith("+") ? "+" : "";
+    return prefixPlus + digits.replace(/(.{4})/g, '$1 ').trim();
+}
 function formatOTP(otp) { if (!otp) return ""; const otpStr = String(otp).trim(); if (/^\d{6}$/.test(otpStr)) { return otpStr.slice(0, 3) + " - " + otpStr.slice(3); } return otpStr; }
 
 function getProviderName(phone) { 
@@ -334,7 +365,7 @@ function getOperatorLogo(opName) {
 
 let isExitModalOpen = false;
 window.addEventListener('popstate', (e) => {
-    let mods = ['serviceModal', 'blacklistModal', 'historyModal', 'statsModal', 'settingsModal', 'iframeNoteModal']; 
+    let mods = ['countryModal', 'serviceModal', 'blacklistModal', 'historyModal', 'statsModal', 'settingsModal', 'iframeNoteModal']; 
     let closedAny = false;
     mods.forEach(m => { let el = document.getElementById(m); if (el && !el.classList.contains('hidden')) { el.classList.add('hidden'); closedAny = true; } });
     if (closedAny) { history.pushState(null, null, window.location.href); return; }
@@ -535,6 +566,125 @@ async function fetchBalance() {
     } 
 }
 
+// === FITUR PILIH NEGARA + FAVORIT DI PALING ATAS (BERDASARKAN OPENAPI /v1/catalog/countries) ===
+function isFavoriteCountry(countryName) {
+    const normName = String(countryName || "").toLowerCase().trim();
+    return favoriteCountries.includes(normName);
+}
+
+window.toggleFavoriteCountry = function(countryName, e) {
+    if (e) e.stopPropagation();
+    const normName = String(countryName || "").toLowerCase().trim();
+    const index = favoriteCountries.indexOf(normName);
+    if (index > -1) {
+        favoriteCountries.splice(index, 1);
+        showToast("Negara dihapus dari Favorit", "warning");
+    } else {
+        favoriteCountries.push(normName);
+        showToast("Negara ditambahkan ke Favorit");
+    }
+    localStorage.setItem('smscode_fav_countries', JSON.stringify(favoriteCountries));
+    filterCountries();
+};
+
+window.openCountryModal = function() {
+    document.getElementById('countryModal').classList.remove('hidden');
+    history.pushState(null, null, "#countries");
+    const input = document.getElementById('searchCountryInput');
+    if (input) {
+        input.value = '';
+        setTimeout(() => input.focus(), 80);
+    }
+    filterCountries();
+};
+
+window.closeCountryModal = function() {
+    document.getElementById('countryModal').classList.add('hidden');
+};
+
+window.filterCountries = function() {
+    const query = (document.getElementById('searchCountryInput')?.value || "").toLowerCase().trim();
+    const container = document.getElementById('countryListContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!allCountries || allCountries.length === 0) {
+        container.innerHTML = '<div class="status-text-mini">Memuat daftar negara...</div>';
+        return;
+    }
+
+    let filtered = allCountries.filter(c => {
+        if (c.active === false) return false;
+        const nameMatch = String(c.name || "").toLowerCase().includes(query);
+        const codeMatch = String(c.code || "").toLowerCase().includes(query);
+        const dialMatch = String(c.dial_code || "").toLowerCase().includes(query.replace('+', ''));
+        return nameMatch || codeMatch || dialMatch;
+    });
+
+    // Urutkan: Negara yang difavoritkan berada paling atas di bawah kotak pencarian, lalu abjad A-Z
+    filtered.sort((a, b) => {
+        const isFavA = isFavoriteCountry(a.name) ? 1 : 0;
+        const isFavB = isFavoriteCountry(b.name) ? 1 : 0;
+        if (isFavA !== isFavB) return isFavB - isFavA;
+        return String(a.name).localeCompare(String(b.name));
+    });
+
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="status-text-mini">Negara tidak ditemukan.</div>';
+        return;
+    }
+
+    filtered.forEach(c => {
+        const isActive = (String(c.id) === String(currentCountryId));
+        const fav = isFavoriteCountry(c.name);
+        const btn = document.createElement('div');
+        btn.className = `modal-list-item ${isActive ? 'active' : ''}`;
+
+        const safeName = String(c.name).replace(/'/g, "\\'");
+        const starColor = fav ? '#ffc107' : 'var(--text-secondary)';
+        const starClass = fav ? 'fas fa-star' : 'far fa-star';
+        const flagEmoji = c.emoji || "🌐";
+        const dialText = c.dial_code ? `+${c.dial_code}` : "";
+
+        btn.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
+                <i class="${starClass}" style="color: ${starColor}; font-size: 15px; cursor: pointer; padding: 4px; flex-shrink: 0;" onclick="toggleFavoriteCountry('${safeName}', event)"></i>
+                <span style="font-size: 16px; flex-shrink: 0;">${flagEmoji}</span>
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.name}</span>
+                ${dialText ? `<span class="dial-badge">${dialText}</span>` : ''}
+            </div>
+            ${isActive ? '<i class="fas fa-check-circle" style="color: var(--primary-color); margin-left: 8px; flex-shrink: 0;"></i>' : ''}
+        `;
+
+        btn.onclick = () => selectCountry(c);
+        container.appendChild(btn);
+    });
+};
+
+async function selectCountry(countryObj) {
+    if (!countryObj) return;
+    const isChanged = String(currentCountryId) !== String(countryObj.id);
+
+    currentCountryId = countryObj.id;
+    currentCountryName = countryObj.name;
+    currentCountryEmoji = countryObj.emoji || "🌐";
+    currentCountryDial = countryObj.dial_code || "";
+
+    localStorage.setItem('smscode_country_id', String(currentCountryId));
+    localStorage.setItem('smscode_country_name', currentCountryName);
+    localStorage.setItem('smscode_country_emoji', currentCountryEmoji);
+    localStorage.setItem('smscode_country_dial', currentCountryDial);
+
+    updateCountrySelectorUI();
+    closeCountryModal();
+
+    if (isChanged) {
+        showToast(`Negara: ${currentCountryEmoji} ${currentCountryName}`);
+        await loadServicesForCurrentCountry(true);
+        await loadCatalogForCurrentService(false);
+    }
+}
+
 // === FITUR PILIH LAYANAN + FAVORIT ===
 function isFavorite(serviceName) {
     const normName = String(serviceName || "").toLowerCase().trim();
@@ -547,10 +697,10 @@ window.toggleFavorite = function(serviceName, e) {
     const index = favoriteServices.indexOf(normName);
     if (index > -1) {
         favoriteServices.splice(index, 1);
-        showToast("Dihapus dari Favorit", "warning");
+        showToast("Layanan dihapus dari Favorit", "warning");
     } else {
         favoriteServices.push(normName);
-        showToast("Ditambahkan ke Favorit");
+        showToast("Layanan ditambahkan ke Favorit");
     }
     localStorage.setItem('smscode_favorites', JSON.stringify(favoriteServices));
     filterServices();
@@ -572,7 +722,7 @@ window.closeServiceModal = function() {
 };
 
 window.filterServices = function() {
-    const query = (document.getElementById('searchServiceInput')?.value || "").toLowerCase();
+    const query = (document.getElementById('searchServiceInput')?.value || "").toLowerCase().trim();
     const container = document.getElementById('serviceListContainer');
     if (!container) return;
     container.innerHTML = '';
@@ -582,7 +732,7 @@ window.filterServices = function() {
         return;
     }
 
-    let filtered = allServices.filter(s => String(s.name).toLowerCase().includes(query) || String(s.code).toLowerCase().includes(query));
+    let filtered = allServices.filter(s => s.active !== false && (String(s.name).toLowerCase().includes(query) || String(s.code).toLowerCase().includes(query)));
     filtered.sort((a, b) => {
         const isFavA = isFavorite(a.name) ? 1 : 0;
         const isFavB = isFavorite(b.name) ? 1 : 0;
@@ -591,7 +741,7 @@ window.filterServices = function() {
     });
 
     if (filtered.length === 0) {
-        container.innerHTML = '<div class="status-text-mini">Layanan tidak ditemukan.</div>';
+        container.innerHTML = '<div class="status-text-mini">Layanan tidak ditemukan di negara ini.</div>';
         return;
     }
 
@@ -599,24 +749,24 @@ window.filterServices = function() {
         const isActive = (String(svc.id) === String(currentServiceId));
         const fav = isFavorite(svc.name);
         const btn = document.createElement('div');
-        btn.style = `width: 100%; padding: 10px 12px; border-radius: 10px; font-size: 12.5px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; border: 2px solid ${isActive ? 'var(--primary-color)' : 'var(--border-color)'}; background: ${isActive ? 'var(--bg-body)' : 'var(--bg-card)'}; color: ${isActive ? 'var(--primary-color)' : 'var(--text-primary)'}; cursor: pointer; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);`;
+        btn.className = `modal-list-item ${isActive ? 'active' : ''}`;
         
         const safeName = String(svc.name).replace(/'/g, "\\'");
         const starColor = fav ? '#ffc107' : 'var(--text-secondary)';
         const starClass = fav ? 'fas fa-star' : 'far fa-star';
 
         btn.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
-                <i class="${starClass}" style="color: ${starColor}; font-size: 15px; cursor: pointer; padding: 4px;" onclick="toggleFavorite('${safeName}', event)"></i>
-                <span>${svc.name}</span>
+            <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
+                <i class="${starClass}" style="color: ${starColor}; font-size: 15px; cursor: pointer; padding: 4px; flex-shrink: 0;" onclick="toggleFavorite('${safeName}', event)"></i>
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${svc.name}</span>
             </div>
-            ${isActive ? '<i class="fas fa-check-circle" style="color: var(--primary-color);"></i>' : ''}
+            ${isActive ? '<i class="fas fa-check-circle" style="color: var(--primary-color); margin-left: 8px; flex-shrink: 0;"></i>' : ''}
         `;
 
         btn.onclick = () => {
             currentServiceId = svc.id;
             currentServiceName = svc.name;
-            localStorage.setItem('smscode_service_id', currentServiceId);
+            localStorage.setItem('smscode_service_id', String(currentServiceId));
             localStorage.setItem('smscode_service_name', currentServiceName);
             document.getElementById('btnServiceSelectText').innerText = currentServiceName.toUpperCase();
             closeServiceModal();
@@ -626,18 +776,24 @@ window.filterServices = function() {
     });
 };
 
-// === GRID OPERATOR & PENYIMPANAN HARGA PERSISTEN ANTAR OPERATOR ===
+// === GRID OPERATOR & PENYIMPANAN HARGA PERSISTEN (TERKUNCI PER NEGARA + LAYANAN + OPERATOR) ===
+function getScopeKey() {
+    return `${currentCountryId || 'id'}_${currentServiceId || 'def'}`;
+}
+
 function getPreferredProductForOperator(opIdStr, opProducts) {
     if (!opProducts || opProducts.length === 0) return null;
-    const svcOpKey = `${currentServiceId || 'def'}_${opIdStr}`;
+    const scopeKey = getScopeKey();
+    const svcOpKey = `${scopeKey}_${opIdStr}`;
 
-    // 1. Prioritaskan harga global yang terakhir dipilih pengguna (agar saat ganti operator harga tetap sama!)
-    if (lastSelectedPriceVal !== null) {
-        const exactGlobalPriceMatch = opProducts.find(p => Number(p.price) === Number(lastSelectedPriceVal));
-        if (exactGlobalPriceMatch) return exactGlobalPriceMatch;
+    // 1. Prioritaskan harga yang terakhir dipilih pada kombinasi Negara + Layanan ini (agar pindah operator tidak reset ke termurah)
+    const scopedPriceVal = svcPriceMap[scopeKey] !== undefined ? Number(svcPriceMap[scopeKey]) : lastSelectedPriceVal;
+    if (scopedPriceVal !== null && !isNaN(scopedPriceVal)) {
+        const exactPriceMatch = opProducts.find(p => Number(p.price) === Number(scopedPriceVal));
+        if (exactPriceMatch) return exactPriceMatch;
     }
 
-    // 2. Jika harga tersebut tidak ada di operator ini, cek histori harga terakhir khusus operator ini
+    // 2. Cek histori harga terakhir khusus untuk operator pada Negara + Layanan ini
     const savedForOp = opPriceMap[svcOpKey];
     if (savedForOp) {
         const byId = opProducts.find(p => String(p.id) === String(savedForOp.productId));
@@ -658,33 +814,34 @@ window.handlePriceChange = function() {
     localStorage.setItem('smscode_selected_product', selectedProductId);
     if (btnOrder) btnOrder.disabled = !selectedProductId;
 
-    const selectedOpIdStr = localStorage.getItem('smscode_selected_op') || "null";
+    const selectedOpIdStr = localStorage.getItem(`smscode_op_${getScopeKey()}`) || localStorage.getItem('smscode_selected_op') || "null";
     
     if (selectedProductId && availableProducts.length > 0) {
         const productInfo = availableProducts.find(p => String(p.id) === String(selectedProductId));
         if (productInfo) {
-            // Simpan harga terakhir secara global & spesifik per operator
+            const scopeKey = getScopeKey();
             lastSelectedPriceVal = Number(productInfo.price);
+            svcPriceMap[scopeKey] = lastSelectedPriceVal;
             localStorage.setItem('smscode_selected_price_val', String(lastSelectedPriceVal));
+            localStorage.setItem('smscode_svc_price_map', JSON.stringify(svcPriceMap));
             
-            const svcOpKey = `${currentServiceId || 'def'}_${selectedOpIdStr}`;
+            const svcOpKey = `${scopeKey}_${selectedOpIdStr}`;
             opPriceMap[svcOpKey] = { productId: String(productInfo.id), price: Number(productInfo.price) };
-            localStorage.setItem('smscode_op_price_map', JSON.stringify(opPriceMap));
 
-            // Update label harga pada kartu operator yang sedang aktif
+            // Update label harga pada kartu operator yang sedang dipilih
             const priceLabelEl = document.getElementById(`price-label-${selectedOpIdStr}`);
             if (priceLabelEl) {
                 priceLabelEl.innerText = idrFormatter.format(productInfo.price);
             }
 
-            // Sinkronkan juga label harga pada kartu operator lain yang memiliki tier harga yang sama
+            // Sinkronkan juga label harga pada kartu operator lain yang memiliki nominal harga yang sama
             cachedOperatorsList.forEach(op => {
                 const otherOpIdStr = op.operator_id === null ? "null" : String(op.operator_id);
                 if (otherOpIdStr === selectedOpIdStr) return;
                 const otherOpProducts = availableProducts.filter(p => (p.operator_id === null ? "null" : String(p.operator_id)) === otherOpIdStr);
                 const matchingTier = otherOpProducts.find(p => Number(p.price) === lastSelectedPriceVal);
                 if (matchingTier) {
-                    const otherSvcOpKey = `${currentServiceId || 'def'}_${otherOpIdStr}`;
+                    const otherSvcOpKey = `${scopeKey}_${otherOpIdStr}`;
                     opPriceMap[otherSvcOpKey] = { productId: String(matchingTier.id), price: Number(matchingTier.price) };
                     const otherLabelEl = document.getElementById(`price-label-${otherOpIdStr}`);
                     if (otherLabelEl) otherLabelEl.innerText = idrFormatter.format(matchingTier.price);
@@ -718,7 +875,6 @@ function renderOperatorGrid(operators, products) {
         const logoImg = getOperatorLogo(opName === "ACAK" ? "random" : (opName + " " + (op.code || "")));
         const fallbackImg = 'https://cdn.creazilla.com/emojis/56624/shuffle-tracks-button-emoji-clipart-md.png';
         
-        // Tampilkan harga yang tersimpan / sesuai pilihan terakhir, bukan mereset ke harga terendah
         const preferredProd = getPreferredProductForOperator(opIdStr, opProducts);
         const displayCardPrice = preferredProd ? preferredProd.price : opProducts[0].price;
 
@@ -737,16 +893,18 @@ function renderOperatorGrid(operators, products) {
     });
 
     if (renderedCount === 0) {
-        grid.innerHTML = '<div class="status-text-mini" style="grid-column: 1 / -1;">Stok layanan ini sedang kosong.</div>'; 
+        grid.innerHTML = '<div class="status-text-mini" style="grid-column: 1 / -1;">Stok layanan di negara ini sedang kosong.</div>'; 
         const selectEl = document.getElementById('priceSelect');
         if (selectEl) { selectEl.innerHTML = '<option value="">Kosong</option>'; selectEl.disabled = true; }
+        selectedProductId = null;
         if (btnOrder) btnOrder.disabled = true;
         return;
     }
     
     grid.replaceChildren(fragment);
     
-    let savedOp = localStorage.getItem('smscode_selected_op') || "null";
+    const scopeKey = getScopeKey();
+    let savedOp = localStorage.getItem(`smscode_op_${scopeKey}`) || localStorage.getItem('smscode_selected_op') || "null";
     let initialProducts = products.filter(p => (p.operator_id === null ? "null" : String(p.operator_id)) === savedOp);
     
     if (initialProducts.length === 0) {
@@ -765,7 +923,9 @@ function selectOperator(opIdStr, opProducts) {
     const selectedCard = document.getElementById(`op-card-${opIdStr}`);
     if (selectedCard) selectedCard.classList.add('selected');
     
+    const scopeKey = getScopeKey();
     localStorage.setItem('smscode_selected_op', opIdStr);
+    localStorage.setItem(`smscode_op_${scopeKey}`, opIdStr);
     
     const selectEl = document.getElementById('priceSelect');
     if (!selectEl) return;
@@ -795,51 +955,109 @@ function selectOperator(opIdStr, opProducts) {
     window.handlePriceChange();
 }
 
-// === PEMUATAN KATALOG & REFRESH TANPA MENGHILANGKAN OPERATOR ===
-async function ensureCountryAndServices() {
-    if (!currentCountryId) {
+// === PEMUATAN NEGARA & LAYANAN BERDASARKAN OPENAPI ===
+async function ensureCountriesLoaded() {
+    if (!allCountries || allCountries.length === 0) {
         const countriesRes = await apiCall('/catalog/countries'); 
-        if (!countriesRes.success) throw new Error(countriesRes.error.message);
-        const indo = countriesRes.data.find(c => c.code === 'id' || c.name.toLowerCase() === 'indonesia');
-        if (!indo) throw new Error("Negara Indonesia tidak ditemukan.");
-        currentCountryId = indo.id;
-        localStorage.setItem('smscode_country_id', currentCountryId);
-    }
-
-    if (!allServices || allServices.length === 0) {
-        const servicesRes = await apiCall(`/catalog/services?country_id=${currentCountryId}`); 
-        if (!servicesRes.success) throw new Error(servicesRes.error.message);
-        allServices = servicesRes.data || [];
-        localStorage.setItem('smscode_services_cache', JSON.stringify(allServices));
+        if (!countriesRes.success) throw new Error(countriesRes.error ? countriesRes.error.message : "Gagal memuat negara");
+        allCountries = countriesRes.data || [];
+        localStorage.setItem('smscode_countries_cache', JSON.stringify(allCountries));
     } else {
-        apiCall(`/catalog/services?country_id=${currentCountryId}`).then(res => {
+        // Segarkan daftar negara di latar belakang
+        apiCall('/catalog/countries').then(res => {
             if (res && res.success && Array.isArray(res.data)) {
-                allServices = res.data;
-                localStorage.setItem('smscode_services_cache', JSON.stringify(allServices));
+                allCountries = res.data;
+                localStorage.setItem('smscode_countries_cache', JSON.stringify(allCountries));
             }
         }).catch(() => {});
     }
 
-    if (!currentServiceId) {
-        const shopee = allServices.find(s => s.code === 'shopee' || s.name.toLowerCase().includes('shopee')) || allServices[0];
-        if (shopee) {
-            currentServiceId = shopee.id;
-            currentServiceName = shopee.name;
-            localStorage.setItem('smscode_service_id', currentServiceId);
+    // Cari negara yang tersimpan, atau gunakan Indonesia sebagai default
+    let matchedCountry = null;
+    if (currentCountryId) {
+        matchedCountry = allCountries.find(c => String(c.id) === String(currentCountryId));
+    }
+    if (!matchedCountry) {
+        matchedCountry = allCountries.find(c => c.code === 'id' || String(c.name).toLowerCase() === 'indonesia') || allCountries[0];
+    }
+
+    if (matchedCountry) {
+        currentCountryId = matchedCountry.id;
+        currentCountryName = matchedCountry.name;
+        currentCountryEmoji = matchedCountry.emoji || "🇮🇩";
+        currentCountryDial = matchedCountry.dial_code || "62";
+        localStorage.setItem('smscode_country_id', String(currentCountryId));
+        localStorage.setItem('smscode_country_name', currentCountryName);
+        localStorage.setItem('smscode_country_emoji', currentCountryEmoji);
+        localStorage.setItem('smscode_country_dial', currentCountryDial);
+    }
+    updateCountrySelectorUI();
+}
+
+async function loadServicesForCurrentCountry(forceFetch = false) {
+    if (!currentCountryId) await ensureCountriesLoaded();
+
+    const countryServicesKey = `smscode_services_${currentCountryId}`;
+    if (!forceFetch && servicesMemoryCache[currentCountryId]) {
+        allServices = servicesMemoryCache[currentCountryId];
+    } else {
+        const cachedLocalServices = JSON.parse(localStorage.getItem(countryServicesKey));
+        if (!forceFetch && cachedLocalServices && cachedLocalServices.length > 0) {
+            allServices = cachedLocalServices;
+            servicesMemoryCache[currentCountryId] = allServices;
+            // Refresh di latar belakang
+            apiCall(`/catalog/services?country_id=${currentCountryId}`).then(res => {
+                if (res && res.success && Array.isArray(res.data)) {
+                    servicesMemoryCache[currentCountryId] = res.data;
+                    localStorage.setItem(countryServicesKey, JSON.stringify(res.data));
+                    if (String(currentCountryId) === String(countryObjIdCheck())) allServices = res.data;
+                }
+            }).catch(() => {});
+        } else {
+            const servicesRes = await apiCall(`/catalog/services?country_id=${currentCountryId}`); 
+            if (!servicesRes.success) throw new Error(servicesRes.error ? servicesRes.error.message : "Gagal memuat layanan");
+            allServices = servicesRes.data || [];
+            servicesMemoryCache[currentCountryId] = allServices;
+            localStorage.setItem(countryServicesKey, JSON.stringify(allServices));
+        }
+    }
+
+    function countryObjIdCheck() { return currentCountryId; }
+
+    // Pastikan layanan yang dipilih sesuai dan tersedia di negara yang sedang aktif
+    if (allServices.length > 0) {
+        let matchedSvc = null;
+        if (currentServiceId) {
+            matchedSvc = allServices.find(s => String(s.id) === String(currentServiceId));
+        }
+        if (!matchedSvc && currentServiceName) {
+            matchedSvc = allServices.find(s => String(s.name).toLowerCase() === String(currentServiceName).toLowerCase());
+        }
+        if (!matchedSvc) {
+            matchedSvc = allServices.find(s => s.code === 'shopee' || String(s.name).toLowerCase().includes('shopee')) || allServices[0];
+        }
+        if (matchedSvc) {
+            currentServiceId = matchedSvc.id;
+            currentServiceName = matchedSvc.name;
+            localStorage.setItem('smscode_service_id', String(currentServiceId));
             localStorage.setItem('smscode_service_name', currentServiceName);
         }
     }
+
     const btnSvcText = document.getElementById('btnServiceSelectText');
     if (btnSvcText && currentServiceName) btnSvcText.innerText = currentServiceName.toUpperCase();
 }
 
 window.loadCatalogForCurrentService = async function(forceRefresh = false) {
+    updateCountrySelectorUI();
     const btnSvcText = document.getElementById('btnServiceSelectText');
     if (btnSvcText && currentServiceName) btnSvcText.innerText = currentServiceName.toUpperCase();
 
-    if (!forceRefresh && currentServiceId && catalogMemoryCache[currentServiceId]) {
-        cachedOperatorsList = catalogMemoryCache[currentServiceId].operators;
-        availableProducts = catalogMemoryCache[currentServiceId].products;
+    const scopeKey = getScopeKey();
+
+    if (!forceRefresh && currentCountryId && currentServiceId && catalogMemoryCache[scopeKey]) {
+        cachedOperatorsList = catalogMemoryCache[scopeKey].operators;
+        availableProducts = catalogMemoryCache[scopeKey].products;
         renderOperatorGrid(cachedOperatorsList, availableProducts);
         return;
     }
@@ -850,7 +1068,7 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
     const refreshIcon = document.getElementById('catalogRefreshIcon');
     if (refreshIcon) refreshIcon.classList.add('fa-spin');
 
-    const localCacheKey = `smscode_cat_${currentServiceId || 'default'}`;
+    const localCacheKey = `smscode_cat_${scopeKey}`;
     const savedLocalCat = JSON.parse(localStorage.getItem(localCacheKey));
     const hasExistingCards = opGrid && opGrid.querySelector('.operator-card') !== null;
 
@@ -870,10 +1088,12 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
 
     isCatalogFetching = true;
     try {
-        await ensureCountryAndServices();
+        await ensureCountriesLoaded();
+        await loadServicesForCurrentCountry(false);
 
+        const activeScopeKey = getScopeKey();
         let opsRes = await apiCall(`/catalog/operators?country_id=${currentCountryId}&platform_id=${currentServiceId}`);
-        if (!opsRes.success) throw new Error(opsRes.error.message);
+        if (!opsRes.success) throw new Error(opsRes.error ? opsRes.error.message : "Gagal memuat operator");
 
         let operators = Array.isArray(opsRes.data) ? opsRes.data : [];
         if (operators.length === 0) {
@@ -900,9 +1120,9 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
 
         cachedOperatorsList = operators;
         availableProducts = allFetchedProducts;
-        catalogMemoryCache[currentServiceId] = { operators: cachedOperatorsList, products: availableProducts };
+        catalogMemoryCache[activeScopeKey] = { operators: cachedOperatorsList, products: availableProducts };
 
-        localStorage.setItem(`smscode_cat_${currentServiceId}`, JSON.stringify({
+        localStorage.setItem(`smscode_cat_${activeScopeKey}`, JSON.stringify({
             operators: cachedOperatorsList,
             products: availableProducts
         }));
@@ -922,7 +1142,7 @@ window.loadCatalogForCurrentService = async function(forceRefresh = false) {
     }
 };
 
-// === PEMESANAN NOMOR BARU ===
+// === PEMESANAN NOMOR BARU (MEMASTIKAN NEGARA, LAYANAN & HARGA SESUAI) ===
 if (btnOrder) {
     btnOrder.onclick = async () => {
         if (!selectedProductId) return; 
@@ -939,11 +1159,13 @@ if (btnOrder) {
                 const createdAtMs = orderData.created_at ? new Date(orderData.created_at).getTime() : Date.now();
                 const cancelUnlockMs = orderData.cancel_available_at ? new Date(orderData.cancel_available_at).getTime() : createdAtMs + (120 * 1000);
                 
-                let opNameDisplay = orderData.operator_name || getProviderName(orderData.phone_number);
+                let opNameDisplay = orderData.operator_name || (productInfo && productInfo.operator_name) || getProviderName(orderData.phone_number);
                 
                 activeOrders.unshift({ 
                     id: orderData.id, 
                     productId: parseInt(selectedProductId), 
+                    countryId: currentCountryId,
+                    countryName: currentCountryName,
                     serviceName: currentServiceName,
                     operatorName: opNameDisplay,
                     phone: orderData.phone_number, 
@@ -1364,8 +1586,10 @@ window.replaceSpecificOrder = async function(orderId, productId) {
             activeOrders.unshift({ 
                 id: od.id, 
                 productId: parseInt(targetProductId), 
+                countryId: currentCountryId,
+                countryName: currentCountryName,
                 serviceName: currentServiceName,
-                operatorName: od.operator_name || getProviderName(od.phone_number),
+                operatorName: od.operator_name || (pInfo && pInfo.operator_name) || getProviderName(od.phone_number),
                 phone: od.phone_number, 
                 price: finalPrice, 
                 otp: null, 
@@ -1542,6 +1766,7 @@ window.cancelAllOldOrders = async function() {
 
 // === INISIALISASI PARALEL ===
 function initMainApp() { 
+    updateCountrySelectorUI();
     renderOrders(); 
     if (activeOrders.length > 0) { startPolling(); startTimerTick(); }
     
@@ -1551,6 +1776,7 @@ function initMainApp() {
 
 window.onload = () => { 
     loadCustomNotificationSound();
+    updateCountrySelectorUI();
     setAccountViewingStatus(false); 
     history.pushState(null, null, window.location.href); 
     initUsedNumbersSync(); 
