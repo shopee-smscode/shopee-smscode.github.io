@@ -11,25 +11,52 @@
 
     <style>
         :root {
-            --shopee-orange: #ee4d2d; 
-            --bg-color: #f5f5f5;
+            --shopee-orange: #ee4d2d;
+            --shopee-orange-dark: #d73818;
+            --shopee-orange-soft: rgba(238, 77, 45, 0.1);
+            --bg-color: #f1f5f9;
             --card-bg: #ffffff;
-            --text-main: rgba(0,0,0,.8);
-            --text-muted: rgba(0,0,0,.54);
-            --border-color: #e0e0e0;
-            --success-green: #2ecc71;
-            --action-blue: #3498db;
-            --danger-red: #e74c3c;
-            --warning-orange: #f39c12; 
+            --surface-muted: #f8fafc;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --success-green: #10b981;
+            --success-soft: rgba(16, 185, 129, 0.14);
+            --action-blue: #3b82f6;
+            --danger-red: #ef4444;
+            --warning-orange: #f59e0b;
+            --purple-grad: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+            --orange-grad: linear-gradient(135deg, #ff6533 0%, #ee4d2d 100%);
+            --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+            --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --surface-muted: #0f172a;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --shopee-orange-soft: rgba(238, 77, 45, 0.2);
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
         
         body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-color);
+            color: var(--text-main);
             margin: 0;
             padding: 0;
             display: flex;
             justify-content: center;
+            transition: background-color 0.2s, color 0.2s;
         }
 
         .app-container {
@@ -38,243 +65,778 @@
             background-color: var(--bg-color);
             min-height: 100vh;
             position: relative;
-            padding-bottom: 40px;
+            padding-bottom: 32px;
         }
 
-        /* Header Tema Shopee */
+        /* ================= HEADER MODERN ================= */
         .shopee-header {
-            background-color: var(--shopee-orange);
+            background: var(--orange-grad);
             color: white;
-            padding: 16px 60px 16px 60px;
-            text-align: center;
+            padding: 12px 16px;
             position: sticky;
             top: 0;
             z-index: 100;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(238, 77, 45, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .header-logo {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
         }
         
-        .shopee-header h1 { margin: 0; font-size: 18px; font-weight: 500; letter-spacing: 0.5px; }
+        .shopee-header h1 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
-        /* Card Section Umum */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .btn-header-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.18);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s, background 0.2s;
+        }
+        .btn-header-icon:active { transform: scale(0.92); background: rgba(255, 255, 255, 0.3); }
+
+        /* ================= CARD SECTION ================= */
         .section-card {
             background-color: var(--card-bg);
             margin: 12px;
-            padding: 16px;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            padding: 14px;
+            border-radius: 14px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border-color);
             position: relative;
         }
 
-        .section-title { font-size: 15px; color: var(--text-main); margin: 0 0 12px 0; font-weight: 600; }
+        .card-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            gap: 8px;
+        }
 
-        /* Generator Alamat Textarea */
-        #resultArea {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
+        .section-title {
             font-size: 14px;
             color: var(--text-main);
-            background-color: #fafafa;
-            box-sizing: border-box;
-            min-height: 80px;
+            margin: 0;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .section-title i {
+            color: var(--shopee-orange);
+            font-size: 14px;
+        }
+
+        .badge-info {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 20px;
+            background: var(--shopee-orange-soft);
+            color: var(--shopee-orange);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-icon-soft {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: 0.15s;
+        }
+        .btn-icon-soft i { color: var(--shopee-orange); }
+        .btn-icon-soft:active { transform: scale(0.95); }
+
+        /* ================= GENERATOR ALAMAT ================= */
+        .address-box-wrapper {
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        #resultArea {
+            width: 100%;
+            padding: 11px 12px 24px 12px;
+            border: 1.5px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-main);
+            background-color: var(--surface-muted);
+            min-height: 78px;
             resize: none;
-            line-height: 1.5;
+            line-height: 1.45;
             outline: none;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            font-family: inherit;
         }
         #resultArea:focus { border-color: var(--shopee-orange); }
 
-        /* TOMBOL UTAMA */
+        .copy-hint-badge {
+            position: absolute;
+            right: 8px;
+            bottom: 6px;
+            font-size: 10px;
+            color: var(--text-muted);
+            background: var(--card-bg);
+            padding: 2px 7px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            pointer-events: none;
+            font-weight: 600;
+        }
+
+        /* ================= TOMBOL UTAMA ================= */
         .btn-main-large {
             width: 100%;
-            padding: 16px 8px;
+            padding: 13px 12px;
             border-radius: 10px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 800;
             cursor: pointer;
             border: none;
             color: white;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-            transition: transform 0.1s, filter 0.2s;
+            box-shadow: var(--shadow-md);
+            transition: transform 0.1s, opacity 0.2s;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
-        .btn-main-large:active { transform: scale(0.97); }
-        .btn-main-large:disabled { background-color: #cccccc !important; cursor: not-allowed; box-shadow: none !important; transform: none !important; }
+        .btn-main-large:active { transform: scale(0.98); }
+        .btn-main-large:disabled {
+            background: #94a3b8 !important;
+            cursor: not-allowed;
+            box-shadow: none !important;
+            transform: none !important;
+            opacity: 0.7;
+        }
 
-        .btn-generate { background-color: var(--shopee-orange); margin-bottom: 10px; font-size: 16px;}
-        .btn-global-random { background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); }
+        .btn-generate { background: var(--orange-grad); font-size: 14px; }
+        .btn-global-random { background: var(--purple-grad); }
+        .btn-manage {
+            background: var(--surface-muted);
+            color: var(--text-main);
+            border: 1.5px solid var(--border-color);
+            box-shadow: none;
+        }
 
-        /* DAFTAR PRODUK AFFILIATE */
-        .scroll-wrapper { width: 100%; overflow-x: auto; display: flex; padding-bottom: 12px; scroll-snap-type: x mandatory; align-items: flex-start; }
-        .note-list { display: flex; gap: 12px; padding: 0; margin: 0; list-style-type: none; width: 100%; }
+        /* ================= TOOLBAR & PROGRESS AFFILIATE ================= */
+        .affiliate-toolbar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
 
-        /* Tiap Kolom (Toko) - DIUBAH MENJADI 3 KOLOM */
+        .progress-wrapper {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            padding: 8px 10px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+        }
+
+        .progress-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .progress-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+        }
+
+        .progress-text {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--text-main);
+            margin: 0;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background-color: var(--border-color);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #059669);
+            transition: width 0.3s ease;
+            width: 0%;
+            border-radius: 10px;
+        }
+
+        /* ================= GRID 3 KOLOM PRODUK AFFILIATE ================= */
+        .scroll-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            display: flex;
+            padding-bottom: 8px;
+            scroll-snap-type: x mandatory;
+            align-items: flex-start;
+            -webkit-overflow-scrolling: touch;
+        }
+        .scroll-wrapper::-webkit-scrollbar { height: 5px; }
+        .scroll-wrapper::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+
+        .note-list {
+            display: flex;
+            gap: 8px;
+            padding: 0;
+            margin: 0;
+            list-style-type: none;
+            width: 100%;
+        }
+
+        /* Tiap Kolom (Toko) - 3 Kolom Proporsional & Rapi */
         .product-column {
-            display: flex; flex-direction: column; 
-            flex: 0 0 calc(33.333% - 8px); 
-            max-width: calc(33.333% - 8px);
-            background: #fff; border-radius: 12px; padding: 10px 4px; border: 1px solid var(--border-color);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.03); box-sizing: border-box; scroll-snap-align: start; 
+            display: flex;
+            flex-direction: column;
+            flex: 0 0 calc(33.333% - 5.4px);
+            max-width: calc(33.333% - 5.4px);
+            background: var(--surface-muted);
+            border-radius: 12px;
+            padding: 8px 6px;
+            border: 1px solid var(--border-color);
+            scroll-snap-align: start;
         }
 
-        .column-header { display: flex; flex-direction: column; align-items: center; margin-bottom: 12px; border-bottom: 2px solid var(--shopee-orange); padding-bottom: 10px; gap: 8px; }
-        .column-number { font-size: 13px; font-weight: 800; color: var(--shopee-orange); text-align: center; }
+        .column-header {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1.5px solid var(--border-color);
+            gap: 6px;
+        }
 
-        .btn-open-column { width: 100%; background-color: var(--action-blue); color: white; border: none; padding: 10px 2px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; text-transform: uppercase; box-shadow: 0 3px 6px rgba(52, 152, 219, 0.3); }
-        .btn-open-column:active { background-color: #2980b9; transform: scale(0.96); }
+        .column-number {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--text-main);
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 0 2px;
+        }
 
-        /* ITEM PRODUK & FLAGGING */
-        .product-item { display: flex; align-items: stretch; width: 100%; margin-bottom: 10px; position: relative; gap: 4px; }
-        .btn-product-link { flex: 1; box-sizing: border-box; min-height: 60px; border: 1px solid rgba(0,0,0,0.08); color: var(--text-main); padding: 6px; border-radius: 10px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.03); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; transition: 0.1s; }
-        .btn-product-link:active:not(.flagged):not(.flagged-green) { transform: translateY(2px); filter: brightness(0.95); border-color: var(--shopee-orange); }
+        .btn-open-column {
+            width: 100%;
+            background-color: var(--action-blue);
+            color: white;
+            border: none;
+            padding: 7px 4px;
+            border-radius: 7px;
+            font-size: 10px;
+            font-weight: 800;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            box-shadow: 0 2px 5px rgba(59, 130, 246, 0.25);
+            transition: transform 0.1s;
+        }
+        .btn-open-column:active { transform: scale(0.96); }
+
+        /* Kartu Item Produk - Lebar Penuh Tanpa Terhimpit Tombol X */
+        .product-item {
+            position: relative;
+            width: 100%;
+            margin-bottom: 7px;
+        }
+
+        .btn-product-link {
+            width: 100%;
+            min-height: 64px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            color: #1e293b;
+            padding: 18px 6px 7px 6px;
+            border-radius: 9px;
+            cursor: pointer;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            gap: 5px;
+            transition: transform 0.1s, filter 0.15s;
+            text-align: center;
+        }
+        .btn-product-link:active:not(.flagged):not(.flagged-green) {
+            transform: scale(0.97);
+            filter: brightness(0.95);
+        }
         
-        .btn-product-link.flagged { background-color: #f1f1f1 !important; filter: grayscale(100%); opacity: 0.5; cursor: not-allowed; border: 1px dashed #ccc; }
+        .btn-product-link.flagged {
+            background-color: var(--border-color) !important;
+            color: var(--text-muted) !important;
+            filter: grayscale(100%);
+            opacity: 0.65;
+            cursor: not-allowed;
+            border: 1px dashed var(--text-muted);
+        }
         
         .btn-product-link.flagged-green { 
-            background-color: rgba(46, 204, 113, 0.15) !important; 
-            cursor: not-allowed; 
-            border: 2px dashed var(--success-green) !important; 
-            opacity: 0.9;
+            background-color: var(--success-soft) !important;
+            cursor: not-allowed;
+            border: 1.5px dashed var(--success-green) !important;
         }
 
-        .product-title { font-size: 11px; font-weight: 700; text-align: center; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin: 0; width: 100%; color: #2c3e50; }
-        .product-price { font-size: 11px; font-weight: 800; color: var(--shopee-orange); margin: 0; background: rgba(238, 77, 45, 0.1); padding: 3px 6px; border-radius: 4px; }
+        .product-title {
+            font-size: 10.5px;
+            font-weight: 700;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin: 0;
+            width: 100%;
+            color: #1e293b;
+            word-break: break-word;
+        }
+        [data-theme="dark"] .btn-product-link.flagged .product-title,
+        [data-theme="dark"] .btn-product-link.flagged-green .product-title {
+            color: var(--text-main);
+        }
 
-        /* TOMBOL X (FLAGGING) */
-        .btn-flag { width: 26px; border-radius: 8px; border: 1px solid #ffcdd2; background: #fff5f5; color: var(--danger-red); font-weight: 900; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; font-size: 12px; }
+        .product-price {
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--shopee-orange);
+            margin: 0;
+            background: rgba(255, 255, 255, 0.85);
+            padding: 2px 6px;
+            border-radius: 4px;
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .flagged-time-badge {
+            font-size: 9.5px;
+            margin-top: 2px;
+            border-top: 1px dashed rgba(0,0,0,0.15);
+            padding-top: 3px;
+            width: 100%;
+            text-align: center;
+            font-weight: 800;
+        }
+
+        /* Tombol X (Flagging) Pojok Kanan Atas Kartu Produk */
+        .btn-flag {
+            position: absolute;
+            top: 3px;
+            right: 3px;
+            width: 18px;
+            height: 18px;
+            border-radius: 5px;
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            background: rgba(255, 255, 255, 0.85);
+            color: var(--danger-red);
+            font-weight: 900;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            padding: 0;
+            z-index: 2;
+            transition: 0.15s;
+        }
         .btn-flag:active { transform: scale(0.9); }
-        .btn-flag.active { background: var(--danger-red); color: white; border-color: var(--danger-red); }
-        .btn-flag.pending { background: var(--warning-orange); color: white; border-color: var(--warning-orange); }
+        .btn-flag.active {
+            background: var(--danger-red);
+            color: white;
+            border-color: var(--danger-red);
+        }
+        .btn-flag.pending {
+            background: var(--warning-orange);
+            color: white;
+            border-color: var(--warning-orange);
+            width: 22px;
+            height: 20px;
+            font-size: 10px;
+        }
 
-        /* PROGRESS BAR */
-        .progress-container { width: 100%; height: 18px; background-color: #e0e0e0; border-radius: 10px; overflow: hidden; margin-bottom: 5px; position: relative; }
-        .progress-bar { height: 100%; background: linear-gradient(90deg, #2ecc71, #27ae60); transition: width 0.3s ease; width: 0%; }
-        .progress-text { font-size: 12px; font-weight: 800; color: var(--text-muted); text-align: center; margin-bottom: 15px; }
+        .btn-toggle-more {
+            width: 100%;
+            padding: 7px 4px;
+            border-radius: 7px;
+            font-size: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            text-align: center;
+            margin-top: 2px;
+            border: 1px dashed var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-muted);
+            transition: 0.2s;
+        }
 
-        .loading, .error { text-align: center; color: var(--text-muted); padding: 20px; font-size: 14px; }
+        .loading, .error {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
         .error { color: var(--shopee-orange); }
 
-        /* MODAL CSS UMUM */
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1500; }
+        /* ================= MODAL SYSTEM ================= */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(3px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1500;
+            padding: 12px;
+        }
         .modal.hidden { display: none; }
-        .modal-content { background: var(--bg-color); padding: 15px; border-radius: 12px; position: relative; display: flex; flex-direction: column; width: 95%; max-width: 500px; max-height: 90vh; }
-        
-        .editor-btn { background: #f0f0f0; border: 1px solid #ccc; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
-        .editor-btn:active:not(:disabled) { background: #e0e0e0; }
 
-        /* CSS EDITOR */
+        .modal-content {
+            background: var(--card-bg);
+            color: var(--text-main);
+            padding: 16px;
+            border-radius: 16px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 480px;
+            max-height: 88vh;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1.5px solid var(--border-color);
+            padding-bottom: 12px;
+            margin-bottom: 12px;
+            flex-shrink: 0;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--shopee-orange);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-close-modal {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .input-modern {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1.5px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--surface-muted);
+            color: var(--text-main);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-modern:focus { border-color: var(--shopee-orange); }
+
+        /* Quick Filter Wilayah */
+        .quick-filter-bar {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .btn-chip {
+            flex: 1;
+            padding: 6px 8px;
+            border-radius: 7px;
+            border: 1px solid var(--border-color);
+            background: var(--surface-muted);
+            color: var(--text-main);
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            text-align: center;
+        }
+        .btn-chip:active { background: var(--shopee-orange-soft); color: var(--shopee-orange); }
+
+        /* ================= EDITOR VISUAL ================= */
+        .editor-btn {
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 6px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .editor-btn:active:not(:disabled) { transform: scale(0.93); }
+
         #editorBody {
-            display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory;
-            gap: 12px; flex: 1; padding-bottom: 5px; scroll-behavior: smooth;
+            display: flex;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scroll-snap-type: x mandatory;
+            gap: 12px;
+            flex: 1;
+            padding-bottom: 6px;
+            scroll-behavior: smooth;
         }
         #editorBody::-webkit-scrollbar { height: 6px; }
-        #editorBody::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+        #editorBody::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
 
         .editor-store-card { 
-            background: #fff; border: 1px solid var(--border-color); border-radius: 8px; 
-            padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); flex: 0 0 100%; 
-            width: 100%; scroll-snap-align: center; max-height: 100%; overflow-y: auto; box-sizing: border-box;
+            background: var(--surface-muted);
+            border: 1px solid var(--border-color);
+            border-radius: 12px; 
+            padding: 12px;
+            flex: 0 0 100%; 
+            width: 100%;
+            scroll-snap-align: center;
+            max-height: 100%;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* TOGGLE SWITCH CSS */
-        .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+        /* ================= TOGGLE SWITCH ================= */
+        .switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--border-color); transition: .4s; border-radius: 24px; }
-        .slider-knob { position: absolute; content: ''; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .3s; border-radius: 24px; }
+        .slider-knob { position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
         .switch input:checked + .slider { background-color: var(--success-green); }
         .switch input:checked + .slider .slider-knob { transform: translateX(18px); }
 
-        /* Toast Notification */
-        #toast { visibility: hidden; min-width: 200px; background-color: rgba(0, 0, 0, 0.85); color: #fff; text-align: center; border-radius: 30px; padding: 12px 20px; position: fixed; z-index: 2000; bottom: 30px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: 500; opacity: 0; transition: opacity 0.3s; }
-        #toast.show { visibility: visible; opacity: 1; }
+        /* ================= TOAST NOTIFICATION ================= */
+        #toast {
+            visibility: hidden;
+            min-width: 200px;
+            max-width: 90%;
+            background-color: rgba(15, 23, 42, 0.92);
+            color: #fff;
+            text-align: center;
+            border-radius: 30px;
+            padding: 11px 18px;
+            position: fixed;
+            z-index: 2000;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12.5px;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.25s, bottom 0.25s;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+        }
+        #toast.show { visibility: visible; opacity: 1; bottom: 30px; }
 
-        /* Custom Scrollbar Panel Admin Database List */
-        #databaseListContainer::-webkit-scrollbar { width: 5px; }
-        #databaseListContainer::-webkit-scrollbar-thumb { background: #bbb; border-radius: 5px; }
+        /* Scrollbar Modal */
+        #databaseListContainer::-webkit-scrollbar,
+        #provinceTogglesContainer::-webkit-scrollbar { width: 5px; }
+        #databaseListContainer::-webkit-scrollbar-thumb,
+        #provinceTogglesContainer::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 5px; }
     </style>
 </head>
 <body>
 
     <div id="toast">Berhasil</div>
 
-    <!-- TOMBOL MELAYANG ADMIN DI KANAN ATAS -->
-    <button onclick="openAdminFeatureModal()" style="position: fixed; top: 8px; right: 15px; width: 38px; height: 38px; border-radius: 50%; background: white; color: var(--shopee-orange); border: none; font-size: 16px; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2); z-index: 1200; display: flex; align-items: center; justify-content: center;" title="Panel Admin Affiliate Baru">
-        <i class="fas fa-user-shield"></i>
-    </button>
-
     <div class="app-container">
-        <div class="shopee-header">
-            <h1 id="appTitleHeader">Affiliate</h1>
-        </div>
+        <!-- HEADER TERPADU -->
+        <header class="shopee-header">
+            <div class="header-brand">
+                <div class="header-logo">
+                    <i class="fas fa-shopping-bag"></i>
+                </div>
+                <h1 id="appTitleHeader">Affiliate</h1>
+            </div>
+            <div class="header-actions">
+                <button class="btn-header-icon" onclick="toggleTheme()" id="btnThemeToggle" title="Ubah Tema Terang/Gelap">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button class="btn-header-icon" onclick="openAdminFeatureModal()" title="Panel Admin Database">
+                    <i class="fas fa-user-shield"></i>
+                </button>
+            </div>
+        </header>
 
-        <div class="section-card">
-            <button onclick="openAddressSettingsModal()" style="position: absolute; right: 16px; top: 16px; background: none; border: none; font-size: 18px; cursor: pointer; color: var(--shopee-orange); padding: 0; z-index: 10;"><i class="fas fa-cog"></i></button>
-            <h2 class="section-title">Generator Identitas & Alamat</h2>
+        <!-- SECTION 1: GENERATOR IDENTITAS & ALAMAT -->
+        <section class="section-card">
+            <div class="card-header-row">
+                <h2 class="section-title">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <span>Generator Identitas & Alamat</span>
+                </h2>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span class="badge-info" id="activeProvCountBadge">6 Provinsi</span>
+                    <button class="btn-icon-soft" onclick="openAddressSettingsModal()" title="Pengaturan Wilayah">
+                        <i class="fas fa-sliders-h"></i> Wilayah
+                    </button>
+                </div>
+            </div>
             
-            <textarea id="resultArea" readonly placeholder="Tunggu, mengunduh database nama dari Firebase..."></textarea>
+            <div class="address-box-wrapper">
+                <textarea id="resultArea" readonly placeholder="Tunggu, mengunduh database nama dari Firebase..." title="Ketuk untuk menyalin ulang alamat"></textarea>
+                <span class="copy-hint-badge"><i class="far fa-copy"></i> Ketuk kotak untuk salin ulang</span>
+            </div>
+
             <button class="btn-main-large btn-generate" id="btnGenerate" disabled>⏳ Memuat Database...</button>
-        </div>
+        </section>
 
-        <div class="section-card">
-            <h2 class="section-title">Daftar Produk Affiliate</h2>
+        <!-- SECTION 2: DAFTAR PRODUK AFFILIATE -->
+        <section class="section-card">
+            <div class="card-header-row">
+                <h2 class="section-title">
+                    <i class="fas fa-store"></i>
+                    <span>Daftar Produk Affiliate</span>
+                </h2>
+            </div>
+
+            <div class="progress-wrapper">
+                <div class="progress-meta">
+                    <span class="progress-label">Status Ketersediaan Link</span>
+                    <div class="progress-text" id="progressText">Menyinkronkan...</div>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+            </div>
             
-            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-                <button class="btn-main-large btn-global-random" id="btnRandomProduct" style="flex: 2; margin-bottom: 0;" disabled>
+            <div class="affiliate-toolbar">
+                <button class="btn-main-large btn-global-random" id="btnRandomProduct" style="flex: 2;" disabled>
                     📋 Acak Global
                 </button>
-                <button class="btn-main-large" style="flex: 1; margin-bottom: 0; background: var(--text-main);" onclick="openEditorModal()">
+                <button class="btn-main-large btn-manage" style="flex: 1;" onclick="openEditorModal()">
                     ⚙️ Kelola
                 </button>
             </div>
-
-            <div class="progress-container">
-                <div class="progress-bar" id="progressBar"></div>
-            </div>
-            <div class="progress-text" id="progressText">Menyinkronkan status link...</div>
 
             <div id="status" class="loading">Memuat produk dari Firebase...</div>
             
             <div class="scroll-wrapper">
                 <ul class="note-list" id="productList"></ul>
             </div>
-        </div>
+        </section>
     </div>
 
-    <!-- MODAL PANEL ADMIN -->
+    <!-- MODAL PANEL ADMIN DATABASE -->
     <div id="adminFeatureModal" class="modal hidden">
         <div class="modal-content" style="max-width: 400px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--shopee-orange); padding-bottom: 10px; margin-bottom: 15px;">
-                <h3 style="margin:0; font-size: 16px; color: var(--shopee-orange);">🔒 Panel Admin Database</h3>
-                <button onclick="closeAdminFeatureModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--danger-red);">✖</button>
+            <div class="modal-header">
+                <h3><i class="fas fa-user-shield"></i> Panel Admin Database</h3>
+                <button class="btn-close-modal" onclick="closeAdminFeatureModal()">✖</button>
             </div>
             
             <div id="adminLoginForm">
-                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Masukkan sandi admin untuk beralih atau mengelola database:</div>
-                <input type="password" id="adminPasswordInput" placeholder="Masukkan Sandi..." style="width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; font-size: 14px; outline: none;">
-                <button class="btn-main-large" style="background: var(--shopee-orange); padding: 12px; margin-bottom: 10px; font-size: 13px;" onclick="verifyAdminPassword()">MASUK ADMIN</button>
+                <div style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 10px;">Masukkan sandi admin untuk beralih atau mengelola database:</div>
+                <input type="password" id="adminPasswordInput" class="input-modern" placeholder="Masukkan Sandi..." style="margin-bottom: 12px;">
+                <button class="btn-main-large btn-generate" style="padding: 12px;" onclick="verifyAdminPassword()">MASUK ADMIN</button>
             </div>
 
             <div id="adminPanelContent" style="display: none;">
-                <div style="font-size: 13px; color: var(--success-green); font-weight: bold; margin-bottom: 10px;">✅ Akses Diterima!</div>
+                <div style="font-size: 12px; color: var(--success-green); font-weight: 700; margin-bottom: 10px;">✅ Akses Admin Aktif</div>
                 
                 <!-- BUAT / HUBUNGKAN DATABASE BARU -->
-                <div style="margin-bottom: 15px; background: #f9f9f9; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-                    <label style="font-size: 12px; font-weight: bold; color: var(--text-main); display: block; margin-bottom: 8px;">Tambah / Hubungkan Database:</label>
+                <div style="margin-bottom: 14px; background: var(--surface-muted); padding: 12px; border-radius: 10px; border: 1px solid var(--border-color);">
+                    <label style="font-size: 12px; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 8px;">Tambah / Hubungkan Database:</label>
                     <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <input type="text" id="newDbNameInput" placeholder="Nama Database (Cth: Cadangan)..." style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; font-size: 13px; outline: none;">
+                        <input type="text" id="newDbNameInput" class="input-modern" placeholder="Nama Database (Cth: Cadangan)...">
                         <div style="display: flex; gap: 8px;">
-                            <input type="text" id="newDbIdInput" placeholder="ID (Opsional, Cth: products_db_2)..." style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; font-size: 13px; outline: none;">
-                            <button style="background: var(--success-green); color: white; border: none; padding: 0 15px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold;" onclick="addDatabase()">SIMPAN</button>
+                            <input type="text" id="newDbIdInput" class="input-modern" placeholder="ID (Opsional, Cth: products_db_2)..." style="flex: 1;">
+                            <button style="background: var(--success-green); color: white; border: none; padding: 0 16px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 800;" onclick="addDatabase()">SIMPAN</button>
                         </div>
                     </div>
                 </div>
 
                 <!-- LIST DATABASE -->
-                <label style="font-size: 12px; font-weight: bold; color: var(--text-main); display: block; margin-bottom: 5px;">Pilih / Kelola Database:</label>
-                <div id="databaseListContainer" style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 5px; margin-bottom: 10px;">
-                    <!-- List will be generated by JS -->
+                <label style="font-size: 12px; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 6px;">Pilih / Kelola Database:</label>
+                <div id="databaseListContainer" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;">
                 </div>
             </div>
         </div>
@@ -283,49 +845,110 @@
     <!-- MODAL PENGATURAN WILAYAH (ALAMAT) -->
     <div id="addressSettingsModal" class="modal hidden">
         <div class="modal-content">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--shopee-orange); padding-bottom: 10px; margin-bottom: 10px;">
-                <h3 style="margin:0; font-size: 16px; color: var(--shopee-orange);">⚙️ Pengaturan Wilayah</h3>
-                <button onclick="closeAddressSettingsModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--danger-red);">✖</button>
+            <div class="modal-header">
+                <h3><i class="fas fa-map-marked-alt"></i> Pengaturan Wilayah</h3>
+                <button class="btn-close-modal" onclick="closeAddressSettingsModal()">✖</button>
             </div>
             
-            <div style="text-align: left; font-size: 12px; color: var(--text-muted); margin-bottom: 10px; font-weight: 500;">Aktifkan provinsi yang ingin digunakan saat mengacak alamat (Tersinkronisasi 15 HP):</div>
-            
-            <div id="provinceTogglesContainer" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; padding-right: 4px;">
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px; font-weight: 600;">
+                Pilih provinsi yang diizinkan saat membuat alamat (Tersinkronisasi 15 HP):
             </div>
 
-            <div style="margin-top: 5px; display: flex; flex-direction: column; gap: 10px;">
-                <button id="btnSaveAddressSettings" class="btn-main-large" style="background: var(--shopee-orange); padding: 12px; margin: 0; font-size: 13px;" onclick="saveAddressSettings()">💾 SIMPAN PENGATURAN</button>
+            <div class="quick-filter-bar">
+                <button type="button" class="btn-chip" onclick="quickSelectProvinces('all')">✅ Pilih Semua</button>
+                <button type="button" class="btn-chip" onclick="quickSelectProvinces('jawa')">🏝️ Hanya Pulau Jawa</button>
+                <button type="button" class="btn-chip" onclick="quickSelectProvinces('none')">🔄 Reset Pilihan</button>
+            </div>
+            
+            <div id="provinceTogglesContainer" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; padding-right: 4px;">
+            </div>
+
+            <div style="flex-shrink: 0;">
+                <button id="btnSaveAddressSettings" class="btn-main-large btn-generate" style="padding: 12px;" onclick="saveAddressSettings()">💾 SIMPAN PENGATURAN</button>
             </div>
         </div>
     </div>
 
     <!-- MODAL KELOLA DATABASE PRODUK -->
     <div id="editorModal" class="modal hidden">
-        <div class="modal-content" style="height: 85vh;">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--shopee-orange); padding-bottom: 10px; margin-bottom: 10px; flex-shrink: 0;">
-                <h3 style="margin:0; font-size: 16px; color: var(--shopee-orange);">⚙️ Kelola Database Produk</h3>
-                <button onclick="closeEditorModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--danger-red);">✖</button>
+        <div class="modal-content" style="height: 86vh;">
+            <div class="modal-header">
+                <h3><i class="fas fa-boxes"></i> Kelola Database Produk</h3>
+                <button class="btn-close-modal" onclick="closeEditorModal()">✖</button>
             </div>
             
             <!-- Area Geser Samping -->
-            <div id="editorBody">
-            </div>
+            <div id="editorBody"></div>
 
-            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0;">
-                <div style="text-align: center; font-size: 11px; color: var(--text-muted); font-weight: bold; animation: pulse 2s infinite;">
-                    <i class="fas fa-chevron-left"></i> Geser layar ke samping untuk toko lainnya <i class="fas fa-chevron-right"></i>
+            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;">
+                <div style="text-align: center; font-size: 11px; color: var(--text-muted); font-weight: 700;">
+                    <i class="fas fa-arrows-alt-h"></i> Geser kartu ke samping untuk berpindah toko
                 </div>
-                <button class="btn-main-large" style="background: var(--shopee-orange); padding: 12px; margin: 0; font-size: 13px;" onclick="saveEditorData()">💾 SIMPAN & SINKRONKAN KE 15 HP</button>
+                <button class="btn-main-large btn-generate" style="padding: 12px;" onclick="saveEditorData()">💾 SIMPAN & SINKRONKAN KE 15 HP</button>
             </div>
         </div>
     </div>
 
     <script>
+        // ================= TEMA GELAP / TERANG =================
+        function initTheme() {
+            const savedTheme = localStorage.getItem('shopee_affiliate_theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeIcon(savedTheme);
+        }
+
+        window.toggleTheme = function() {
+            const current = document.documentElement.getAttribute('data-theme') || 'light';
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('shopee_affiliate_theme', next);
+            updateThemeIcon(next);
+        };
+
+        function updateThemeIcon(theme) {
+            const btn = document.getElementById('btnThemeToggle');
+            if (btn) {
+                btn.innerHTML = theme === 'dark' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+            }
+        }
+        initTheme();
+
         // ================= FUNGSI BERSAMA =================
         function tampilkanToast(pesan) {
             const toast = document.getElementById("toast");
             toast.innerText = pesan; toast.className = "show";
             setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2000);
+        }
+
+        function salinKeClipboard(teks) {
+            if (!teks) return false;
+            let berhasil = false;
+
+            try {
+                const tempTextArea = document.createElement("textarea");
+                tempTextArea.value = teks;
+                tempTextArea.setAttribute("readonly", "");
+                tempTextArea.style.position = "fixed";
+                tempTextArea.style.top = "-9999px";
+                tempTextArea.style.left = "-9999px";
+                tempTextArea.style.opacity = "0";
+                document.body.appendChild(tempTextArea);
+                tempTextArea.focus();
+                tempTextArea.select();
+                tempTextArea.setSelectionRange(0, teks.length);
+                berhasil = document.execCommand('copy');
+                document.body.removeChild(tempTextArea);
+                window.getSelection().removeAllRanges();
+            } catch (err) {
+                berhasil = false;
+            }
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(teks).catch(() => {});
+                berhasil = true;
+            }
+
+            return berhasil;
         }
 
         // ================= INISIALISASI FIREBASE =================
@@ -341,7 +964,7 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.database();
 
-        // ================= LOGIKA DATABASE LIST & PANEL ADMIN BARU =================
+        // ================= LOGIKA DATABASE LIST & PANEL ADMIN =================
         let activeProductsNode = localStorage.getItem('shopee_custom_product_node') || 'products_db';
         let activeProductsName = localStorage.getItem('shopee_custom_product_name') || 'Default Utama';
         let databaseList = [];
@@ -400,16 +1023,16 @@
             databaseList.forEach((dbItem, index) => {
                 const isActive = (dbItem.id === activeProductsNode);
                 const div = document.createElement('div');
-                div.style = `display: flex; align-items: center; justify-content: space-between; padding: 10px; border-radius: 8px; border: 2px solid ${isActive ? 'var(--shopee-orange)' : '#eee'}; background: ${isActive ? '#fff5f5' : '#fff'}; transition: 0.2s;`;
+                div.style.cssText = `display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 10px; border: 1.5px solid ${isActive ? 'var(--shopee-orange)' : 'var(--border-color)'}; background: ${isActive ? 'var(--shopee-orange-soft)' : 'var(--surface-muted)'}; transition: 0.2s;`;
                 
                 div.innerHTML = `
                     <div style="flex: 1; cursor: pointer;" onclick="switchDatabase('${dbItem.id}', '${dbItem.name}')">
-                        <div style="font-weight: 800; font-size: 13px; color: ${isActive ? 'var(--shopee-orange)' : '#333'};">${dbItem.name} ${isActive ? '<i class="fas fa-check-circle" style="margin-left: 5px;"></i>' : ''}</div>
-                        <div style="font-size: 10px; color: #888; margin-top: 2px;">ID: ${dbItem.id}</div>
+                        <div style="font-weight: 800; font-size: 13px; color: ${isActive ? 'var(--shopee-orange)' : 'var(--text-main)'};">${dbItem.name} ${isActive ? '<i class="fas fa-check-circle" style="margin-left: 5px;"></i>' : ''}</div>
+                        <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">ID: ${dbItem.id}</div>
                     </div>
-                    <div style="display: flex; gap: 5px; margin-left: 10px;">
-                        <button onclick="editDatabase(${index})" title="Edit Nama Database" style="background: #f0f0f0; border: 1px solid #ccc; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12px;"><i class="fas fa-pencil-alt"></i></button>
-                        ${dbItem.id !== 'products_db' ? `<button onclick="confirmDeleteDatabase(${index})" title="Hapus Database" style="background: #fff5f5; border: 1px solid #ffcdd2; color: var(--danger-red); padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12px;"><i class="fas fa-trash"></i></button>` : ''}
+                    <div style="display: flex; gap: 6px; margin-left: 10px;">
+                        <button class="editor-btn" onclick="editDatabase(${index})" title="Edit Nama Database"><i class="fas fa-pencil-alt"></i></button>
+                        ${dbItem.id !== 'products_db' ? `<button class="editor-btn" onclick="confirmDeleteDatabase(${index})" title="Hapus Database" style="color: var(--danger-red);"><i class="fas fa-trash"></i></button>` : ''}
                     </div>
                 `;
                 container.appendChild(div);
@@ -485,33 +1108,89 @@
             }
         }
 
-        // ================= LOGIKA PENGATURAN WILAYAH ALAMAT =================
+        // ================= LOGIKA PENGATURAN WILAYAH & GENERATOR ALAMAT =================
         const ALL_PROVINCES_LIST = [
             "ACEH", "SUMATERA UTARA", "SUMATERA BARAT", "RIAU", "JAMBI", "SUMATERA SELATAN", "BENGKULU", "LAMPUNG", "KEPULAUAN BANGKA BELITUNG", "KEPULAUAN RIAU",
             "JAKARTA", "JAWA BARAT", "JAWA TENGAH", "YOGYAKARTA", "JAWA TIMUR", "BANTEN",
             "BALI", "NUSA TENGGARA BARAT", "NUSA TENGGARA TIMUR",
             "KALIMANTAN BARAT", "KALIMANTAN TENGAH", "KALIMANTAN SELATAN", "KALIMANTAN TIMUR", "KALIMANTAN UTARA",
             "SULAWESI UTARA", "SULAWESI TENGAH", "SULAWESI SELATAN", "SULAWESI TENGGARA", "GORONTALO", "SULAWESI BARAT",
-            "MALUKU", "MALUKU UTARA", "PAPUA", "PAPUA BARAT", "PAPUA SELATAN", "PAPUA TENGAH", "PAPUA PEGUNUNGAN", "PAPUA BARAT DAYA"
+            "MALUKU", "MALUKU UTARA", "PAPUA", "PAPUA BARAT"
         ];
         
         const DEFAULT_PROVINCES = ["BANTEN", "JAKARTA", "JAWA BARAT", "JAWA TENGAH", "YOGYAKARTA", "JAWA TIMUR"];
-        
-        let activeProvinces = DEFAULT_PROVINCES;
+        const BASE_API_URL = 'https://ibnux.github.io/data-indonesia';
+
+        const btnGenerate = document.getElementById("btnGenerate");
+        const resultArea = document.getElementById("resultArea");
+        const activeProvCountBadge = document.getElementById("activeProvCountBadge");
+
+        let activeProvinces = [...DEFAULT_PROVINCES];
+        let dbNames = null;
+        let lastGeneratedProvince = null;
+
+        let cachedAllProvinces = null;
+        const cachedKabupatenMap = {};
+        const cachedKecamatanMap = {};
+        let preparedWilayahQueue = [];
+        let isPreloadingWilayah = false;
+        let wilayahConfigVersion = 0;
+
+        function normalizeProvinceName(name) {
+            if (!name) return "";
+            let n = String(name).toUpperCase().trim();
+            n = n.replace(/^(PROVINSI|DAERAH ISTIMEWA|DKI|DI|NANGGROE)\s+/i, '').trim();
+            if (n.includes('JAKARTA')) return 'JAKARTA';
+            if (n.includes('YOGYAKARTA') || n.includes('JOGJA')) return 'YOGYAKARTA';
+            if (n.includes('BANGKA BELITUNG')) return 'KEPULAUAN BANGKA BELITUNG';
+            if (n.includes('KEPULAUAN RIAU') || n === 'KEPRI') return 'KEPULAUAN RIAU';
+            if (n.includes('ACEH')) return 'ACEH';
+            return n;
+        }
+
+        function isProvinceAllowed(provName, allowedList = activeProvinces) {
+            const normProv = normalizeProvinceName(provName);
+            if (!normProv || !Array.isArray(allowedList)) return false;
+            return allowedList.some(target => normalizeProvinceName(target) === normProv);
+        }
+
+        function updateActiveProvBadge() {
+            if (activeProvCountBadge) {
+                activeProvCountBadge.innerText = `${activeProvinces.length} Provinsi`;
+            }
+        }
+
         const activeProvincesRef = db.ref('shopee_affiliate/active_provinces');
 
         activeProvincesRef.on('value', snap => {
-            if(snap.exists()) {
-                activeProvinces = snap.val() || DEFAULT_PROVINCES;
+            if (snap.exists()) {
+                let rawVal = snap.val();
+                let parsed = Array.isArray(rawVal) ? rawVal : (rawVal && typeof rawVal === 'object' ? Object.values(rawVal) : []);
+                parsed = parsed.map(p => normalizeProvinceName(p)).filter(p => ALL_PROVINCES_LIST.includes(p));
+                activeProvinces = parsed.length > 0 ? parsed : [...DEFAULT_PROVINCES];
             } else {
-                activeProvinces = DEFAULT_PROVINCES;
+                activeProvinces = [...DEFAULT_PROVINCES];
             }
-            if(!document.getElementById('addressSettingsModal').classList.contains('hidden')){
+
+            updateActiveProvBadge();
+
+            wilayahConfigVersion++;
+            preparedWilayahQueue = preparedWilayahQueue.filter(item => isProvinceAllowed(item.provRaw, activeProvinces));
+
+            if (lastGeneratedProvince && !isProvinceAllowed(lastGeneratedProvince, activeProvinces)) {
+                resultArea.value = "";
+                lastGeneratedProvince = null;
+                resultArea.placeholder = "Filter wilayah diperbarui. Klik tombol untuk membuat alamat baru...";
+            }
+
+            if (!document.getElementById('addressSettingsModal').classList.contains('hidden')) {
                 ALL_PROVINCES_LIST.forEach(prov => {
                     const cb = document.getElementById(`toggle_prov_${prov.replace(/\s/g, '_')}`);
-                    if (cb) cb.checked = activeProvinces.includes(prov);
+                    if (cb) cb.checked = isProvinceAllowed(prov, activeProvinces);
                 });
             }
+
+            preloadWilayahQueue();
         });
 
         window.openAddressSettingsModal = function() {
@@ -520,17 +1199,27 @@
             container.innerHTML = '';
             
             ALL_PROVINCES_LIST.forEach(prov => {
-                const isChecked = activeProvinces.includes(prov);
+                const isChecked = isProvinceAllowed(prov, activeProvinces);
                 const div = document.createElement('div');
-                div.style = 'display: flex; align-items: center; justify-content: space-between; background: #fff; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color);';
+                div.style.cssText = 'display: flex; align-items: center; justify-content: space-between; background: var(--surface-muted); padding: 9px 12px; border-radius: 9px; border: 1px solid var(--border-color);';
                 div.innerHTML = `
-                    <span style="font-size: 13px; font-weight: 700; color: var(--text-main);">${prov}</span>
+                    <span style="font-size: 12.5px; font-weight: 700; color: var(--text-main);">${prov}</span>
                     <label class="switch">
                         <input type="checkbox" id="toggle_prov_${prov.replace(/\s/g, '_')}" ${isChecked ? 'checked' : ''}>
                         <span class="slider"><span class="slider-knob"></span></span>
                     </label>
                 `;
                 container.appendChild(div);
+            });
+        }
+
+        window.quickSelectProvinces = function(mode) {
+            ALL_PROVINCES_LIST.forEach(prov => {
+                const cb = document.getElementById(`toggle_prov_${prov.replace(/\s/g, '_')}`);
+                if (!cb) return;
+                if (mode === 'all') cb.checked = true;
+                else if (mode === 'none') cb.checked = false;
+                else if (mode === 'jawa') cb.checked = DEFAULT_PROVINCES.includes(prov);
             });
         }
 
@@ -543,11 +1232,11 @@
             ALL_PROVINCES_LIST.forEach(prov => {
                 const cb = document.getElementById(`toggle_prov_${prov.replace(/\s/g, '_')}`);
                 if (cb && cb.checked) {
-                    newActive.push(prov);
+                    newActive.push(normalizeProvinceName(prov));
                 }
             });
             
-            if(newActive.length === 0) {
+            if (newActive.length === 0) {
                 tampilkanToast("⚠️ Minimal sisakan 1 provinsi aktif!");
                 return;
             }
@@ -556,6 +1245,18 @@
             const originalText = btnSave.innerText;
             btnSave.innerText = "⏳ Menyimpan...";
             btnSave.disabled = true;
+
+            activeProvinces = [...newActive];
+            updateActiveProvBadge();
+            wilayahConfigVersion++;
+            preparedWilayahQueue = preparedWilayahQueue.filter(item => isProvinceAllowed(item.provRaw, activeProvinces));
+
+            if (lastGeneratedProvince && !isProvinceAllowed(lastGeneratedProvince, activeProvinces)) {
+                resultArea.value = "";
+                lastGeneratedProvince = null;
+                resultArea.placeholder = "Filter wilayah diperbarui. Klik tombol untuk membuat alamat baru...";
+            }
+            preloadWilayahQueue();
             
             activeProvincesRef.set(newActive).then(() => {
                 closeAddressSettingsModal();
@@ -568,17 +1269,15 @@
             });
         }
 
-        // ================= LOGIKA GENERATOR ALAMAT =================
-        const btnGenerate = document.getElementById("btnGenerate");
-        const resultArea = document.getElementById("resultArea");
-        let dbNames = null; 
-
         db.ref('shopee_affiliate/address_db').on('value', snap => {
-            if(snap.exists()){
+            if (snap.exists()) {
                 dbNames = snap.val();
                 btnGenerate.disabled = false;
                 btnGenerate.innerText = "🎲 Buat & Salin Data Otomatis";
-                resultArea.placeholder = "Klik tombol di bawah untuk membuat data acak...";
+                if (!resultArea.value) {
+                    resultArea.placeholder = "Klik tombol di bawah untuk membuat data acak...";
+                }
+                preloadWilayahQueue();
             } else {
                 btnGenerate.disabled = true;
                 btnGenerate.innerText = "⚠️ Database Kosong";
@@ -586,13 +1285,16 @@
             }
         });
 
-        const BASE_API_URL = 'https://ibnux.github.io/data-indonesia';
-
         function getRandomItem(array) {
-            if(!array || array.length === 0) return "";
+            if (!array || array.length === 0) return "";
             return array[Math.floor(Math.random() * array.length)];
         }
-        function toTitleCase(str) { return str.replace(/\w\S*/g, function(txt) { return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase(); }); }
+
+        function toTitleCase(str) {
+            return String(str).replace(/\w\S*/g, function(txt) {
+                return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+            });
+        }
 
         function generateName() {
             let poolFirst, poolLast;
@@ -603,67 +1305,158 @@
             }
             let firstName = getRandomItem(poolFirst);
             let lastName = getRandomItem(poolLast);
-            while (firstName === lastName) lastName = getRandomItem(poolLast);
+            let guard = 0;
+            while (firstName === lastName && poolLast.length > 1 && guard < 10) {
+                lastName = getRandomItem(poolLast);
+                guard++;
+            }
             return `${firstName} ${lastName}`;
         }
 
-        async function generateCompleteData() {
-            if(!dbNames) return tampilkanToast("Menunggu data Firebase...");
-            try {
-                btnGenerate.disabled = true; btnGenerate.innerText = "⏳ Memproses...";
-
-                const namaLengkap = generateName();
+        async function fetchSingleValidWilayah(expectedVersion) {
+            if (!cachedAllProvinces) {
                 const resProv = await fetch(`${BASE_API_URL}/provinsi.json`);
-                const allProvinces = await resProv.json();
+                if (!resProv.ok) throw new Error("Gagal mengambil daftar provinsi");
+                cachedAllProvinces = await resProv.json();
+            }
 
-                const targetProvinces = activeProvinces; 
-                
-                // PERBAIKAN LOGIKA FILTER PROVINSI 
-                const validProvincesPool = allProvinces.filter(p => {
-                    let apiName = p.nama.toUpperCase().trim();
-                    return targetProvinces.some(target => {
-                        let t = target.toUpperCase().trim();
-                        if (apiName === t) return true;
-                        if (apiName.replace(/^(DKI|DI|PROVINSI)\s+/, '') === t) return true;
-                        if (t.includes('BANGKA BELITUNG') && apiName.includes('BANGKA BELITUNG')) return true;
-                        return false;
-                    });
-                });
-                
-                let finalPool = validProvincesPool.length > 0 ? validProvincesPool : allProvinces; 
-                const randomProv = getRandomItem(finalPool);
+            const validProvincesPool = cachedAllProvinces.filter(p => isProvinceAllowed(p.nama, activeProvinces));
 
+            if (validProvincesPool.length === 0) {
+                throw new Error("Tidak ada provinsi aktif yang cocok dengan database wilayah.");
+            }
+
+            const randomProv = getRandomItem(validProvincesPool);
+
+            if (!cachedKabupatenMap[randomProv.id]) {
                 const resKota = await fetch(`${BASE_API_URL}/kabupaten/${randomProv.id}.json`);
-                const randomKota = getRandomItem(await resKota.json());
+                if (!resKota.ok) throw new Error("Gagal mengambil daftar kota/kabupaten");
+                cachedKabupatenMap[randomProv.id] = await resKota.json();
+            }
+            const listKota = cachedKabupatenMap[randomProv.id];
+            const randomKota = getRandomItem(listKota);
 
+            if (!cachedKecamatanMap[randomKota.id]) {
                 const resKec = await fetch(`${BASE_API_URL}/kecamatan/${randomKota.id}.json`);
-                const randomKec = getRandomItem(await resKec.json());
+                if (!resKec.ok) throw new Error("Gagal mengambil daftar kecamatan");
+                cachedKecamatanMap[randomKota.id] = await resKec.json();
+            }
+            const listKec = cachedKecamatanMap[randomKota.id];
+            const randomKec = getRandomItem(listKec);
 
-                let kotaBersih = randomKota.nama.replace(/^(KAB\.|KOTA|KABUPATEN)\s+/i, '');
-                const provFinal = toTitleCase(randomProv.nama);
-                const kotaFinal = toTitleCase(kotaBersih);
-                const kecFinal = toTitleCase(randomKec.nama);
+            if (expectedVersion !== undefined && expectedVersion !== wilayahConfigVersion) {
+                return null;
+            }
+            const normProv = normalizeProvinceName(randomProv.nama);
+            if (!isProvinceAllowed(normProv, activeProvinces)) {
+                return null;
+            }
 
-                const namaJalan = getRandomItem(dbNames.daftarJalan || ["Jl. Sudirman"]);
-                let nomorRumah = Math.floor(Math.random() * 100) + 1;
-                if (Math.random() > 0.7) nomorRumah += ["A", "B", "C"][Math.floor(Math.random() * 3)];
-                let namaGang = Math.random() > 0.5 ? `, ${getRandomItem(dbNames.daftarGang || ["Gg. 1"])}` : "";
-                const patokan = getRandomItem(dbNames.daftarPatokan || ["Depan SPBU"]);
+            let kotaBersih = randomKota.nama.replace(/^(KAB\.|KOTA|KABUPATEN)\s+/i, '');
 
-                const stringFinal = `${namaLengkap}, ${namaJalan} No. ${nomorRumah}${namaGang}, ${patokan}, ${kecFinal}, ${kotaFinal}, ${provFinal}`;
-                
-                resultArea.value = stringFinal;
-                resultArea.select(); document.execCommand('copy'); window.getSelection().removeAllRanges();
-                tampilkanToast("✅ Data berhasil dibuat & disalin!");
+            return {
+                provRaw: normProv,
+                provFinal: toTitleCase(normProv),
+                kotaFinal: toTitleCase(kotaBersih),
+                kecFinal: toTitleCase(randomKec.nama)
+            };
+        }
 
-            } catch (error) {
-                resultArea.value = "Gagal mengambil data wilayah. Pastikan internet Anda aktif.";
-                tampilkanToast("❌ Gagal memproses data");
+        async function preloadWilayahQueue() {
+            if (isPreloadingWilayah) return;
+            isPreloadingWilayah = true;
+            try {
+                while (preparedWilayahQueue.length < 3) {
+                    const ver = wilayahConfigVersion;
+                    const item = await fetchSingleValidWilayah(ver);
+                    if (item && ver === wilayahConfigVersion && isProvinceAllowed(item.provRaw, activeProvinces)) {
+                        preparedWilayahQueue.push(item);
+                    } else if (ver !== wilayahConfigVersion) {
+                        break;
+                    }
+                }
+            } catch (err) {
+                // Dicoba kembali saat klik tombol
             } finally {
-                btnGenerate.disabled = false; btnGenerate.innerText = "🎲 Buat & Salin Data Otomatis";
+                isPreloadingWilayah = false;
             }
         }
+
+        function ambilWilayahSiapPakai() {
+            while (preparedWilayahQueue.length > 0) {
+                const item = preparedWilayahQueue.shift();
+                if (item && isProvinceAllowed(item.provRaw, activeProvinces)) {
+                    return item;
+                }
+            }
+            return null;
+        }
+
+        function rakitStringAlamat(wilayah) {
+            const namaLengkap = generateName();
+            const namaJalan = getRandomItem(dbNames.daftarJalan || ["Jl. Sudirman"]);
+            let nomorRumah = Math.floor(Math.random() * 100) + 1;
+            if (Math.random() > 0.7) nomorRumah += ["A", "B", "C"][Math.floor(Math.random() * 3)];
+            let namaGang = Math.random() > 0.5 ? `, ${getRandomItem(dbNames.daftarGang || ["Gg. 1"])}` : "";
+            const patokan = getRandomItem(dbNames.daftarPatokan || ["Depan SPBU"]);
+
+            return `${namaLengkap}, ${namaJalan} No. ${nomorRumah}${namaGang}, ${patokan}, ${wilayah.kecFinal}, ${wilayah.kotaFinal}, ${wilayah.provFinal}`;
+        }
+
+        async function generateCompleteData() {
+            if (!dbNames) return tampilkanToast("Menunggu data Firebase...");
+
+            let wilayahSiap = ambilWilayahSiapPakai();
+
+            if (wilayahSiap) {
+                const stringFinal = rakitStringAlamat(wilayahSiap);
+                lastGeneratedProvince = wilayahSiap.provRaw;
+                resultArea.value = stringFinal;
+                salinKeClipboard(stringFinal);
+                tampilkanToast(`✅ Disalin (${wilayahSiap.provFinal})!`);
+                preloadWilayahQueue();
+                return;
+            }
+
+            try {
+                btnGenerate.disabled = true;
+                btnGenerate.innerText = "⏳ Memproses...";
+
+                let wilayah = null;
+                let percobaan = 0;
+                while (!wilayah && percobaan < 3) {
+                    percobaan++;
+                    wilayah = await fetchSingleValidWilayah(wilayahConfigVersion);
+                }
+
+                if (!wilayah || !isProvinceAllowed(wilayah.provRaw, activeProvinces)) {
+                    throw new Error("Provinsi tidak valid");
+                }
+
+                const stringFinal = rakitStringAlamat(wilayah);
+                lastGeneratedProvince = wilayah.provRaw;
+                resultArea.value = stringFinal;
+                salinKeClipboard(stringFinal);
+                tampilkanToast(`✅ Disalin (${wilayah.provFinal})!`);
+                preloadWilayahQueue();
+            } catch (error) {
+                resultArea.value = "Gagal mengambil data wilayah. Pastikan internet Anda aktif.";
+                lastGeneratedProvince = null;
+                tampilkanToast("❌ Gagal memproses data");
+            } finally {
+                btnGenerate.disabled = false;
+                btnGenerate.innerText = "🎲 Buat & Salin Data Otomatis";
+            }
+        }
+
         btnGenerate.addEventListener("click", generateCompleteData);
+
+        resultArea.addEventListener("click", () => {
+            if (resultArea.value && !resultArea.value.startsWith("Gagal mengambil")) {
+                salinKeClipboard(resultArea.value);
+                tampilkanToast("✅ Alamat di layar disalin ulang!");
+            }
+        });
 
         // ================= LOGIKA PRODUK AFFILIATE (TAMPILAN UTAMA) =================
         let productsRef, flagRef, usedLinksRef;
@@ -688,16 +1481,11 @@
         }
 
         function salinTautanAffiliate(url) {
-            const tempTextArea = document.createElement("textarea"); tempTextArea.value = url;
-            tempTextArea.style.position = "absolute"; tempTextArea.style.left = "-9999px";
-            document.body.appendChild(tempTextArea); tempTextArea.select(); tempTextArea.setSelectionRange(0, 99999);
-            try { 
-                document.execCommand('copy'); 
-                tampilkanToast("✅ Link disalin & membuka aplikasi..."); 
-            } catch (err) { 
-                tampilkanToast("❌ Gagal menyalin link"); 
+            if (salinKeClipboard(url)) {
+                tampilkanToast("✅ Link disalin & membuka aplikasi...");
+            } else {
+                tampilkanToast("❌ Gagal menyalin link");
             }
-            document.body.removeChild(tempTextArea); window.getSelection().removeAllRanges();
 
             if (url && url.toLowerCase().startsWith("http")) {
                 setTimeout(() => {
@@ -829,9 +1617,15 @@
             const bgColors = ['#dbeafe', '#fce7f3', '#dcfce7', '#ffedd5', '#f3e8ff'];
 
             groupedProducts.forEach((group, index) => {
-                const columnLi = document.createElement('li'); columnLi.className = 'product-column';
+                const columnLi = document.createElement('li');
+                columnLi.className = 'product-column';
                 const colorBg = bgColors[index % bgColors.length];
-                columnLi.innerHTML = `<div class="column-header"><div class="column-number">${group.name}</div><button class="btn-open-column" onclick="salinAcakDariGrup(${index})">📋 SALIN ACAK</button></div>`;
+                columnLi.innerHTML = `
+                    <div class="column-header">
+                        <div class="column-number" title="${group.name}">${group.name}</div>
+                        <button class="btn-open-column" onclick="salinAcakDariGrup(${index})">📋 SALIN ACAK</button>
+                    </div>
+                `;
 
                 if (group.products) {
                     let sortedProducts = [...group.products].sort((a, b) => {
@@ -858,26 +1652,31 @@
                             if (typeof fVal === 'number') {
                                 if (Date.now() - fVal >= 86400000) { isOver24h = true; }
                                 let dt = new Date(fVal);
-                                let days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                                let days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
                                 displayTime = `${days[dt.getDay()]}, ${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth()+1).padStart(2, '0')} ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
                             } else if (typeof fVal === 'string') {
                                 displayTime = fVal;
                             }
                         }
                         
-                        const prodDiv = document.createElement('div'); prodDiv.className = 'product-item';
+                        const prodDiv = document.createElement('div');
+                        prodDiv.className = 'product-item';
 
-                        let displayName = prod.nama; let displayPrice = "";
+                        let displayName = prod.nama;
+                        let displayPrice = "";
                         let priceMatch = prod.nama.match(/(?:-?\s*)?(Rp\s*[\d\.]+.*)$/i);
-                        if (priceMatch) { displayPrice = priceMatch[1]; displayName = prod.nama.replace(priceMatch[0], '').trim(); }
+                        if (priceMatch) {
+                            displayPrice = priceMatch[1];
+                            displayName = prod.nama.replace(priceMatch[0], '').trim();
+                        }
 
                         let btnClass = isFlagged ? (isOver24h ? "btn-product-link flagged-green" : "btn-product-link flagged") : "btn-product-link";
                         let clickEvent = isFlagged ? "tampilkanToast('❌ Produk ini diblokir/habis!')" : `salinTautanAffiliate('${prod.link}')`;
                         
                         let flagBtnClass = isFlagged ? "btn-flag active" : (isPending ? "btn-flag pending" : "btn-flag");
 
-                        let timeColor = isOver24h ? "#1e8449" : "var(--danger-red)";
-                        let timeHtml = (isFlagged && displayTime !== '') ? `<div style="font-size: 11px; color: ${timeColor}; margin-top: 6px; border-top: 1px dashed #ccc; padding-top: 5px; width: 100%; text-align: center; font-weight: 900;">${displayTime}</div>` : '';
+                        let timeColor = isOver24h ? "#059669" : "var(--danger-red)";
+                        let timeHtml = (isFlagged && displayTime !== '') ? `<div class="flagged-time-badge" style="color: ${timeColor};">${displayTime}</div>` : '';
 
                         prodDiv.innerHTML = `
                             <button class="${btnClass}" style="background-color: ${isFlagged ? '' : colorBg};" onclick="${clickEvent}">
@@ -885,7 +1684,7 @@
                                 ${displayPrice ? `<div class="product-price">${displayPrice}</div>` : ''}
                                 ${timeHtml}
                             </button>
-                            <button class="${flagBtnClass}" onclick="toggleFlag('${linkKey}', ${isFlagged})">${isFlagged ? '❌' : (isPending ? '✖' : '✖')}</button>
+                            <button class="${flagBtnClass}" onclick="toggleFlag('${linkKey}', ${isFlagged})" title="${isFlagged ? 'Buka Blokir' : 'Blokir Produk'}">${isFlagged ? '❌' : (isPending ? '✖' : '✖')}</button>
                         `;
 
                         if (pIdx < 5) {
@@ -901,18 +1700,17 @@
                         
                         let toggleBtn = document.createElement('button');
                         let isExpanded = !!expandedMainStores[index];
-                        toggleBtn.innerHTML = isExpanded ? '<i class="fas fa-chevron-up"></i> Sembunyikan' : `<i class="fas fa-chevron-down"></i> Tampilkan ${sortedProducts.length - 5} Lainnya`;
-                        
-                        toggleBtn.style.cssText = "width: 100%; padding: 10px; border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer; text-align: center; margin-top: 5px; border: 1px dashed #ccc; background: transparent; color: var(--text-muted); transition: 0.2s;";
+                        toggleBtn.className = 'btn-toggle-more';
+                        toggleBtn.innerHTML = isExpanded ? '<i class="fas fa-chevron-up"></i> Tutup' : `<i class="fas fa-chevron-down"></i> +${sortedProducts.length - 5} Lainnya`;
                         
                         toggleBtn.onclick = () => {
                             expandedMainStores[index] = !expandedMainStores[index];
                             if (expandedMainStores[index]) {
                                 hiddenContainer.style.display = 'block';
-                                toggleBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Sembunyikan';
+                                toggleBtn.innerHTML = '<i class="fas fa-chevron-up"></i> Tutup';
                             } else {
                                 hiddenContainer.style.display = 'none';
-                                toggleBtn.innerHTML = `<i class="fas fa-chevron-down"></i> Tampilkan ${sortedProducts.length - 5} Lainnya`;
+                                toggleBtn.innerHTML = `<i class="fas fa-chevron-down"></i> +${sortedProducts.length - 5} Lainnya`;
                             }
                         };
                         columnLi.appendChild(toggleBtn);
@@ -959,7 +1757,7 @@
             
             let percentage = (sisa / activeLinksTotal) * 100;
             document.getElementById('progressBar').style.width = percentage + '%';
-            document.getElementById('progressText').innerText = `Tersisa ${sisa} dari ${activeLinksTotal} Link Aktif (${activeProductsName})`;
+            document.getElementById('progressText').innerText = `${sisa} / ${activeLinksTotal} Link Aktif (${activeProductsName})`;
         }
 
         function listenToProgress() {
@@ -1078,18 +1876,18 @@
                             }
                         }
                         
-                        let titleStyle = isFlagged ? "text-decoration: line-through; color: #aaa;" : "color: #333;";
-                        let linkStyle = isFlagged ? "color: #aaa;" : "color: var(--action-blue);";
-                        let originalBgColor = isFlagged ? (isOver24h ? "rgba(46, 204, 113, 0.15)" : "#f0f0f0") : "#f9f9f9";
-                        let borderColor = (isFlagged && isOver24h) ? "var(--success-green)" : "#eee";
+                        let titleStyle = isFlagged ? "text-decoration: line-through; color: var(--text-muted);" : "color: var(--text-main);";
+                        let linkStyle = isFlagged ? "color: var(--text-muted);" : "color: var(--action-blue);";
+                        let originalBgColor = isFlagged ? (isOver24h ? "var(--success-soft)" : "var(--bg-color)") : "var(--card-bg)";
+                        let borderColor = (isFlagged && isOver24h) ? "var(--success-green)" : "var(--border-color)";
                         
                         let timeColorEditor = isOver24h ? "var(--success-green)" : "var(--danger-red)";
-                        let timeHtmlEditor = (isFlagged && displayTime !== '') ? ` <span style="font-size: 11px; color: ${timeColorEditor}; font-weight: 900;">(${displayTime})</span>` : '';
+                        let timeHtmlEditor = (isFlagged && displayTime !== '') ? ` <span style="font-size: 10px; color: ${timeColorEditor}; font-weight: 800;">(${displayTime})</span>` : '';
 
-                        let flagBadge = isFlagged ? `<span style="background: var(--danger-red); color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 5px;">DIBLOKIR</span>${timeHtmlEditor}` : '';
+                        let flagBadge = isFlagged ? `<span style="background: var(--danger-red); color: white; padding: 2px 5px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 4px;">DIBLOKIR</span>${timeHtmlEditor}` : '';
 
                         let prodHtml = `
-                        <div id="editor-prod-${sIdx}-${pIdx}" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: ${originalBgColor}; padding: 8px; border-radius: 6px; border: 1px solid ${borderColor}; transition: background-color 0.4s ease-out;">
+                        <div id="editor-prod-${sIdx}-${pIdx}" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: ${originalBgColor}; padding: 8px 10px; border-radius: 8px; border: 1px solid ${borderColor}; transition: background-color 0.4s ease-out;">
                             <div style="font-size: 12px; line-height: 1.4; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;">
                                 <strong style="${titleStyle}">${p.nama}</strong> ${flagBadge}<br>
                                 <span style="${linkStyle} font-size: 10px;">${p.link}</span>
@@ -1120,46 +1918,43 @@
                             <div id="hidden-prods-${sIdx}" style="display: ${displayStyle};">
                                 ${hiddenProductsHtml}
                             </div>
-                            <button class="editor-btn" onclick="toggleHiddenProducts(${sIdx}, ${store.products.length - 5})" id="btn-toggle-prods-${sIdx}" style="width: 100%; margin-bottom: 8px; border: 1px dashed #ccc; color: var(--action-blue); background: #fafafa; transition: 0.2s;">
+                            <button class="editor-btn" onclick="toggleHiddenProducts(${sIdx}, ${store.products.length - 5})" id="btn-toggle-prods-${sIdx}" style="width: 100%; margin-bottom: 8px; border: 1px dashed var(--border-color); color: var(--action-blue); background: var(--card-bg); padding: 8px;">
                                 ${btnText}
                             </button>
                         `;
                     }
 
                 } else {
-                    productsHtml = '<div style="font-size: 11px; color: #999; text-align: center; padding: 10px;">Belum ada produk di toko ini.</div>';
+                    productsHtml = '<div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 16px;">Belum ada produk di toko ini.</div>';
                 }
 
                 storeDiv.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px; flex-shrink: 0;">
-                        <strong style="color: var(--shopee-orange); font-size: 15px;">${store.name}</strong>
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 10px; flex-shrink: 0;">
                         <div>
-                            <button class="editor-btn" onclick="editStoreName(${sIdx})" style="margin-right: 4px;">✏️ Nama</button>
+                            <strong style="color: var(--shopee-orange); font-size: 14px;">${store.name}</strong>
+                            <span style="font-size: 11px; color: var(--text-muted); margin-left: 6px;">(${sIdx + 1}/${editorData.length})</span>
+                        </div>
+                        <div style="display: flex; gap: 4px;">
+                            <button class="editor-btn" onclick="editStoreName(${sIdx})">✏️ Nama</button>
                             <button class="editor-btn" style="color: var(--danger-red);" onclick="deleteStore(${sIdx})">🗑️ Hapus</button>
                         </div>
                     </div>
-                    <div id="editor-store-list-${sIdx}" style="padding-right: 5px; margin-bottom: 10px;">
+                    <div id="editor-store-list-${sIdx}" style="padding-right: 2px; margin-bottom: 10px; overflow-y: auto; flex: 1;">
                         ${productsHtml}
                     </div>
-                    <button onclick="addProduct(${sIdx})" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px dashed #ccc; background: #fff; cursor: pointer; font-weight: bold; color: var(--action-blue); flex-shrink: 0; margin-top: auto;">+ Tambah Produk ke Toko Ini</button>
+                    <button onclick="addProduct(${sIdx})" style="width: 100%; padding: 10px; border-radius: 8px; border: 1.5px dashed var(--action-blue); background: var(--card-bg); cursor: pointer; font-weight: 800; font-size: 12px; color: var(--action-blue); flex-shrink: 0; margin-top: auto;">+ Tambah Produk ke Toko Ini</button>
                 `;
                 editorBody.appendChild(storeDiv);
             });
 
             const addStoreCard = document.createElement('div');
             addStoreCard.className = 'editor-store-card';
-            addStoreCard.style.display = 'flex';
-            addStoreCard.style.flexDirection = 'column';
-            addStoreCard.style.justifyContent = 'center';
-            addStoreCard.style.alignItems = 'center';
-            addStoreCard.style.border = '2px dashed #ccc';
-            addStoreCard.style.backgroundColor = '#fafafa';
-            addStoreCard.style.cursor = 'pointer';
+            addStoreCard.style.cssText = 'display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px dashed var(--border-color); cursor: pointer;';
             addStoreCard.onclick = addStore; 
             addStoreCard.innerHTML = `
                 <i class="fas fa-plus-circle" style="font-size: 40px; color: var(--success-green); margin-bottom: 10px;"></i>
-                <div style="font-weight: bold; color: var(--success-green); font-size: 16px;">Buat Toko Baru</div>
-                <div style="font-size: 11px; color: #999; margin-top: 5px; text-align: center;">Akan ditambahkan ke ujung daftar.</div>
+                <div style="font-weight: 800; color: var(--success-green); font-size: 15px;">Buat Toko Baru</div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 5px; text-align: center;">Akan ditambahkan ke urutan paling kanan.</div>
             `;
             editorBody.appendChild(addStoreCard);
 
@@ -1181,7 +1976,7 @@
             if (focusSIdx !== -1 && focusPIdx !== -1) {
                 let el = document.getElementById(`editor-prod-${focusSIdx}-${focusPIdx}`);
                 if (el) {
-                    el.style.backgroundColor = '#fff3cd'; 
+                    el.style.backgroundColor = '#fef08a'; 
                     setTimeout(() => { 
                         let pIdTemp = encodeFirebaseKey(editorData[focusSIdx].products[focusPIdx].link);
                         let isFlag = flaggedMap.has(pIdTemp);
@@ -1190,7 +1985,7 @@
                             let fV = flaggedMap.get(pIdTemp);
                             if(typeof fV === 'number' && Date.now() - fV >= 86400000) isOvr24 = true;
                         }
-                        el.style.backgroundColor = isFlag ? (isOvr24 ? "rgba(46, 204, 113, 0.15)" : "#f0f0f0") : "#f9f9f9"; 
+                        el.style.backgroundColor = isFlag ? (isOvr24 ? "var(--success-soft)" : "var(--bg-color)") : "var(--card-bg)"; 
                     }, 600);
                 }
             }
