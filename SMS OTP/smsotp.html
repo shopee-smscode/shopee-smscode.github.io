@@ -1,1 +1,330 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SMS Code Pro 🇮🇩 - Layanan Nomor Virtual & OTP Instan</title>
+    <meta name="description" content="Aplikasi layanan nomor virtual dan verifikasi SMS OTP instan multi-negara dengan pemantauan real-time.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#2563eb" id="metaThemeColor">
+    <meta property="og:title" content="SMS Code Pro - Verifikasi SMS OTP Instan">
+    <meta property="og:description" content="Sewa nomor virtual multi-negara dan terima kode verifikasi OTP secara instan dalam satu layar.">
+    <meta property="og:type" content="website">
 
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="smscode.css?v=34">
+    
+    <!-- INISIALISASI TEMA CEPAT (ANTI KEDIP SAAT LOAD) & AUTO-REDIRECT -->
+    <script>
+        (function() {
+            var savedTheme = localStorage.getItem('otp_template_theme') || 'day';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+
+            var lastApp = localStorage.getItem('last_active_app');
+            var currentHref = window.location.href;
+            if (!lastApp) {
+                if (currentHref.includes('virtualsms.html')) localStorage.setItem('last_active_app', 'virtualsms.html');
+                else if (currentHref.includes('herosms.html')) localStorage.setItem('last_active_app', 'herosms.html');
+                else if (currentHref.includes('smscode.html')) localStorage.setItem('last_active_app', 'smscode.html');
+                else if (currentHref.includes('otpcepat.html')) localStorage.setItem('last_active_app', 'otpcepat.html');
+                return;
+            }
+            if (lastApp && !currentHref.includes(lastApp) && !sessionStorage.getItem('just_switched')) {
+                sessionStorage.setItem('just_switched', 'true');
+                if (lastApp === 'virtualsms.html') window.location.replace("https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html");
+                else if (lastApp === 'herosms.html') window.location.replace("https://shopee-smscode.github.io/Hero%20SMS/herosms.html");
+                else if (lastApp === 'smscode.html') window.location.replace("https://shopee-smscode.github.io/SMS%20Code/smscode.html");
+                else if (lastApp === 'otpcepat.html') window.location.replace("https://shopee-smscode.github.io/OTP%20Cepat/otpcepat.html");
+            }
+        })();
+    </script>
+</head>
+<body class="theme-day">
+    <main id="appView" class="container" role="main">
+        
+        <!-- NAVIGASI BAR ATAS -->
+        <nav class="top-bar-modern" aria-label="Navigasi Utama">
+            <div style="display: flex; gap: 6px; align-items: center;">
+                <div class="dropdown">
+                    <button class="dropbtn" onclick="toggleAppDropdown()" aria-label="Pilih Aplikasi SMS">
+                        <i class="fas fa-sms"></i> <span id="navAppTitle">SMS Code</span> <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 2px;"></i>
+                    </button>
+                    <div id="appDropdown" class="dropdown-content">
+                        <a href="https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html" onclick="localStorage.setItem('last_active_app', 'virtualsms.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-globe"></i> SMS Virtual</a>
+                        <a href="https://shopee-smscode.github.io/Hero%20SMS/herosms.html" onclick="localStorage.setItem('last_active_app', 'herosms.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-bolt"></i> Hero SMS</a>
+                        <a href="https://shopee-smscode.github.io/SMS%20Code/smscode.html" class="active" onclick="localStorage.setItem('last_active_app', 'smscode.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-sms"></i> SMS Code</a>
+                        <a href="https://shopee-smscode.github.io/OTP%20Cepat/otpcepat.html" onclick="localStorage.setItem('last_active_app', 'otpcepat.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-rocket"></i> OTP Cepat</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 6px; align-items: center;">
+                <!-- TOMBOL GANTI TEMA SIANG (PUTIH-BIRU) / MALAM (HITAM-KUNING) -->
+                <button onclick="toggleDayNightTheme()" class="btn-top-action" id="btnThemeToggle" title="Ganti Tema Siang/Malam" aria-label="Ganti Tema">
+                    <i id="themeToggleIcon" class="fas fa-moon"></i>
+                </button>
+                <!-- TOMBOL TOP UP DI KIRI, TOMBOL NOTE DI KANAN -->
+                <button onclick="openTopupPage()" class="dropbtn-icon" style="color: var(--success-color); border-color: var(--success-color);" title="Top Up Saldo" aria-label="Top Up Saldo">
+                    <i class="fas fa-plus-circle"></i>
+                </button>
+                <button onclick="openIframeNoteModal()" class="btn-top-action" title="Catatan" aria-label="Buka Catatan">
+                    <i class="fas fa-sticky-note"></i>
+                </button>
+                <div class="dropdown">
+                    <button class="dropbtn-icon" onclick="toggleMenuDropdown()" aria-label="Menu Lainnya">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div id="menuDropdown" class="dropdown-content dropdown-right">
+                        <a href="#" onclick="openStatsModal(); return false;"><i class="fas fa-chart-bar"></i> Statistik</a>
+                        <a href="#" onclick="openBlacklistModal(); return false;" style="position: relative;"><i class="fas fa-ban"></i> Blacklist <span id="blacklistBadge" class="badge-menu">0</span></a>
+                        <a href="#" onclick="openHistoryModal(); return false;"><i class="fas fa-history"></i> Riwayat</a>
+                        <a href="#" onclick="openSettingsModal(); return false;"><i class="fas fa-cog"></i> Pengaturan</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- HEADER APLIKASI & SALDO -->
+        <header class="app-header-container">
+            <div class="header-titles">
+                <h1><span id="headerAppTitle">SMS Code</span> <span id="headerCountryFlag">🇮🇩</span></h1>
+                <p class="subtitle">👤 Akun: <strong id="currentAccountBadge" style="color: var(--primary-color);">Memuat...</strong></p>
+                <span id="currentAccountName" style="display:none;"></span>
+            </div>
+            <div class="balance-container">
+                <div class="balance-badge">
+                    <span class="balance-label">Saldo</span>
+                    <span id="balanceDisplay" class="balance-value">...</span>
+                </div>
+            </div>
+        </header>
+        
+        <!-- SECTION PESANAN AKTIF & DROPDOWN PESANAN LAMA -->
+        <section id="activeOrdersContainer" aria-label="Daftar Pesanan Aktif"></section>
+
+        <!-- SECTION KATALOG: LAYANAN, NEGARA, HARGA & OPERATOR -->
+        <section class="catalog-section" aria-label="Katalog Layanan dan Operator">
+            <div class="catalog-controls-row">
+                <!-- KOLOM 1: LAYANAN -->
+                <div class="control-col">
+                    <label onclick="loadCatalogForCurrentService(true)" class="control-label" style="cursor: pointer; user-select: none;" title="Ketuk untuk muat ulang harga & stok">
+                        Layanan <i id="catalogRefreshIcon" class="fas fa-sync-alt" style="font-size: 9px; margin-left: 2px;"></i>
+                    </label>
+                    <button onclick="openServiceModal()" class="control-btn-selector" aria-label="Pilih Layanan">
+                        <span id="btnServiceSelectText" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">SHOPEE</span>
+                        <i class="fas fa-search" style="font-size: 10px; flex-shrink: 0; margin-left: 4px;"></i>
+                    </button>
+                </div>
+
+                <!-- KOLOM 2: NEGARA (DI ANTARA LAYANAN & HARGA) -->
+                <div class="control-col">
+                    <label class="control-label" style="text-align: center;">Negara</label>
+                    <button onclick="openCountryModal()" class="control-btn-selector" aria-label="Pilih Negara">
+                        <span id="btnCountrySelectText" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">🇮🇩 INDONESIA</span>
+                        <i class="fas fa-globe" style="font-size: 10px; flex-shrink: 0; margin-left: 4px;"></i>
+                    </button>
+                </div>
+
+                <!-- KOLOM 3: PILIH HARGA -->
+                <div class="control-col">
+                    <label for="priceSelect" class="control-label" style="text-align: center;">Pilih Harga</label>
+                    <select id="priceSelect" onchange="handlePriceChange()" class="form-input" style="height: 35px; padding: 0 4px; font-weight: 900; font-size: 11.5px; border-radius: 10px; border: 1px solid var(--border-color); color: var(--primary-color); background-color: var(--bg-card); cursor: pointer; width: 100%; margin: 0; outline: none; text-align: center;">
+                        <option value="">Memuat...</option>
+                    </select>
+                </div>
+            </div>
+
+            <label class="control-label" style="margin-bottom: 5px; flex-shrink: 0;">Pilih Operator</label>
+            <div id="operatorGrid" class="operator-grid">
+                <div class="status-text-mini" style="grid-column: 1 / -1;">Memuat Operator...</div>
+            </div>
+            
+            <button id="btnOrder" class="btn-primary" disabled>Pesan Nomor Baru</button>
+        </section>
+    </main>
+
+    <!-- MODAL PILIH NEGARA -->
+    <div id="countryModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="titleCountryModal">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 id="titleCountryModal" class="modal-title"><i class="fas fa-globe-asia"></i> Pilih Negara</h3>
+                <button onclick="closeCountryModal()" class="btn-danger" style="width: 30px; height: 30px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;" aria-label="Tutup"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <input type="text" id="searchCountryInput" class="form-input" placeholder="🔍 Cari negara atau kode (+62, Indonesia)..." oninput="filterCountries()" style="border-radius: 10px; font-weight: bold;">
+            </div>
+            <div id="countryListContainer" style="overflow-y: auto; flex: 1; padding-right: 4px; text-align: left; display: flex; flex-direction: column;">
+                <div class="status-text-mini">Memuat daftar negara...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PILIH LAYANAN -->
+    <div id="serviceModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="titleServiceModal">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 id="titleServiceModal" class="modal-title"><i class="fas fa-layer-group"></i> Pilih Layanan</h3>
+                <button onclick="closeServiceModal()" class="btn-danger" style="width: 30px; height: 30px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;" aria-label="Tutup"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <input type="text" id="searchServiceInput" class="form-input" placeholder="🔍 Cari layanan (Shopee, WA, dll)..." oninput="filterServices()" style="border-radius: 10px; font-weight: bold;">
+            </div>
+            <div id="serviceListContainer" style="overflow-y: auto; flex: 1; padding-right: 4px; text-align: left; display: flex; flex-direction: column;">
+                <div class="status-text-mini">Memuat layanan...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PENGATURAN: TEMA, NADA NOTIFIKASI & GANTI AKUN -->
+    <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="titleSettingsModal">
+        <div class="modal-content" style="max-height: 88vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 id="titleSettingsModal" class="modal-title"><i class="fas fa-sliders-h"></i> Pengaturan & Akun</h3>
+                <button onclick="closeSettingsModal()" class="btn-danger" style="width: 30px; height: 30px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;" aria-label="Tutup"><i class="fas fa-times"></i></button>
+            </div>
+
+            <!-- PILIHAN TEMA LAYAR -->
+            <div class="settings-section-label">
+                <span><i class="fas fa-palette" style="color: var(--primary-color); margin-right: 4px;"></i> Tema Tampilan</span>
+            </div>
+            <div class="theme-switch-grid">
+                <button id="btnChoiceDay" onclick="applyAppTheme('day')" class="btn-theme-choice">
+                    <i class="fas fa-sun"></i> Siang (Putih-Biru)
+                </button>
+                <button id="btnChoiceNight" onclick="applyAppTheme('night')" class="btn-theme-choice">
+                    <i class="fas fa-moon"></i> Malam (Hitam-Kuning)
+                </button>
+            </div>
+
+            <!-- PENGATURAN NADA NOTIFIKASI OTP -->
+            <div class="settings-section-label">
+                <span><i class="fas fa-volume-up" style="color: var(--primary-color); margin-right: 4px;"></i> Nada Notifikasi OTP</span>
+            </div>
+            <div class="sound-settings-card">
+                <div class="sound-status-row">
+                    <span style="font-size: 10px; color: var(--text-secondary); font-weight: 800; text-transform: uppercase;">Aktif:</span>
+                    <span id="currentSoundLabel" class="sound-current-name">Nada Bawaan (Default)</span>
+                </div>
+                <input type="file" id="soundFileInput" accept="audio/*" class="hidden" onchange="handleSoundFileSelect(event)">
+                <div class="sound-btn-row">
+                    <button onclick="document.getElementById('soundFileInput').click()" class="btn-sound-action primary">
+                        <i class="fas fa-folder-open"></i> File HP
+                    </button>
+                    <button onclick="testNotifSound()" class="btn-sound-action test">
+                        <i class="fas fa-play"></i> Tes Nada
+                    </button>
+                    <button onclick="resetDefaultSound()" class="btn-sound-action">
+                        <i class="fas fa-undo"></i> Default
+                    </button>
+                </div>
+                <div class="sound-url-row">
+                    <input type="url" id="soundUrlInput" class="form-input" placeholder="Tempel link URL audio (https://...mp3)" style="height: 32px; font-size: 11px;">
+                    <button onclick="saveSoundUrl()" class="btn-save-url">Simpan</button>
+                </div>
+            </div>
+            
+            <!-- BANNER AKUN AKTIF -->
+            <div class="settings-active-banner">
+                <div class="settings-active-info">
+                    <span class="label">Akun Aktif Saat Ini</span>
+                    <div class="name"><i class="fas fa-user-check" style="color: var(--primary-color);"></i> <span id="settingsActiveAccountName">-</span></div>
+                </div>
+                <button onclick="refreshAllAccountBalances()" class="btn-top-action" style="width: 32px; height: 32px;" title="Muat Ulang Saldo">
+                    <i id="refreshAccBalIcon" class="fas fa-sync-alt" style="font-size: 12px;"></i>
+                </button>
+            </div>
+
+            <div class="settings-section-label">
+                <span>Daftar Akun Server</span>
+                <span style="font-size: 10px; font-weight: 700; color: var(--primary-color);">Ketuk untuk ganti</span>
+            </div>
+
+            <div id="accountListContainer" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; padding-right: 2px;">
+                <div class="status-text-mini">Memuat daftar akun...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EXTERNAL NOTES -->
+    <div id="iframeNoteModal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-content" style="max-height: 95vh; display: flex; flex-direction: column; padding: 10px; width: 95%; max-width: 450px;">
+            <div class="modal-header" style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: none;">
+                <h3 class="modal-title" style="font-size: 16px;">Catatan</h3>
+                <button onclick="closeIframeNoteModal()" class="btn-danger" style="width: 30px; height: 30px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="flex: 1; border-radius: 12px; overflow: hidden; background: #fff;">
+                <iframe id="notesIframe" src="https://shopee-smscode.github.io/Notes/notes.html" style="width: 100%; height: 100%; border: none; min-height: 65vh; display: block;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL STATISTIK -->
+    <div id="statsModal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-chart-bar"></i> Statistik Harian</h3>
+                <button onclick="closeStatsModal()" class="btn-danger" style="width: 30px; height: 30px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <input type="date" id="statDate" class="form-input" style="margin-bottom:15px; font-weight:bold; text-align:center;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div style="background: rgba(34, 197, 94, 0.1); padding: 15px; border-radius: 12px; text-align: center; border: 1px solid var(--success-color);">
+                    <div style="font-size: 24px; font-weight: 900; color: var(--success-color);" id="statSuccess">0</div>
+                    <div style="font-size: 10px; font-weight: bold; color: var(--text-secondary); text-transform: uppercase;">Sukses OTP</div>
+                </div>
+                <div style="background: rgba(239, 68, 68, 0.1); padding: 15px; border-radius: 12px; text-align: center; border: 1px solid var(--danger-color);">
+                    <div style="font-size: 24px; font-weight: 900; color: var(--danger-color);" id="statFailed">0</div>
+                    <div style="font-size: 10px; font-weight: bold; color: var(--text-secondary); text-transform: uppercase;">Batal / Ganti</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL BLACKLIST -->
+    <div id="blacklistModal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-ban"></i> Database Blacklist</h3>
+                <button onclick="closeBlacklistModal()" class="btn-danger" style="width: 30px; height: 30px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="text-align: center; padding: 10px 0;">
+                <div style="font-size: 48px; font-weight: 900; color: var(--primary-color); margin-bottom: 10px;" id="blacklistDetailCount">0</div>
+                <p style="color: var(--text-primary); font-weight: 700; margin-bottom: 5px; font-size: 14px;">Nomor Terblokir</p>
+                <p style="color: var(--text-secondary); font-size: 12px; line-height: 1.4; margin: 0 5px;">Nomor yang sudah sukses mendapatkan OTP akan diingat dan tercatat di dalam database.</p>
+                <div id="operatorBreakdown" style="margin-top: 15px; text-align: center;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL HISTORY -->
+    <div id="historyModal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-history"></i> Riwayat Pesanan</h3>
+                <button onclick="closeHistoryModal()" class="btn-danger" style="width: 30px; height: 30px; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="history-list" style="overflow-y: auto; flex: 1; padding-right: 5px; text-align: left; display: flex; flex-direction: column; gap: 8px;">
+                <div class="status-text-mini" style="text-align:center;">Belum ada riwayat.</div>
+            </div>
+            <button onclick="clearHistory()" class="btn-danger" style="margin-top: 15px; width: 100%; padding: 12px; border-radius: 12px; font-size: 14px; font-weight: bold;"><i class="fas fa-trash"></i> Hapus Riwayat</button>
+        </div>
+    </div>
+
+    <!-- MODAL KELUAR -->
+    <div id="exitModal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-content">
+            <h3 class="modal-title" style="justify-content: center; margin-bottom: 8px;">Keluar Aplikasi?</h3>
+            <p class="modal-desc">Apakah Anda yakin ingin menutup dan keluar dari aplikasi ini?</p>
+            <div class="modal-actions" style="display:flex; justify-content:space-between; gap:10px;">
+                <button onclick="closeExitModal()" class="btn-primary" style="flex:1; padding:12px; background-color: var(--bg-card); color: var(--text-primary); border-radius: 12px; box-shadow:none;">Batal</button>
+                <button onclick="confirmExit()" class="btn-danger" style="flex:1; padding:12px; border-radius: 12px;">Keluar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite">Notifikasi!</div>
+
+    <script src="smscode.js?v=34"></script>
+</body>
+</html>
