@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>OTP Cepat ⚡ - Layanan Nomor Virtual & OTP Instan</title>
     <meta name="description" content="Aplikasi layanan nomor virtual dan verifikasi SMS OTP Cepat multi-negara dengan pemantauan real-time.">
     <meta name="robots" content="index, follow">
@@ -14,27 +17,35 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="otpcepat.css?v=34">
+    <link rel="stylesheet" href="otpcepat.css?v=36">
     
-    <!-- INISIALISASI TEMA & PENGINGAT APLIKASI (HANYA SMS CODE & OTP CEPAT) -->
+    <!-- INISIALISASI TEMA & PENGINGAT APLIKASI (MENGUNCI FOLDER /SMS%20OTP/) -->
     <script>
         (function() {
             var savedTheme = localStorage.getItem('otp_template_theme') || 'day';
             document.documentElement.setAttribute('data-theme', savedTheme);
 
+            var TARGET_BASE = "https://shopee-smscode.github.io/SMS%20OTP/";
             var lastApp = localStorage.getItem('last_active_app');
             var currentHref = window.location.href;
-            if (!lastApp) {
-                if (currentHref.includes('smscode.html')) localStorage.setItem('last_active_app', 'smscode.html');
-                else if (currentHref.includes('otpcepat.html')) localStorage.setItem('last_active_app', 'otpcepat.html');
-                return;
+
+            if (lastApp !== 'smscode.html' && lastApp !== 'otpcepat.html') {
+                lastApp = currentHref.includes('smscode.html') ? 'smscode.html' : 'otpcepat.html';
+                localStorage.setItem('last_active_app', lastApp);
             }
-            if (lastApp && !currentHref.includes(lastApp) && !sessionStorage.getItem('just_switched')) {
+
+            var isCorrectPath = currentHref.includes('/SMS%20OTP/' + lastApp) || currentHref.includes('/SMS OTP/' + lastApp);
+            if (!isCorrectPath && !sessionStorage.getItem('just_switched')) {
                 sessionStorage.setItem('just_switched', 'true');
-                if (lastApp === 'smscode.html') window.location.replace("https://shopee-smscode.github.io/SMS%20Code/smscode.html");
-                else if (lastApp === 'otpcepat.html') window.location.replace("https://shopee-smscode.github.io/OTP%20Cepat/otpcepat.html");
+                window.location.replace(TARGET_BASE + lastApp + "?v=36&t=" + Date.now());
             }
         })();
+
+        function switchAppTo(fileName) {
+            localStorage.setItem('last_active_app', fileName);
+            sessionStorage.setItem('just_switched', 'true');
+            window.location.replace("https://shopee-smscode.github.io/SMS%20OTP/" + fileName + "?v=36&t=" + Date.now());
+        }
     </script>
 </head>
 <body class="theme-day">
@@ -49,8 +60,8 @@
                     </button>
                     <!-- HANYA SMS CODE DAN OTP CEPAT -->
                     <div id="appDropdown" class="dropdown-content">
-                        <a href="https://shopee-smscode.github.io/SMS%20OTP/smscode.html" onclick="localStorage.setItem('last_active_app', 'smscode.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-sms"></i> SMS Code</a>
-                        <a href="https://shopee-smscode.github.io/SMS%20OTP/otpcepat.html" class="active" onclick="localStorage.setItem('last_active_app', 'otpcepat.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-rocket"></i> OTP Cepat</a>
+                        <a href="https://shopee-smscode.github.io/SMS%20OTP/smscode.html" onclick="switchAppTo('smscode.html'); return false;"><i class="fas fa-sms"></i> SMS Code</a>
+                        <a href="https://shopee-smscode.github.io/SMS%20OTP/otpcepat.html" class="active" onclick="switchAppTo('otpcepat.html'); return false;"><i class="fas fa-rocket"></i> OTP Cepat</a>
                     </div>
                 </div>
             </div>
@@ -323,6 +334,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite">Notifikasi!</div>
 
-    <script src="otpcepat.js?v=34"></script>
+    <script src="otpcepat.js?v=36"></script>
 </body>
 </html>

@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>SMS Code Pro 🇮🇩 - Layanan Nomor Virtual & OTP Instan</title>
     <meta name="description" content="Aplikasi layanan nomor virtual dan verifikasi SMS OTP instan multi-negara dengan pemantauan real-time.">
     <meta name="robots" content="index, follow">
@@ -14,31 +17,35 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="smscode.css?v=34">
+    <link rel="stylesheet" href="smscode.css?v=36">
     
-    <!-- INISIALISASI TEMA CEPAT (ANTI KEDIP SAAT LOAD) & AUTO-REDIRECT -->
+    <!-- INISIALISASI TEMA & PENGINGAT APLIKASI (MENGUNCI FOLDER /SMS%20OTP/) -->
     <script>
         (function() {
             var savedTheme = localStorage.getItem('otp_template_theme') || 'day';
             document.documentElement.setAttribute('data-theme', savedTheme);
 
+            var TARGET_BASE = "https://shopee-smscode.github.io/SMS%20OTP/";
             var lastApp = localStorage.getItem('last_active_app');
             var currentHref = window.location.href;
-            if (!lastApp) {
-                if (currentHref.includes('virtualsms.html')) localStorage.setItem('last_active_app', 'virtualsms.html');
-                else if (currentHref.includes('herosms.html')) localStorage.setItem('last_active_app', 'herosms.html');
-                else if (currentHref.includes('smscode.html')) localStorage.setItem('last_active_app', 'smscode.html');
-                else if (currentHref.includes('otpcepat.html')) localStorage.setItem('last_active_app', 'otpcepat.html');
-                return;
+
+            if (lastApp !== 'smscode.html' && lastApp !== 'otpcepat.html') {
+                lastApp = currentHref.includes('otpcepat.html') ? 'otpcepat.html' : 'smscode.html';
+                localStorage.setItem('last_active_app', lastApp);
             }
-            if (lastApp && !currentHref.includes(lastApp) && !sessionStorage.getItem('just_switched')) {
+
+            var isCorrectPath = currentHref.includes('/SMS%20OTP/' + lastApp) || currentHref.includes('/SMS OTP/' + lastApp);
+            if (!isCorrectPath && !sessionStorage.getItem('just_switched')) {
                 sessionStorage.setItem('just_switched', 'true');
-                if (lastApp === 'virtualsms.html') window.location.replace("https://shopee-smscode.github.io/Virtual%20SMS/virtualsms.html");
-                else if (lastApp === 'herosms.html') window.location.replace("https://shopee-smscode.github.io/Hero%20SMS/herosms.html");
-                else if (lastApp === 'smscode.html') window.location.replace("https://shopee-smscode.github.io/SMS%20Code/smscode.html");
-                else if (lastApp === 'otpcepat.html') window.location.replace("https://shopee-smscode.github.io/OTP%20Cepat/otpcepat.html");
+                window.location.replace(TARGET_BASE + lastApp + "?v=36&t=" + Date.now());
             }
         })();
+
+        function switchAppTo(fileName) {
+            localStorage.setItem('last_active_app', fileName);
+            sessionStorage.setItem('just_switched', 'true');
+            window.location.replace("https://shopee-smscode.github.io/SMS%20OTP/" + fileName + "?v=36&t=" + Date.now());
+        }
     </script>
 </head>
 <body class="theme-day">
@@ -51,14 +58,19 @@
                     <button class="dropbtn" onclick="toggleAppDropdown()" aria-label="Pilih Aplikasi SMS">
                         <i class="fas fa-sms"></i> <span id="navAppTitle">SMS Code</span> <i class="fas fa-caret-down" style="font-size: 10px; margin-left: 2px;"></i>
                     </button>
+                    <!-- HANYA SMS CODE DAN OTP CEPAT -->
                     <div id="appDropdown" class="dropdown-content">
-                        <a href="https://shopee-smscode.github.io/SMS%20OTP/smscode.html" class="active" onclick="localStorage.setItem('last_active_app', 'smscode.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-sms"></i> SMS Code</a>
-                        <a href="https://shopee-smscode.github.io/SMS%20OTP/otpcepat.html" onclick="localStorage.setItem('last_active_app', 'otpcepat.html'); sessionStorage.setItem('just_switched', 'true');"><i class="fas fa-rocket"></i> OTP Cepat</a>
+                        <a href="https://shopee-smscode.github.io/SMS%20OTP/smscode.html" class="active" onclick="switchAppTo('smscode.html'); return false;"><i class="fas fa-sms"></i> SMS Code</a>
+                        <a href="https://shopee-smscode.github.io/SMS%20OTP/otpcepat.html" onclick="switchAppTo('otpcepat.html'); return false;"><i class="fas fa-rocket"></i> OTP Cepat</a>
                     </div>
                 </div>
             </div>
             
             <div style="display: flex; gap: 6px; align-items: center;">
+                <!-- TOMBOL TOGGLE SIMULASI OTP MASUK -->
+                <button onclick="toggleSimulateOtpIncoming()" class="btn-top-action" id="btnSimulateOtpTop" title="Simulasi OTP Masuk (On/Off)" aria-label="Simulasi OTP Masuk">
+                    <i class="fas fa-bolt"></i>
+                </button>
                 <!-- TOMBOL GANTI TEMA SIANG (PUTIH-BIRU) / MALAM (HITAM-KUNING) -->
                 <button onclick="toggleDayNightTheme()" class="btn-top-action" id="btnThemeToggle" title="Ganti Tema Siang/Malam" aria-label="Ganti Tema">
                     <i id="themeToggleIcon" class="fas fa-moon"></i>
@@ -75,6 +87,7 @@
                         <i class="fas fa-bars"></i>
                     </button>
                     <div id="menuDropdown" class="dropdown-content dropdown-right">
+                        <a href="#" onclick="toggleSimulateOtpIncoming(); return false;"><i class="fas fa-vial"></i> Simulasi OTP</a>
                         <a href="#" onclick="openStatsModal(); return false;"><i class="fas fa-chart-bar"></i> Statistik</a>
                         <a href="#" onclick="openBlacklistModal(); return false;" style="position: relative;"><i class="fas fa-ban"></i> Blacklist <span id="blacklistBadge" class="badge-menu">0</span></a>
                         <a href="#" onclick="openHistoryModal(); return false;"><i class="fas fa-history"></i> Riwayat</a>
@@ -175,7 +188,7 @@
         </div>
     </div>
 
-    <!-- MODAL PENGATURAN: TEMA, NADA NOTIFIKASI & GANTI AKUN -->
+    <!-- MODAL PENGATURAN: TEMA, SIMULASI OTP, NADA NOTIFIKASI & GANTI AKUN -->
     <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="titleSettingsModal">
         <div class="modal-content" style="max-height: 88vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -193,6 +206,17 @@
                 </button>
                 <button id="btnChoiceNight" onclick="applyAppTheme('night')" class="btn-theme-choice">
                     <i class="fas fa-moon"></i> Malam (Hitam-Kuning)
+                </button>
+            </div>
+
+            <!-- TOGGLE SIMULASI OTP MASUK -->
+            <div class="settings-section-label">
+                <span><i class="fas fa-vial" style="color: var(--primary-color); margin-right: 4px;"></i> Mode Simulasi OTP Masuk</span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 9px 12px; border-radius: 11px; border: 1px solid var(--border-color); margin-bottom: 12px; flex-shrink: 0;">
+                <span style="font-size: 11.5px; font-weight: 800; color: var(--text-primary);">Tampilkan Pesanan & OTP Simulasi</span>
+                <button id="btnSettingsSimToggle" onclick="toggleSimulateOtpIncoming()" class="btn-sound-action primary" style="padding: 0 12px; height: 30px;">
+                    <i class="fas fa-bolt"></i> <span id="lblSimStatus">NONAKTIF</span>
                 </button>
             </div>
 
@@ -323,6 +347,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite">Notifikasi!</div>
 
-    <script src="smscode.js?v=34"></script>
+    <script src="smscode.js?v=36"></script>
 </body>
 </html>

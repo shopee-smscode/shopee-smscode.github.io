@@ -2,7 +2,7 @@
    KONFIGURASI UTAMA TEMPLATE (UBAH BAGIAN INI UNTUK APLIKASI SMS BARU)
    ========================================================================== */
 const APP_CONFIG = {
-    appKey: "smscode", // Gunakan kode unik (misal: "smscode", "herosms", "virtualsms") agar storage tidak bentrok
+    appKey: "smscode",
     appName: "SMS Code",
     baseUrl: "https://sms-code-proxy.masreno6pro.workers.dev",
     topupUrl: "https://smscode.gg/dashboard",
@@ -10,7 +10,7 @@ const APP_CONFIG = {
     defaultCountryEmoji: "🇮🇩",
     defaultCountryDial: "62",
     defaultServiceName: "Shopee",
-    defaultTheme: "day", // "day" (Putih-Biru) atau "night" (Hitam-Kuning)
+    defaultTheme: "day",
     defaultSoundUrl: "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
 };
 
@@ -106,6 +106,7 @@ let timerWorker = null;
 let pollingInterval = null;
 let isPolling = false;
 let isDroplistOpen = false;
+let isSimulatingOtp = false;
 let orderHistory = [];
 let usedNumbersDB = new Set();
 
@@ -327,6 +328,7 @@ window.openSettingsModal = function() {
     if (activeLabel) activeLabel.innerText = activeAccountName || "Belum dipilih";
     loadCustomNotificationSound();
     initTheme();
+    updateSimToggleButtonUI();
     document.getElementById('settingsModal').classList.remove('hidden');
     history.pushState(null, null, "#settings");
     renderAccountListInSettings();
@@ -1425,6 +1427,7 @@ function renderOrders() {
 
     fragment.appendChild(wrapper);
     activeOrdersContainer.replaceChildren(fragment);
+    updateSimToggleButtonUI();
 }
 
 // === WEB WORKER TIMER & PENGECEKAN WAKTU HABIS ===
@@ -1435,14 +1438,16 @@ function forceCheckOverdueOrders() {
         let o = activeOrders[i];
         const left = o.expiresAt - now;
         if (left <= 0) {
-            if (o.isResent || o.hasReceivedOTP || o.otp) {
-                apiCall('/orders/finish', 'POST', { id: parseInt(o.id) }).catch(() => {});
-                saveToHistory(o, "SELESAI");
-                recordStat('success');
-            } else {
-                apiCall('/orders/cancel', 'POST', { id: parseInt(o.id) }).catch(() => {});
-                saveToHistory(o, "BATAL");
-                recordStat('failed');
+            if (!String(o.id).startsWith('SIM')) {
+                if (o.isResent || o.hasReceivedOTP || o.otp) {
+                    apiCall('/orders/finish', 'POST', { id: parseInt(o.id) }).catch(() => {});
+                    saveToHistory(o, "SELESAI");
+                    recordStat('success');
+                } else {
+                    apiCall('/orders/cancel', 'POST', { id: parseInt(o.id) }).catch(() => {});
+                    saveToHistory(o, "BATAL");
+                    recordStat('failed');
+                }
             }
             activeOrders.splice(i, 1);
             needsSave = true;
@@ -1462,14 +1467,16 @@ function startTimerTick() {
             const timerElement = document.getElementById(`timer-${order.id}`);
             
             if (timeLeft <= 0) { 
-                if (order.isResent || order.hasReceivedOTP || order.otp) {
-                    apiCall('/orders/finish', 'POST', { id: parseInt(order.id) }).catch(() => {});
-                    saveToHistory(order, "SELESAI");
-                    recordStat('success');
-                } else {
-                    apiCall('/orders/cancel', 'POST', { id: parseInt(order.id) }).catch(() => {});
-                    saveToHistory(order, "BATAL");
-                    recordStat('failed');
+                if (!String(order.id).startsWith('SIM')) {
+                    if (order.isResent || order.hasReceivedOTP || order.otp) {
+                        apiCall('/orders/finish', 'POST', { id: parseInt(order.id) }).catch(() => {});
+                        saveToHistory(order, "SELESAI");
+                        recordStat('success');
+                    } else {
+                        apiCall('/orders/cancel', 'POST', { id: parseInt(order.id) }).catch(() => {});
+                        saveToHistory(order, "BATAL");
+                        recordStat('failed');
+                    }
                 }
                 activeOrders.splice(i, 1); 
                 needsSave = true;
@@ -1485,7 +1492,7 @@ function startTimerTick() {
                 else timerElement.style.color = "var(--text-primary)";
             }
             
-            if (timeLeft <= 600000 && !order.hasReceivedOTP && !order.otp && !order.isResent && !order.isAutoCanceling) { 
+            if (timeLeft <= 600000 && !String(order.id).startsWith('SIM') && !order.hasReceivedOTP && !order.otp && !order.isResent && !order.isAutoCanceling) { 
                 order.isAutoCanceling = true; 
                 cancelSpecificOrder(order.id, true); 
             }
@@ -1531,12 +1538,16 @@ function startPolling() {
     
     const runPoll = async () => {
         if (isPolling || activeOrders.length === 0) return;
+        const realOrders = activeOrders.filter(o => !String(o.id).startsWith('SIM'));
+        if (realOrders.length === 0) return;
+
         isPolling = true;
         try {
             const res = await apiCall('/orders/active');
             if (res.success && Array.isArray(res.data)) {
                 let changed = false;
                 activeOrders.forEach(localOrder => {
+                    if (String(localOrder.id).startsWith('SIM')) return;
                     if (localOrder.status === "Recieved" || localOrder.status === "Done" || localOrder.otp) return;
 
                     const srvOrder = res.data.find(s => String(s.id) === String(localOrder.id));
@@ -1595,6 +1606,30 @@ function startPolling() {
 
 // === AKSI ORDER: GANTI, ULANG, BATAL, BATAL SEMUA, SELESAI ===
 window.replaceSpecificOrder = async function(orderId, productId) {
+    // Jika ini adalah kartu Simulasi, ganti nomor simulasi secara instan
+    if (String(orderId).startsWith('SIM')) {
+        const idx = activeOrders.findIndex(o => String(o.id) === String(orderId));
+        if (idx !== -1) {
+            activeOrders[idx].phone = "62813" + Math.floor(10000000 + Math.random() * 90000000);
+            activeOrders[idx].otp = null;
+            activeOrders[idx].status = "Waiting SMS";
+            saveToStorage();
+            copyToClipboard(activeOrders[idx].phone, "Nomor simulasi diganti & disalin!");
+            setTimeout(() => {
+                if (activeOrders[idx] && String(activeOrders[idx].id) === String(orderId)) {
+                    const fakeCode = String(Math.floor(100000 + Math.random() * 900000));
+                    activeOrders[idx].status = "Recieved";
+                    activeOrders[idx].otp = fakeCode;
+                    activeOrders[idx].hasReceivedOTP = true;
+                    playNotifSound();
+                    saveToStorage();
+                    showToast("⚡ Simulasi: Kode OTP Baru Masuk!");
+                }
+            }, 1500);
+        }
+        return;
+    }
+
     const btn = document.getElementById(`btn-replace-${orderId}`); 
     const targetProductId = selectedProductId || ((productId && productId !== 'null') ? productId : null);
     if (!targetProductId) return showToast("Pilih harga/operator terlebih dahulu.", "error"); 
@@ -1674,6 +1709,34 @@ window.replaceSpecificOrder = async function(orderId, productId) {
 };
 
 window.resendSpecificOrder = async function(id) {
+    // Jika kartu Simulasi, simulasikan minta ulang SMS kedua dalam 1.5 detik
+    if (String(id).startsWith('SIM')) {
+        let idx = activeOrders.findIndex(o => String(o.id) === String(id));
+        if (idx !== -1) {
+            saveToHistory({ ...activeOrders[idx] }, "MINTA ULANG");
+            activeOrders[idx].status = "Waiting SMS";
+            activeOrders[idx].otp = null;
+            activeOrders[idx].hasReceivedOTP = false;
+            activeOrders[idx].isResent = true;
+            saveToStorage();
+            showToast("⚡ Simulasi: Meminta ulang kode SMS...");
+            setTimeout(() => {
+                let target = activeOrders.find(o => String(o.id) === String(id));
+                if (target) {
+                    const fakeCode2 = String(Math.floor(100000 + Math.random() * 900000));
+                    target.status = "Recieved";
+                    target.otp = fakeCode2;
+                    target.lastOtp = fakeCode2;
+                    target.hasReceivedOTP = true;
+                    playNotifSound();
+                    saveToStorage();
+                    showToast("⚡ Simulasi: Kode OTP Kedua Masuk!");
+                }
+            }, 1500);
+        }
+        return;
+    }
+
     const btnResend = document.getElementById(`btn-resend-${id}`);
     if (btnResend) { btnResend.disabled = true; btnResend.innerHTML = '<div class="loader"></div>'; }
     
@@ -1705,12 +1768,27 @@ window.resendSpecificOrder = async function(id) {
 };
 
 window.finishSpecificOrder = async function(orderId) {
-    const btn = document.getElementById(`btn-finish-${orderId}`);
-    if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
-
     let oIdx = activeOrders.findIndex(x => String(x.id) === String(orderId));
     if (oIdx === -1) return;
     let orderToSave = activeOrders[oIdx];
+
+    // Jika kartu Simulasi, selesaikan langsung tanpa panggil API
+    if (String(orderId).startsWith('SIM')) {
+        isSimulatingOtp = false;
+        saveToHistory(orderToSave, "SELESAI");
+        const card = document.getElementById(`order-card-${orderId}`);
+        if (card) card.classList.add('removing');
+        setTimeout(() => {
+            activeOrders = activeOrders.filter(o => String(o.id) !== String(orderId));
+            if (activeOrders.length <= 1) isDroplistOpen = false;
+            saveToStorage();
+            showToast("⚡ Simulasi Pesanan Selesai");
+        }, 220);
+        return;
+    }
+
+    const btn = document.getElementById(`btn-finish-${orderId}`);
+    if (btn) { btn.disabled = true; btn.innerHTML = '<div class="loader"></div>'; }
 
     try {
         const res = await apiCall('/orders/finish', 'POST', { id: parseInt(orderId) });
@@ -1741,6 +1819,22 @@ window.finishSpecificOrder = async function(orderId) {
 };
 
 window.cancelSpecificOrder = async function(id, auto = false) {
+    // Jika kartu Simulasi, batalkan langsung tanpa panggil API
+    if (String(id).startsWith('SIM')) {
+        isSimulatingOtp = false;
+        const oldOrder = activeOrders.find(o => String(o.id) === String(id));
+        if (oldOrder) saveToHistory(oldOrder, "BATAL");
+        const card = document.getElementById(`order-card-${id}`);
+        if (card) card.classList.add('removing');
+        setTimeout(() => {
+            activeOrders = activeOrders.filter(o => String(o.id) !== String(id));
+            if (activeOrders.length <= 1) isDroplistOpen = false;
+            saveToStorage();
+            showToast("⚡ Simulasi Pesanan Dibatalkan");
+        }, 220);
+        return;
+    }
+
     const btnCancel = document.getElementById(`btn-cancel-${id}`); 
     if (btnCancel) { btnCancel.disabled = true; btnCancel.innerHTML = '<div class="loader"></div>'; }
     try { 
@@ -1785,6 +1879,10 @@ window.cancelAllOldOrders = async function() {
     showToast(`Membatalkan ${oldOrders.length} pesanan lama...`, "warning");
 
     const cancelPromises = oldOrders.map(async (order) => {
+        if (String(order.id).startsWith('SIM')) {
+            saveToHistory(order, "BATAL");
+            return order.id;
+        }
         try {
             const res = await apiCall('/orders/cancel', 'POST', { id: parseInt(order.id) });
             if (res.success || (res.error && res.error.code === 'NOT_FOUND')) {
@@ -1812,6 +1910,80 @@ window.cancelAllOldOrders = async function() {
         showToast("Belum ada pesanan lama yang melewati batas waktu batal (2 menit).", "error");
         if (btnAll) { btnAll.disabled = false; btnAll.innerHTML = `<i class="fas fa-trash-alt"></i> Batalkan Semua Pesanan Lama`; }
     }
+};
+
+// === FITUR TOGGLE SIMULASI OTP MASUK ===
+function updateSimToggleButtonUI() {
+    const hasSimOrder = activeOrders.some(o => String(o.id).startsWith('SIM'));
+    isSimulatingOtp = hasSimOrder;
+    const btnTop = document.getElementById('btnSimulateOtpTop');
+    const lblStatus = document.getElementById('lblSimStatus');
+
+    if (btnTop) {
+        btnTop.style.backgroundColor = hasSimOrder ? 'var(--success-color)' : 'var(--bg-card)';
+        btnTop.style.color = hasSimOrder ? '#ffffff' : 'var(--primary-color)';
+        btnTop.style.borderColor = hasSimOrder ? 'var(--success-color)' : 'var(--border-color)';
+    }
+    if (lblStatus) {
+        lblStatus.innerText = hasSimOrder ? 'AKTIF' : 'NONAKTIF';
+    }
+}
+
+window.toggleSimulateOtpIncoming = function() {
+    const existingSim = activeOrders.find(o => String(o.id).startsWith('SIM'));
+    if (existingSim) {
+        isSimulatingOtp = false;
+        activeOrders = activeOrders.filter(o => !String(o.id).startsWith('SIM'));
+        if (activeOrders.length <= 1) isDroplistOpen = false;
+        saveToStorage();
+        showToast("Simulasi OTP dimatikan", "warning");
+        return;
+    }
+
+    isSimulatingOtp = true;
+    const simId = "SIM" + Math.floor(1000 + Math.random() * 9000);
+    const nowMs = Date.now();
+    const simPrice = lastSelectedPriceVal || 435;
+
+    activeOrders.unshift({
+        id: simId,
+        productId: selectedProductId || 0,
+        countryId: currentCountryId,
+        countryName: currentCountryName,
+        serviceName: currentServiceName || "Shopee",
+        operatorName: "Telkomsel",
+        phone: "62812" + Math.floor(10000000 + Math.random() * 90000000),
+        price: simPrice,
+        otp: null,
+        lastOtp: null,
+        smsRevision: 0,
+        lastSmsRevision: 0,
+        status: "Waiting SMS",
+        createdAt: nowMs,
+        expiresAt: nowMs + (20 * 60 * 1000),
+        cancelUnlockTime: nowMs,
+        hasReceivedOTP: false,
+        isResent: false,
+        isAutoCanceling: false
+    });
+
+    saveToStorage();
+    startTimerTick();
+    showToast("⚡ Simulasi dimulai: Menunggu SMS (1.5 detik)...");
+
+    setTimeout(() => {
+        const target = activeOrders.find(o => String(o.id) === simId);
+        if (target) {
+            const fakeCode = String(Math.floor(100000 + Math.random() * 900000));
+            target.status = "Recieved";
+            target.otp = fakeCode;
+            target.lastOtp = fakeCode;
+            target.hasReceivedOTP = true;
+            playNotifSound();
+            saveToStorage();
+            showToast("⚡ Simulasi: Kode OTP Masuk!");
+        }
+    }, 1500);
 };
 
 // === INISIALISASI PARALEL ===
