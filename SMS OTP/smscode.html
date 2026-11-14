@@ -17,35 +17,66 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="smscode.css?v=36">
+    <link rel="stylesheet" href="smscode.css?v=37">
     
-    <!-- INISIALISASI TEMA & PENGINGAT APLIKASI (MENGUNCI FOLDER /SMS%20OTP/) -->
+    <!-- SISTEM PENGINGAT APLIKASI TERAKHIR (LOCALSTORAGE + COOKIE 1 TAHUN) -->
     <script>
+        var TARGET_BASE_URL = "https://shopee-smscode.github.io/SMS%20OTP/";
+        var CURRENT_APP_FILE = "smscode.html";
+
+        function saveLastActiveApp(appName) {
+            try { localStorage.setItem('last_active_app', appName); } catch (e) {}
+            try { document.cookie = "last_active_app=" + encodeURIComponent(appName) + "; path=/; max-age=31536000; SameSite=Lax"; } catch (e) {}
+        }
+
+        function getLastActiveApp() {
+            var app = null;
+            try { app = localStorage.getItem('last_active_app'); } catch (e) {}
+            if (app !== 'smscode.html' && app !== 'otpcepat.html') {
+                var match = document.cookie.match(/(?:^|;\s*)last_active_app=([^;]*)/);
+                if (match) app = decodeURIComponent(match[1]);
+            }
+            return (app === 'smscode.html' || app === 'otpcepat.html') ? app : null;
+        }
+
+        function switchAppTo(fileName) {
+            saveLastActiveApp(fileName);
+            window.location.replace(TARGET_BASE_URL + fileName + "?switch=" + fileName + "&v=37&t=" + Date.now());
+        }
+
         (function() {
             var savedTheme = localStorage.getItem('otp_template_theme') || 'day';
             document.documentElement.setAttribute('data-theme', savedTheme);
 
-            var TARGET_BASE = "https://shopee-smscode.github.io/SMS%20OTP/";
-            var lastApp = localStorage.getItem('last_active_app');
-            var currentHref = window.location.href;
+            var urlParams = new URLSearchParams(window.location.search);
+            var switchedTarget = urlParams.get('switch');
 
-            if (lastApp !== 'smscode.html' && lastApp !== 'otpcepat.html') {
-                lastApp = currentHref.includes('otpcepat.html') ? 'otpcepat.html' : 'smscode.html';
-                localStorage.setItem('last_active_app', lastApp);
+            // 1. Jika baru saja diklik dari menu dropdown ganti aplikasi, kunci pilihan ini
+            if (switchedTarget === 'smscode.html' || switchedTarget === 'otpcepat.html') {
+                saveLastActiveApp(switchedTarget);
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState(null, "", window.location.pathname);
+                }
+                return;
             }
 
-            var isCorrectPath = currentHref.includes('/SMS%20OTP/' + lastApp) || currentHref.includes('/SMS OTP/' + lastApp);
-            if (!isCorrectPath && !sessionStorage.getItem('just_switched')) {
-                sessionStorage.setItem('just_switched', 'true');
-                window.location.replace(TARGET_BASE + lastApp + "?v=36&t=" + Date.now());
+            // 2. Jika aplikasi dibuka dari ikon HP / WebView / Bookmark, cek aplikasi terakhir
+            var lastApp = getLastActiveApp();
+            if (!lastApp) {
+                saveLastActiveApp(CURRENT_APP_FILE);
+                return;
             }
+
+            // 3. Jika aplikasi terakhir bukan halaman ini, langsung alihkan tanpa syarat!
+            if (lastApp !== CURRENT_APP_FILE) {
+                window.location.replace(TARGET_BASE_URL + lastApp + "?v=37&t=" + Date.now());
+                return;
+            }
+
+            // 4. Pastikan tersimpan kembali saat halaman aktif atau ditutup
+            saveLastActiveApp(CURRENT_APP_FILE);
+            window.addEventListener('pagehide', function() { saveLastActiveApp(CURRENT_APP_FILE); });
         })();
-
-        function switchAppTo(fileName) {
-            localStorage.setItem('last_active_app', fileName);
-            sessionStorage.setItem('just_switched', 'true');
-            window.location.replace("https://shopee-smscode.github.io/SMS%20OTP/" + fileName + "?v=36&t=" + Date.now());
-        }
     </script>
 </head>
 <body class="theme-day">
@@ -60,8 +91,8 @@
                     </button>
                     <!-- HANYA SMS CODE DAN OTP CEPAT -->
                     <div id="appDropdown" class="dropdown-content">
-                        <a href="https://shopee-smscode.github.io/SMS%20OTP/smscode.html" class="active" onclick="switchAppTo('smscode.html'); return false;"><i class="fas fa-sms"></i> SMS Code</a>
-                        <a href="https://shopee-smscode.github.io/SMS%20OTP/otpcepat.html" onclick="switchAppTo('otpcepat.html'); return false;"><i class="fas fa-rocket"></i> OTP Cepat</a>
+                        <a href="https://shopee-smscode.github.io/SMS%20OTP/smscode.html?switch=smscode.html" class="active" onclick="switchAppTo('smscode.html'); return false;"><i class="fas fa-sms"></i> SMS Code</a>
+                        <a href="https://shopee-smscode.github.io/SMS%20OTP/otpcepat.html?switch=otpcepat.html" onclick="switchAppTo('otpcepat.html'); return false;"><i class="fas fa-rocket"></i> OTP Cepat</a>
                     </div>
                 </div>
             </div>
@@ -347,6 +378,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite">Notifikasi!</div>
 
-    <script src="smscode.js?v=36"></script>
+    <script src="smscode.js?v=37"></script>
 </body>
 </html>
