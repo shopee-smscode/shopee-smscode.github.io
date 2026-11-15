@@ -399,7 +399,7 @@
         }
         .btn-open-column:active { transform: scale(0.96); }
 
-        /* Kartu Item Produk - Lebar Penuh Tanpa Terhimpit Tombol X */
+        /* Kartu Item Produk */
         .product-item {
             position: relative;
             width: 100%;
@@ -408,10 +408,10 @@
 
         .btn-product-link {
             width: 100%;
-            min-height: 64px;
+            min-height: 68px;
             border: 1px solid rgba(0, 0, 0, 0.08);
             color: #1e293b;
-            padding: 18px 6px 7px 6px;
+            padding: 18px 22px 18px 6px;
             border-radius: 9px;
             cursor: pointer;
             box-shadow: 0 1px 2px rgba(0,0,0,0.03);
@@ -426,6 +426,10 @@
         .btn-product-link:active:not(.flagged):not(.flagged-green) {
             transform: scale(0.97);
             filter: brightness(0.95);
+        }
+
+        .btn-product-link.checked-item:not(.flagged):not(.flagged-green) {
+            border: 1.5px solid var(--success-green);
         }
         
         .btn-product-link.flagged {
@@ -513,6 +517,42 @@
             border-color: var(--danger-red);
         }
         .btn-flag.pending {
+            background: var(--warning-orange);
+            color: white;
+            border-color: var(--warning-orange);
+            width: 22px;
+            height: 20px;
+            font-size: 10px;
+        }
+
+        /* Tombol Checkbox Pojok Kanan Bawah Kartu Produk (Default Kotak Kosong) */
+        .btn-check {
+            position: absolute;
+            bottom: 3px;
+            right: 3px;
+            width: 18px;
+            height: 18px;
+            border-radius: 5px;
+            border: 1.5px solid rgba(100, 116, 139, 0.45);
+            background: rgba(255, 255, 255, 0.9);
+            color: transparent;
+            font-weight: 900;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            padding: 0;
+            z-index: 2;
+            transition: 0.15s;
+        }
+        .btn-check:active { transform: scale(0.9); }
+        .btn-check.active {
+            background: var(--success-green);
+            color: white;
+            border-color: var(--success-green);
+        }
+        .btn-check.pending {
             background: var(--warning-orange);
             color: white;
             border-color: var(--warning-orange);
@@ -645,7 +685,7 @@
         }
         .btn-chip:active { background: var(--shopee-orange-soft); color: var(--shopee-orange); }
 
-        /* ================= EDITOR VISUAL ================= */
+        /* ================= EDITOR VISUAL (1 SWIPE = 1 TOKO) ================= */
         .editor-btn {
             background: var(--surface-muted);
             border: 1px solid var(--border-color);
@@ -660,13 +700,14 @@
 
         #editorBody {
             display: flex;
-            overflow-x: auto;
+            overflow-x: hidden;
             overflow-y: hidden;
             scroll-snap-type: x mandatory;
             gap: 12px;
             flex: 1;
             padding-bottom: 6px;
-            scroll-behavior: smooth;
+            position: relative;
+            touch-action: pan-y;
         }
         #editorBody::-webkit-scrollbar { height: 6px; }
         #editorBody::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
@@ -679,6 +720,7 @@
             flex: 0 0 100%; 
             width: 100%;
             scroll-snap-align: center;
+            scroll-snap-stop: always;
             max-height: 100%;
             overflow-y: auto;
             display: flex;
@@ -754,7 +796,7 @@
                     <span>Generator Identitas & Alamat</span>
                 </h2>
                 <div style="display: flex; align-items: center; gap: 6px;">
-                    <span class="badge-info" id="activeProvCountBadge">6 Provinsi</span>
+                    <span class="badge-info" id="activeProvCountBadge">Memuat...</span>
                     <button class="btn-icon-soft" onclick="openAddressSettingsModal()" title="Pengaturan Wilayah">
                         <i class="fas fa-sliders-h"></i> Wilayah
                     </button>
@@ -762,7 +804,7 @@
             </div>
             
             <div class="address-box-wrapper">
-                <textarea id="resultArea" readonly placeholder="Tunggu, mengunduh database nama dari Firebase..." title="Ketuk untuk menyalin ulang alamat"></textarea>
+                <textarea id="resultArea" readonly placeholder="Tunggu, mengunduh database nama & filter wilayah dari Firebase..." title="Ketuk untuk menyalin ulang alamat"></textarea>
                 <span class="copy-hint-badge"><i class="far fa-copy"></i> Ketuk kotak untuk salin ulang</span>
             </div>
 
@@ -877,12 +919,16 @@
                 <button class="btn-close-modal" onclick="closeEditorModal()">✖</button>
             </div>
             
-            <!-- Area Geser Samping -->
+            <!-- Area Geser Samping (Terkunci 1 Swipe = 1 Toko) -->
             <div id="editorBody"></div>
 
             <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;">
-                <div style="text-align: center; font-size: 11px; color: var(--text-muted); font-weight: 700;">
-                    <i class="fas fa-arrows-alt-h"></i> Geser kartu ke samping untuk berpindah toko
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                    <button type="button" class="editor-btn" onclick="stepEditorStore(-1)" style="padding: 6px 12px;"><i class="fas fa-chevron-left"></i> Sebelumnya</button>
+                    <div id="editorStoreIndicator" style="text-align: center; font-size: 11px; color: var(--text-muted); font-weight: 700;">
+                        Geser 1x untuk 1 toko
+                    </div>
+                    <button type="button" class="editor-btn" onclick="stepEditorStore(1)" style="padding: 6px 12px;">Berikutnya <i class="fas fa-chevron-right"></i></button>
                 </div>
                 <button class="btn-main-large btn-generate" style="padding: 12px;" onclick="saveEditorData()">💾 SIMPAN & SINKRONKAN KE 15 HP</button>
             </div>
@@ -946,6 +992,33 @@
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(teks).catch(() => {});
                 berhasil = true;
+            }
+
+            return berhasil;
+        }
+
+        // Fungsi khusus menyalin persis apa yang tampil di kotak #resultArea
+        function salinDariKotakAlamat() {
+            const area = document.getElementById("resultArea");
+            if (!area || !area.value) return false;
+            const teksDiLayar = area.value;
+            let berhasil = false;
+
+            try {
+                area.focus();
+                area.select();
+                area.setSelectionRange(0, teksDiLayar.length);
+                berhasil = document.execCommand('copy');
+                window.getSelection().removeAllRanges();
+                area.blur();
+            } catch (err) {
+                berhasil = false;
+            }
+
+            if (!berhasil) {
+                berhasil = salinKeClipboard(teksDiLayar);
+            } else if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(teksDiLayar).catch(() => {});
             }
 
             return berhasil;
@@ -1115,7 +1188,7 @@
             "BALI", "NUSA TENGGARA BARAT", "NUSA TENGGARA TIMUR",
             "KALIMANTAN BARAT", "KALIMANTAN TENGAH", "KALIMANTAN SELATAN", "KALIMANTAN TIMUR", "KALIMANTAN UTARA",
             "SULAWESI UTARA", "SULAWESI TENGAH", "SULAWESI SELATAN", "SULAWESI TENGGARA", "GORONTALO", "SULAWESI BARAT",
-            "MALUKU", "MALUKU UTARA", "PAPUA", "PAPUA BARAT"
+            "MALUKU", "MALUKU UTARA", "PAPUA", "PAPUA BARAT", "PAPUA SELATAN", "PAPUA TENGAH", "PAPUA PEGUNUNGAN", "PAPUA BARAT DAYA"
         ];
         
         const DEFAULT_PROVINCES = ["BANTEN", "JAKARTA", "JAWA BARAT", "JAWA TENGAH", "YOGYAKARTA", "JAWA TIMUR"];
@@ -1126,6 +1199,7 @@
         const activeProvCountBadge = document.getElementById("activeProvCountBadge");
 
         let activeProvinces = [...DEFAULT_PROVINCES];
+        let isProvincesLoadedFromFirebase = false;
         let dbNames = null;
         let lastGeneratedProvince = null;
 
@@ -1140,23 +1214,41 @@
             if (!name) return "";
             let n = String(name).toUpperCase().trim();
             n = n.replace(/^(PROVINSI|DAERAH ISTIMEWA|DKI|DI|NANGGROE)\s+/i, '').trim();
-            if (n.includes('JAKARTA')) return 'JAKARTA';
-            if (n.includes('YOGYAKARTA') || n.includes('JOGJA')) return 'YOGYAKARTA';
-            if (n.includes('BANGKA BELITUNG')) return 'KEPULAUAN BANGKA BELITUNG';
-            if (n.includes('KEPULAUAN RIAU') || n === 'KEPRI') return 'KEPULAUAN RIAU';
-            if (n.includes('ACEH')) return 'ACEH';
+            if (n === 'JAKARTA' || n === 'DKI JAKARTA') return 'JAKARTA';
+            if (n === 'YOGYAKARTA' || n === 'DI YOGYAKARTA' || n === 'JOGJA') return 'YOGYAKARTA';
+            if (n === 'BANGKA BELITUNG' || n === 'KEPULAUAN BANGKA BELITUNG' || n === 'KEP. BANGKA BELITUNG') return 'KEPULAUAN BANGKA BELITUNG';
+            if (n === 'KEPULAUAN RIAU' || n === 'KEP. RIAU' || n === 'KEPRI') return 'KEPULAUAN RIAU';
+            if (n === 'ACEH' || n === 'ACEH DARUSSALAM' || n === 'NANGGROE ACEH DARUSSALAM') return 'ACEH';
             return n;
         }
 
         function isProvinceAllowed(provName, allowedList = activeProvinces) {
             const normProv = normalizeProvinceName(provName);
-            if (!normProv || !Array.isArray(allowedList)) return false;
+            if (!normProv || !Array.isArray(allowedList) || allowedList.length === 0) return false;
             return allowedList.some(target => normalizeProvinceName(target) === normProv);
         }
 
         function updateActiveProvBadge() {
             if (activeProvCountBadge) {
                 activeProvCountBadge.innerText = `${activeProvinces.length} Provinsi`;
+            }
+        }
+
+        function updateGenerateButtonState() {
+            if (!dbNames || !isProvincesLoadedFromFirebase) {
+                btnGenerate.disabled = true;
+                btnGenerate.innerText = "⏳ Memuat Database...";
+                return;
+            }
+            if (preparedWilayahQueue.length === 0 && isPreloadingWilayah) {
+                btnGenerate.disabled = true;
+                btnGenerate.innerText = "⏳ Menyiapkan Wilayah Aktif...";
+                return;
+            }
+            btnGenerate.disabled = false;
+            btnGenerate.innerText = "🎲 Buat & Salin Data Otomatis";
+            if (!resultArea.value) {
+                resultArea.placeholder = "Klik tombol di bawah untuk membuat data acak...";
             }
         }
 
@@ -1172,6 +1264,7 @@
                 activeProvinces = [...DEFAULT_PROVINCES];
             }
 
+            isProvincesLoadedFromFirebase = true;
             updateActiveProvBadge();
 
             wilayahConfigVersion++;
@@ -1272,13 +1365,9 @@
         db.ref('shopee_affiliate/address_db').on('value', snap => {
             if (snap.exists()) {
                 dbNames = snap.val();
-                btnGenerate.disabled = false;
-                btnGenerate.innerText = "🎲 Buat & Salin Data Otomatis";
-                if (!resultArea.value) {
-                    resultArea.placeholder = "Klik tombol di bawah untuk membuat data acak...";
-                }
                 preloadWilayahQueue();
             } else {
+                dbNames = null;
                 btnGenerate.disabled = true;
                 btnGenerate.innerText = "⚠️ Database Kosong";
                 resultArea.placeholder = "Data alamat belum dimasukkan ke Firebase.";
@@ -1320,13 +1409,19 @@
                 cachedAllProvinces = await resProv.json();
             }
 
-            const validProvincesPool = cachedAllProvinces.filter(p => isProvinceAllowed(p.nama, activeProvinces));
+            const allowedSnapshot = [...activeProvinces];
+            const validProvincesPool = cachedAllProvinces.filter(p => isProvinceAllowed(p.nama, allowedSnapshot));
 
             if (validProvincesPool.length === 0) {
                 throw new Error("Tidak ada provinsi aktif yang cocok dengan database wilayah.");
             }
 
             const randomProv = getRandomItem(validProvincesPool);
+            const normProv = normalizeProvinceName(randomProv.nama);
+
+            if (!isProvinceAllowed(normProv, activeProvinces)) {
+                return null;
+            }
 
             if (!cachedKabupatenMap[randomProv.id]) {
                 const resKota = await fetch(`${BASE_API_URL}/kabupaten/${randomProv.id}.json`);
@@ -1347,7 +1442,6 @@
             if (expectedVersion !== undefined && expectedVersion !== wilayahConfigVersion) {
                 return null;
             }
-            const normProv = normalizeProvinceName(randomProv.nama);
             if (!isProvinceAllowed(normProv, activeProvinces)) {
                 return null;
             }
@@ -1363,22 +1457,27 @@
         }
 
         async function preloadWilayahQueue() {
+            if (!isProvincesLoadedFromFirebase || !dbNames) return;
             if (isPreloadingWilayah) return;
             isPreloadingWilayah = true;
+            updateGenerateButtonState();
+
             try {
-                while (preparedWilayahQueue.length < 3) {
+                while (preparedWilayahQueue.length < 5) {
                     const ver = wilayahConfigVersion;
                     const item = await fetchSingleValidWilayah(ver);
                     if (item && ver === wilayahConfigVersion && isProvinceAllowed(item.provRaw, activeProvinces)) {
                         preparedWilayahQueue.push(item);
+                        updateGenerateButtonState();
                     } else if (ver !== wilayahConfigVersion) {
                         break;
                     }
                 }
             } catch (err) {
-                // Dicoba kembali saat klik tombol
+                // Dicoba kembali saat klik tombol jika koneksi sempat terputus
             } finally {
                 isPreloadingWilayah = false;
+                updateGenerateButtonState();
             }
         }
 
@@ -1404,15 +1503,17 @@
         }
 
         async function generateCompleteData() {
-            if (!dbNames) return tampilkanToast("Menunggu data Firebase...");
+            if (!dbNames || !isProvincesLoadedFromFirebase) {
+                return tampilkanToast("Menunggu sinkronisasi data Firebase...");
+            }
 
             let wilayahSiap = ambilWilayahSiapPakai();
 
-            if (wilayahSiap) {
+            if (wilayahSiap && isProvinceAllowed(wilayahSiap.provRaw, activeProvinces)) {
                 const stringFinal = rakitStringAlamat(wilayahSiap);
                 lastGeneratedProvince = wilayahSiap.provRaw;
                 resultArea.value = stringFinal;
-                salinKeClipboard(stringFinal);
+                salinDariKotakAlamat();
                 tampilkanToast(`✅ Disalin (${wilayahSiap.provFinal})!`);
                 preloadWilayahQueue();
                 return;
@@ -1436,7 +1537,7 @@
                 const stringFinal = rakitStringAlamat(wilayah);
                 lastGeneratedProvince = wilayah.provRaw;
                 resultArea.value = stringFinal;
-                salinKeClipboard(stringFinal);
+                salinDariKotakAlamat();
                 tampilkanToast(`✅ Disalin (${wilayah.provFinal})!`);
                 preloadWilayahQueue();
             } catch (error) {
@@ -1444,8 +1545,7 @@
                 lastGeneratedProvince = null;
                 tampilkanToast("❌ Gagal memproses data");
             } finally {
-                btnGenerate.disabled = false;
-                btnGenerate.innerText = "🎲 Buat & Salin Data Otomatis";
+                updateGenerateButtonState();
             }
         }
 
@@ -1453,13 +1553,13 @@
 
         resultArea.addEventListener("click", () => {
             if (resultArea.value && !resultArea.value.startsWith("Gagal mengambil")) {
-                salinKeClipboard(resultArea.value);
+                salinDariKotakAlamat();
                 tampilkanToast("✅ Alamat di layar disalin ulang!");
             }
         });
 
         // ================= LOGIKA PRODUK AFFILIATE (TAMPILAN UTAMA) =================
-        let productsRef, flagRef, usedLinksRef;
+        let productsRef, flagRef, checkRef, usedLinksRef;
         
         const productList = document.getElementById('productList');
         const statusDiv = document.getElementById('status');
@@ -1468,16 +1568,30 @@
         let allAffiliateLinks = []; 
         let groupedProducts = []; 
         let flaggedMap = new Map(); 
+        let checkedMap = new Map(); 
         let usedLinksObj = {}; 
         
         let pendingFlagId = null;
         let pendingFlagTimer = null;
+
+        let pendingCheckId = null;
+        let pendingCheckTimer = null;
         
         let expandedMainStores = {}; 
 
         function encodeFirebaseKey(str) { 
             if (!str) return "";
             return btoa(str).replace(/[=\+\/]/g, 'A').substring(0, 50); 
+        }
+
+        // Fungsi tingkatan urutan produk:
+        // 0 = Produk Aktif Biasa / Default Kosong (Paling Atas)
+        // 1 = Produk Aktif yang Di-Checkbox User (Paling Bawah dari Produk Aktif, TIDAK masuk produk blokir)
+        // 2 = Produk Blokir / Flagged (Paling Bawah)
+        function getProductSortTier(linkKey) {
+            if (flaggedMap.has(linkKey)) return 2;
+            if (checkedMap.has(linkKey)) return 1;
+            return 0;
         }
 
         function salinTautanAffiliate(url) {
@@ -1497,10 +1611,12 @@
         function initProductsSync() {
             if(productsRef) productsRef.off();
             if(flagRef) flagRef.off();
+            if(checkRef) checkRef.off();
             if(usedLinksRef) usedLinksRef.off();
 
             productsRef = db.ref(`shopee_affiliate/${activeProductsNode}`);
             flagRef = db.ref(`shopee_affiliate/products_db_flagged_links`);
+            checkRef = db.ref(`shopee_affiliate/products_db_checked_links`);
             usedLinksRef = db.ref(`shopee_affiliate/products_db_used_links`);
 
             statusDiv.style.display = 'block';
@@ -1532,6 +1648,7 @@
             });
 
             listenToFlags();
+            listenToChecks();
             listenToProgress();
         }
 
@@ -1549,6 +1666,95 @@
                 }
                 updateProgressBar(); 
             });
+        }
+
+        function listenToChecks() {
+            checkRef.on('value', snap => {
+                checkedMap.clear();
+                if(snap.exists()){ 
+                    snap.forEach(child => { 
+                        checkedMap.set(child.key, child.val()); 
+                    }); 
+                }
+                renderColumns(); 
+                if(document.getElementById('editorModal').classList.contains('hidden') === false) {
+                    renderEditorUI(); 
+                }
+            });
+        }
+
+        // Konfirmasi 2x Tap untuk Menambahkan & Menghilangkan Checkbox
+        window.toggleCheck = function(linkId, isCurrentlyChecked) {
+            if (flaggedMap.has(linkId)) {
+                return tampilkanToast("⚠️ Produk sedang diblokir!");
+            }
+
+            if (pendingCheckId !== linkId) {
+                pendingCheckId = linkId;
+                tampilkanToast(isCurrentlyChecked ? "☑️ Ketuk sekali lagi untuk menghapus centang!" : "☑️ Ketuk sekali lagi untuk mencentang produk!");
+                renderColumns();
+                
+                if (pendingCheckTimer) clearTimeout(pendingCheckTimer);
+                pendingCheckTimer = setTimeout(() => {
+                    pendingCheckId = null;
+                    renderColumns();
+                }, 3000);
+                
+                return;
+            } else {
+                pendingCheckId = null;
+                if (pendingCheckTimer) clearTimeout(pendingCheckTimer);
+            }
+
+            let newData = JSON.parse(JSON.stringify(groupedProducts));
+            let foundSIdx = -1;
+            let foundPIdx = -1;
+            let prodToMove = null;
+
+            for (let s = 0; s < newData.length; s++) {
+                if (!newData[s].products) continue;
+                for (let p = 0; p < newData[s].products.length; p++) {
+                    if (encodeFirebaseKey(newData[s].products[p].link) === linkId) {
+                        foundSIdx = s;
+                        foundPIdx = p;
+                        prodToMove = newData[s].products[p];
+                        break;
+                    }
+                }
+                if (foundSIdx !== -1) break;
+            }
+
+            if (foundSIdx !== -1 && prodToMove) {
+                newData[foundSIdx].products.splice(foundPIdx, 1);
+
+                if (isCurrentlyChecked) {
+                    // Menghapus centang: kembalikan ke bagian bawah produk aktif biasa (di atas produk tercentang & produk blokir)
+                    checkRef.child(linkId).remove();
+                    let insertIndex = 0;
+                    for (let i = 0; i < newData[foundSIdx].products.length; i++) {
+                        let pid = encodeFirebaseKey(newData[foundSIdx].products[i].link);
+                        if (pid !== linkId && !flaggedMap.has(pid) && !checkedMap.has(pid)) {
+                            insertIndex = i + 1;
+                        }
+                    }
+                    newData[foundSIdx].products.splice(insertIndex, 0, prodToMove);
+                    productsRef.set(newData);
+                    tampilkanToast("✅ Centang dihapus!");
+                } else {
+                    // Menambahkan centang: pindahkan ke posisi paling bawah dari produk yang aktif (tepat di atas produk blokir)
+                    checkRef.child(linkId).set(Date.now());
+                    let insertIndex = 0;
+                    for (let i = 0; i < newData[foundSIdx].products.length; i++) {
+                        let pid = encodeFirebaseKey(newData[foundSIdx].products[i].link);
+                        if (pid !== linkId && !flaggedMap.has(pid)) {
+                            insertIndex = i + 1;
+                        }
+                    }
+                    newData[foundSIdx].products.splice(insertIndex, 0, prodToMove);
+                    productsRef.set(newData);
+                    tampilkanToast("✅ Produk dicentang & dipindah ke bawah aktif!");
+                }
+            }
         }
 
         window.toggleFlag = function(linkId, isCurrentlyFlagged) {
@@ -1591,11 +1797,18 @@
                     flagRef.child(linkId).remove(); 
                     newData[foundSIdx].products.splice(foundPIdx, 1);
                     
+                    let isProdChecked = checkedMap.has(linkId);
                     let insertIndex = 0;
                     for (let i = 0; i < newData[foundSIdx].products.length; i++) {
                         let pid = encodeFirebaseKey(newData[foundSIdx].products[i].link);
-                        if (pid !== linkId && !flaggedMap.has(pid)) {
-                            insertIndex = i + 1;
+                        if (isProdChecked) {
+                            if (pid !== linkId && !flaggedMap.has(pid)) {
+                                insertIndex = i + 1;
+                            }
+                        } else {
+                            if (pid !== linkId && !flaggedMap.has(pid) && !checkedMap.has(pid)) {
+                                insertIndex = i + 1;
+                            }
                         }
                     }
                     newData[foundSIdx].products.splice(insertIndex, 0, prodToMove);
@@ -1629,9 +1842,9 @@
 
                 if (group.products) {
                     let sortedProducts = [...group.products].sort((a, b) => {
-                        let aFlag = flaggedMap.has(encodeFirebaseKey(a.link)) ? 1 : 0; 
-                        let bFlag = flaggedMap.has(encodeFirebaseKey(b.link)) ? 1 : 0;
-                        return aFlag - bFlag;
+                        let keyA = encodeFirebaseKey(a.link);
+                        let keyB = encodeFirebaseKey(b.link);
+                        return getProductSortTier(keyA) - getProductSortTier(keyB);
                     });
 
                     let hiddenContainer = document.createElement('div');
@@ -1642,7 +1855,10 @@
                     sortedProducts.forEach((prod, pIdx) => {
                         const linkKey = encodeFirebaseKey(prod.link);
                         const isFlagged = flaggedMap.has(linkKey);
-                        const isPending = (!isFlagged && linkKey === pendingFlagId); 
+                        const isPendingFlag = (!isFlagged && linkKey === pendingFlagId);
+
+                        const isChecked = checkedMap.has(linkKey);
+                        const isPendingCheck = (linkKey === pendingCheckId);
                         
                         let displayTime = '';
                         let isOver24h = false;
@@ -1670,13 +1886,17 @@
                             displayName = prod.nama.replace(priceMatch[0], '').trim();
                         }
 
-                        let btnClass = isFlagged ? (isOver24h ? "btn-product-link flagged-green" : "btn-product-link flagged") : "btn-product-link";
+                        let btnClass = isFlagged ? (isOver24h ? "btn-product-link flagged-green" : "btn-product-link flagged") : (isChecked ? "btn-product-link checked-item" : "btn-product-link");
                         let clickEvent = isFlagged ? "tampilkanToast('❌ Produk ini diblokir/habis!')" : `salinTautanAffiliate('${prod.link}')`;
                         
-                        let flagBtnClass = isFlagged ? "btn-flag active" : (isPending ? "btn-flag pending" : "btn-flag");
+                        let flagBtnClass = isFlagged ? "btn-flag active" : (isPendingFlag ? "btn-flag pending" : "btn-flag");
+                        let checkBtnClass = isPendingCheck ? "btn-check pending" : (isChecked ? "btn-check active" : "btn-check");
 
                         let timeColor = isOver24h ? "#059669" : "var(--danger-red)";
                         let timeHtml = (isFlagged && displayTime !== '') ? `<div class="flagged-time-badge" style="color: ${timeColor};">${displayTime}</div>` : '';
+
+                        // Default checkbox adalah kosong (''), simbol '✔' hanya muncul jika dicentang user (atau saat konfirmasi tap pertama)
+                        let checkIcon = isChecked ? '✔' : (isPendingCheck ? '✔' : '');
 
                         prodDiv.innerHTML = `
                             <button class="${btnClass}" style="background-color: ${isFlagged ? '' : colorBg};" onclick="${clickEvent}">
@@ -1684,7 +1904,8 @@
                                 ${displayPrice ? `<div class="product-price">${displayPrice}</div>` : ''}
                                 ${timeHtml}
                             </button>
-                            <button class="${flagBtnClass}" onclick="toggleFlag('${linkKey}', ${isFlagged})" title="${isFlagged ? 'Buka Blokir' : 'Blokir Produk'}">${isFlagged ? '❌' : (isPending ? '✖' : '✖')}</button>
+                            <button class="${flagBtnClass}" onclick="toggleFlag('${linkKey}', ${isFlagged})" title="${isFlagged ? 'Buka Blokir' : 'Blokir Produk'}">${isFlagged ? '❌' : '✖'}</button>
+                            <button class="${checkBtnClass}" onclick="toggleCheck('${linkKey}', ${isChecked})" title="${isChecked ? 'Hapus Centang (Tap 2x)' : 'Centang Produk (Tap 2x)'}">${checkIcon}</button>
                         `;
 
                         if (pIdx < 5) {
@@ -1808,9 +2029,84 @@
             });
         });
 
-        // ================= EDITOR VISUAL =================
+        // ================= EDITOR VISUAL (DENGAN KUNCI 1 SWIPE = 1 TOKO) =================
         let editorData = [];
         let expandedStores = {}; 
+        let currentEditorCardIdx = 0;
+
+        function scrollToEditorCard(index, smooth = true) {
+            const editorBody = document.getElementById('editorBody');
+            if (!editorBody) return;
+            const cards = editorBody.getElementsByClassName('editor-store-card');
+            if (cards.length === 0) return;
+
+            const maxIdx = cards.length - 1;
+            currentEditorCardIdx = Math.max(0, Math.min(index, maxIdx));
+
+            const targetCard = cards[currentEditorCardIdx];
+            if (targetCard) {
+                editorBody.scrollTo({
+                    left: targetCard.offsetLeft,
+                    behavior: smooth ? 'smooth' : 'auto'
+                });
+            }
+
+            const indicator = document.getElementById('editorStoreIndicator');
+            if (indicator) {
+                if (currentEditorCardIdx < editorData.length) {
+                    indicator.innerText = `Toko ${currentEditorCardIdx + 1} dari ${editorData.length}`;
+                } else {
+                    indicator.innerText = `Tambah Toko Baru`;
+                }
+            }
+        }
+
+        window.stepEditorStore = function(delta) {
+            scrollToEditorCard(currentEditorCardIdx + delta, true);
+        };
+
+        // Pengendali Touch Swipe pada #editorBody agar 1 kali swipe hanya berpindah tepat 1 toko
+        (function initSingleCardSwipeController() {
+            const editorBody = document.getElementById('editorBody');
+            if (!editorBody) return;
+
+            let touchStartX = 0;
+            let touchStartY = 0;
+            let isSwipingHorizontal = false;
+
+            editorBody.addEventListener('touchstart', (e) => {
+                if (!e.touches || e.touches.length === 0) return;
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+                isSwipingHorizontal = false;
+            }, { passive: true });
+
+            editorBody.addEventListener('touchmove', (e) => {
+                if (!e.touches || e.touches.length === 0) return;
+                const dx = e.touches[0].clientX - touchStartX;
+                const dy = e.touches[0].clientY - touchStartY;
+
+                if (!isSwipingHorizontal && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+                    isSwipingHorizontal = true;
+                }
+            }, { passive: true });
+
+            editorBody.addEventListener('touchend', (e) => {
+                if (!e.changedTouches || e.changedTouches.length === 0) return;
+                const dx = e.changedTouches[0].clientX - touchStartX;
+                const dy = e.changedTouches[0].clientY - touchStartY;
+
+                if (Math.abs(dx) > 35 && Math.abs(dx) > Math.abs(dy)) {
+                    if (dx < 0) {
+                        scrollToEditorCard(currentEditorCardIdx + 1, true);
+                    } else {
+                        scrollToEditorCard(currentEditorCardIdx - 1, true);
+                    }
+                } else if (isSwipingHorizontal) {
+                    scrollToEditorCard(currentEditorCardIdx, true);
+                }
+            }, { passive: true });
+        })();
 
         window.openEditorModal = function() {
             editorData = JSON.parse(JSON.stringify(groupedProducts)); 
@@ -1818,15 +2114,17 @@
             editorData.forEach(store => {
                 if(store.products) {
                     store.products.sort((a, b) => {
-                        let aFlag = flaggedMap.has(encodeFirebaseKey(a.link)) ? 1 : 0; 
-                        let bFlag = flaggedMap.has(encodeFirebaseKey(b.link)) ? 1 : 0;
-                        return aFlag - bFlag;
+                        let keyA = encodeFirebaseKey(a.link);
+                        let keyB = encodeFirebaseKey(b.link);
+                        return getProductSortTier(keyA) - getProductSortTier(keyB);
                     });
                 }
             });
 
+            currentEditorCardIdx = 0;
             document.getElementById('editorModal').classList.remove('hidden');
             renderEditorUI();
+            setTimeout(() => scrollToEditorCard(0, false), 20);
         }
 
         window.closeEditorModal = function() {
@@ -1835,8 +2133,6 @@
 
         function renderEditorUI(focusSIdx = -1, focusPIdx = -1) {
             let editorBody = document.getElementById('editorBody');
-            
-            let currentScrollLeft = editorBody ? editorBody.scrollLeft : 0;
             
             let verticalScrolls = [];
             if (editorBody) {
@@ -1860,6 +2156,7 @@
                     store.products.forEach((p, pIdx) => {
                         let pId = encodeFirebaseKey(p.link);
                         let isFlagged = flaggedMap.has(pId);
+                        let isChecked = checkedMap.has(pId);
                         
                         let displayTime = '';
                         let isOver24h = false;
@@ -1879,12 +2176,12 @@
                         let titleStyle = isFlagged ? "text-decoration: line-through; color: var(--text-muted);" : "color: var(--text-main);";
                         let linkStyle = isFlagged ? "color: var(--text-muted);" : "color: var(--action-blue);";
                         let originalBgColor = isFlagged ? (isOver24h ? "var(--success-soft)" : "var(--bg-color)") : "var(--card-bg)";
-                        let borderColor = (isFlagged && isOver24h) ? "var(--success-green)" : "var(--border-color)";
+                        let borderColor = (isFlagged && isOver24h) ? "var(--success-green)" : (isChecked && !isFlagged ? "var(--success-green)" : "var(--border-color)");
                         
                         let timeColorEditor = isOver24h ? "var(--success-green)" : "var(--danger-red)";
                         let timeHtmlEditor = (isFlagged && displayTime !== '') ? ` <span style="font-size: 10px; color: ${timeColorEditor}; font-weight: 800;">(${displayTime})</span>` : '';
 
-                        let flagBadge = isFlagged ? `<span style="background: var(--danger-red); color: white; padding: 2px 5px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 4px;">DIBLOKIR</span>${timeHtmlEditor}` : '';
+                        let flagBadge = isFlagged ? `<span style="background: var(--danger-red); color: white; padding: 2px 5px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 4px;">DIBLOKIR</span>${timeHtmlEditor}` : (isChecked ? `<span style="background: var(--success-green); color: white; padding: 2px 5px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-left: 4px;">✔ DICENTANG</span>` : '');
 
                         let prodHtml = `
                         <div id="editor-prod-${sIdx}-${pIdx}" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: ${originalBgColor}; padding: 8px 10px; border-radius: 8px; border: 1px solid ${borderColor}; transition: background-color 0.4s ease-out;">
@@ -1959,10 +2256,14 @@
             editorBody.appendChild(addStoreCard);
 
             if (editorBody) {
-                if(focusSIdx === -2) {
-                    setTimeout(() => { editorBody.scrollLeft = editorBody.scrollWidth; }, 100);
+                if (focusSIdx === -2) {
+                    currentEditorCardIdx = Math.max(0, editorData.length - 1);
+                    setTimeout(() => scrollToEditorCard(currentEditorCardIdx, true), 50);
+                } else if (focusSIdx >= 0) {
+                    currentEditorCardIdx = focusSIdx;
+                    scrollToEditorCard(currentEditorCardIdx, false);
                 } else {
-                    editorBody.scrollLeft = currentScrollLeft;
+                    scrollToEditorCard(currentEditorCardIdx, false);
                 }
                 
                 let newCards = editorBody.getElementsByClassName('editor-store-card');
@@ -2026,7 +2327,7 @@
             let insertIndex = 0;
             for (let i = 0; i < storeProducts.length; i++) {
                 let pid = encodeFirebaseKey(storeProducts[i].link);
-                if (!flaggedMap.has(pid)) insertIndex = i + 1;
+                if (!flaggedMap.has(pid) && !checkedMap.has(pid)) insertIndex = i + 1;
             }
             return insertIndex;
         }
@@ -2041,10 +2342,16 @@
         
         window.editStoreName = function(sIdx) {
             let newName = prompt("Ganti nama toko:", editorData[sIdx].name);
-            if (newName) { editorData[sIdx].name = newName; renderEditorUI(); }
+            if (newName) { editorData[sIdx].name = newName; renderEditorUI(sIdx, -1); }
         }
         window.deleteStore = function(sIdx) {
-            if (confirm("Yakin ingin menghapus toko ini beserta SEMUA isinya?")) { editorData.splice(sIdx, 1); renderEditorUI(); }
+            if (confirm("Yakin ingin menghapus toko ini beserta SEMUA isinya?")) {
+                editorData.splice(sIdx, 1);
+                if (currentEditorCardIdx >= editorData.length) {
+                    currentEditorCardIdx = Math.max(0, editorData.length - 1);
+                }
+                renderEditorUI(currentEditorCardIdx, -1);
+            }
         }
 
         window.addProduct = function(sIdx) {
@@ -2055,6 +2362,13 @@
             
             if(!editorData[sIdx].products) editorData[sIdx].products = [];
             
+            // Pastikan produk baru selalu dalam keadaan checkbox kosong (tidak tercentang)
+            let newProdKey = encodeFirebaseKey(link);
+            if (newProdKey) {
+                checkedMap.delete(newProdKey);
+                if (checkRef) checkRef.child(newProdKey).remove();
+            }
+
             let newProd = { nama: nama, link: link };
             
             let insertIndex = getInsertIndexForActive(editorData[sIdx].products);
@@ -2074,6 +2388,13 @@
             
             if(!editorData[sIdx].products) editorData[sIdx].products = [];
             
+            // Pastikan produk hasil duplikat juga dimulai dengan keadaan checkbox kosong
+            let newProdKey = encodeFirebaseKey(link);
+            if (newProdKey) {
+                checkedMap.delete(newProdKey);
+                if (checkRef) checkRef.child(newProdKey).remove();
+            }
+
             let newProd = { nama: nama, link: link };
             
             let insertIndex = getInsertIndexForActive(editorData[sIdx].products);
@@ -2106,7 +2427,7 @@
         }
         
         window.deleteProduct = function(sIdx, pIdx) {
-            if (confirm("Hapus produk ini?")) { editorData[sIdx].products.splice(pIdx, 1); renderEditorUI(); }
+            if (confirm("Hapus produk ini?")) { editorData[sIdx].products.splice(pIdx, 1); renderEditorUI(sIdx, -1); }
         }
 
         window.saveEditorData = function() {
