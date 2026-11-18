@@ -348,7 +348,6 @@
             width: 100%;
         }
 
-        /* Tiap Kolom (Toko) - 3 Kolom Proporsional & Rapi */
         .product-column {
             display: flex;
             flex-direction: column;
@@ -399,7 +398,7 @@
         }
         .btn-open-column:active { transform: scale(0.96); }
 
-        /* Kartu Item Produk */
+        /* Kartu Item Produk dengan Efek Klik Interaktif */
         .product-item {
             position: relative;
             width: 100%;
@@ -420,12 +419,15 @@
             align-items: center;
             justify-content: space-between;
             gap: 5px;
-            transition: transform 0.1s, filter 0.15s;
+            transition: transform 0.08s ease, filter 0.08s ease, background-color 0.1s ease;
             text-align: center;
+            user-select: none;
         }
+        
         .btn-product-link:active:not(.flagged):not(.flagged-green) {
-            transform: scale(0.97);
-            filter: brightness(0.95);
+            transform: scale(0.95);
+            filter: brightness(0.90);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
         }
 
         .btn-product-link.checked-item:not(.flagged):not(.flagged-green) {
@@ -510,7 +512,7 @@
             z-index: 2;
             transition: 0.15s;
         }
-        .btn-flag:active { transform: scale(0.9); }
+        .btn-flag:active { transform: scale(0.85); filter: brightness(0.85); }
         .btn-flag.active {
             background: var(--danger-red);
             color: white;
@@ -525,7 +527,7 @@
             font-size: 10px;
         }
 
-        /* Tombol Checkbox Pojok Kanan Bawah Kartu Produk (Default Kotak Kosong) */
+        /* Tombol Checkbox Pojok Kanan Bawah Kartu Produk (Default Kosong) */
         .btn-check {
             position: absolute;
             bottom: 3px;
@@ -546,7 +548,7 @@
             z-index: 2;
             transition: 0.15s;
         }
-        .btn-check:active { transform: scale(0.9); }
+        .btn-check:active { transform: scale(0.85); filter: brightness(0.85); }
         .btn-check.active {
             background: var(--success-green);
             color: white;
@@ -997,7 +999,6 @@
             return berhasil;
         }
 
-        // Fungsi khusus menyalin persis apa yang tampil di kotak #resultArea
         function salinDariKotakAlamat() {
             const area = document.getElementById("resultArea");
             if (!area || !area.value) return false;
@@ -1294,7 +1295,7 @@
             ALL_PROVINCES_LIST.forEach(prov => {
                 const isChecked = isProvinceAllowed(prov, activeProvinces);
                 const div = document.createElement('div');
-                div.style.cssText = 'display: flex; align-items: center; justify-content: space-between; background: var(--surface-muted); padding: 9px 12px; border-radius: 9px; border: 1px solid var(--border-color);';
+                div.style.cssText = 'display: flex; align-items: center; justify-content: space-between; background: var(--surface-muted); padding: 9px 12px; border-radius: 9px; border: 1.5px solid var(--border-color);';
                 div.innerHTML = `
                     <span style="font-size: 12.5px; font-weight: 700; color: var(--text-main);">${prov}</span>
                     <label class="switch">
@@ -1474,7 +1475,7 @@
                     }
                 }
             } catch (err) {
-                // Dicoba kembali saat klik tombol jika koneksi sempat terputus
+                // Dicoba kembali saat klik tombol
             } finally {
                 isPreloadingWilayah = false;
                 updateGenerateButtonState();
@@ -1584,10 +1585,6 @@
             return btoa(str).replace(/[=\+\/]/g, 'A').substring(0, 50); 
         }
 
-        // Fungsi tingkatan urutan produk:
-        // 0 = Produk Aktif Biasa / Default Kosong (Paling Atas)
-        // 1 = Produk Aktif yang Di-Checkbox User (Paling Bawah dari Produk Aktif, TIDAK masuk produk blokir)
-        // 2 = Produk Blokir / Flagged (Paling Bawah)
         function getProductSortTier(linkKey) {
             if (flaggedMap.has(linkKey)) return 2;
             if (checkedMap.has(linkKey)) return 1;
@@ -1683,7 +1680,7 @@
             });
         }
 
-        // Konfirmasi 2x Tap untuk Menambahkan & Menghilangkan Checkbox
+        // Konfirmasi 2x Tap untuk Checkbox
         window.toggleCheck = function(linkId, isCurrentlyChecked) {
             if (flaggedMap.has(linkId)) {
                 return tampilkanToast("⚠️ Produk sedang diblokir!");
@@ -1728,7 +1725,6 @@
                 newData[foundSIdx].products.splice(foundPIdx, 1);
 
                 if (isCurrentlyChecked) {
-                    // Menghapus centang: kembalikan ke bagian bawah produk aktif biasa (di atas produk tercentang & produk blokir)
                     checkRef.child(linkId).remove();
                     let insertIndex = 0;
                     for (let i = 0; i < newData[foundSIdx].products.length; i++) {
@@ -1741,7 +1737,6 @@
                     productsRef.set(newData);
                     tampilkanToast("✅ Centang dihapus!");
                 } else {
-                    // Menambahkan centang: pindahkan ke posisi paling bawah dari produk yang aktif (tepat di atas produk blokir)
                     checkRef.child(linkId).set(Date.now());
                     let insertIndex = 0;
                     for (let i = 0; i < newData[foundSIdx].products.length; i++) {
@@ -1895,7 +1890,7 @@
                         let timeColor = isOver24h ? "#059669" : "var(--danger-red)";
                         let timeHtml = (isFlagged && displayTime !== '') ? `<div class="flagged-time-badge" style="color: ${timeColor};">${displayTime}</div>` : '';
 
-                        // Default checkbox adalah kosong (''), simbol '✔' hanya muncul jika dicentang user (atau saat konfirmasi tap pertama)
+                        // Default checkbox adalah kosong (''), simbol '✔' hanya muncul jika dicentang user
                         let checkIcon = isChecked ? '✔' : (isPendingCheck ? '✔' : '');
 
                         prodDiv.innerHTML = `
@@ -2065,7 +2060,6 @@
             scrollToEditorCard(currentEditorCardIdx + delta, true);
         };
 
-        // Pengendali Touch Swipe pada #editorBody agar 1 kali swipe hanya berpindah tepat 1 toko
         (function initSingleCardSwipeController() {
             const editorBody = document.getElementById('editorBody');
             if (!editorBody) return;
@@ -2362,7 +2356,6 @@
             
             if(!editorData[sIdx].products) editorData[sIdx].products = [];
             
-            // Pastikan produk baru selalu dalam keadaan checkbox kosong (tidak tercentang)
             let newProdKey = encodeFirebaseKey(link);
             if (newProdKey) {
                 checkedMap.delete(newProdKey);
@@ -2388,7 +2381,6 @@
             
             if(!editorData[sIdx].products) editorData[sIdx].products = [];
             
-            // Pastikan produk hasil duplikat juga dimulai dengan keadaan checkbox kosong
             let newProdKey = encodeFirebaseKey(link);
             if (newProdKey) {
                 checkedMap.delete(newProdKey);
