@@ -419,13 +419,13 @@
             align-items: center;
             justify-content: space-between;
             gap: 5px;
-            /* Transisi cepat dan responsif agar sentuhan singkat langsung terlihat */
             transition: transform 0.05s ease-out, filter 0.05s ease-out, background-color 0.05s ease-out;
             text-align: center;
             user-select: none;
         }
         
-        .btn-product-link:active:not(.flagged):not(.flagged-green) {
+        .btn-product-link:active:not(.flagged):not(.flagged-green),
+        .btn-product-link.touch-active:not(.flagged):not(.flagged-green) {
             transform: scale(0.92) !important;
             filter: brightness(0.85) !important;
             box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.2) !important;
@@ -1001,27 +1001,39 @@
             return berhasil;
         }
 
-        function salinDariKotakAlamat() {
-            const area = document.getElementById("resultArea");
-            if (!area || !area.value) return false;
-            const teksDiLayar = area.value;
+        function salinTeksAkurat(teks) {
+            if (!teks) return false;
             let berhasil = false;
 
+            // Prioritas execCommand sinkron agar clipboard di mobile langsung terisi teks terbaru
             try {
-                area.focus();
-                area.select();
-                area.setSelectionRange(0, teksDiLayar.length);
+                const tempArea = document.createElement("textarea");
+                tempArea.value = teks;
+                tempArea.setAttribute("readonly", "");
+                tempArea.style.position = "fixed";
+                tempArea.style.top = "0";
+                tempArea.style.left = "0";
+                tempArea.style.width = "2px";
+                tempArea.style.height = "2px";
+                tempArea.style.padding = "0";
+                tempArea.style.border = "none";
+                tempArea.style.outline = "none";
+                tempArea.style.background = "transparent";
+                tempArea.style.color = "transparent";
+                document.body.appendChild(tempArea);
+                tempArea.focus();
+                tempArea.select();
+                tempArea.setSelectionRange(0, teks.length);
                 berhasil = document.execCommand('copy');
+                document.body.removeChild(tempArea);
                 window.getSelection().removeAllRanges();
-                area.blur();
             } catch (err) {
                 berhasil = false;
             }
 
-            if (!berhasil) {
-                berhasil = salinKeClipboard(teksDiLayar);
-            } else if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(teksDiLayar).catch(() => {});
+            if (navigator.clipboard && window.isSecureContext && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(teks).then(() => {}).catch(() => {});
+                berhasil = true;
             }
 
             return berhasil;
@@ -1510,37 +1522,34 @@
                 return tampilkanToast("Menunggu sinkronisasi data Firebase...");
             }
 
-            let wilayahSiap = ambilWilayahSiapPakai();
-
-            if (wilayahSiap && isProvinceAllowed(wilayahSiap.provRaw, activeProvinces)) {
-                const stringFinal = rakitStringAlamat(wilayahSiap);
-                lastGeneratedProvince = wilayahSiap.provRaw;
-                resultArea.value = stringFinal;
-                salinDariKotakAlamat();
-                tampilkanToast(`✅ Disalin (${wilayahSiap.provFinal})!`);
-                preloadWilayahQueue();
-                return;
-            }
-
+            // Selalu ambil data wilayah segar dan pastikan provinsinya aktif pada saat klik
             try {
                 btnGenerate.disabled = true;
                 btnGenerate.innerText = "⏳ Memproses...";
 
                 let wilayah = null;
+                const siap = ambilWilayahSiapPakai();
+                if (siap && isProvinceAllowed(siap.provRaw, activeProvinces)) {
+                    wilayah = siap;
+                }
+
                 let percobaan = 0;
-                while (!wilayah && percobaan < 3) {
+                while (!wilayah && percobaan < 4) {
                     percobaan++;
-                    wilayah = await fetchSingleValidWilayah(wilayahConfigVersion);
+                    const kandidat = await fetchSingleValidWilayah(wilayahConfigVersion);
+                    if (kandidat && isProvinceAllowed(kandidat.provRaw, activeProvinces)) {
+                        wilayah = kandidat;
+                    }
                 }
 
                 if (!wilayah || !isProvinceAllowed(wilayah.provRaw, activeProvinces)) {
-                    throw new Error("Provinsi tidak valid");
+                    throw new Error("Provinsi tidak valid atau dinonaktifkan");
                 }
 
                 const stringFinal = rakitStringAlamat(wilayah);
                 lastGeneratedProvince = wilayah.provRaw;
                 resultArea.value = stringFinal;
-                salinDariKotakAlamat();
+                salinTeksAkurat(stringFinal);
                 tampilkanToast(`✅ Disalin (${wilayah.provFinal})!`);
                 preloadWilayahQueue();
             } catch (error) {
@@ -1556,7 +1565,7 @@
 
         resultArea.addEventListener("click", () => {
             if (resultArea.value && !resultArea.value.startsWith("Gagal mengambil")) {
-                salinDariKotakAlamat();
+                salinTeksAkurat(resultArea.value);
                 tampilkanToast("✅ Alamat di layar disalin ulang!");
             }
         });
@@ -1593,17 +1602,20 @@
             return 0;
         }
 
-        function salinTautanAffiliate(url) {
-            if (salinKeClipboard(url)) {
-                tampilkanToast("✅ Link disalin & membuka aplikasi...");
-            } else {
-                tampilkanToast("❌ Gagal menyalin link");
+        // Direct link saja tanpa menyalin alamat link produk ke clipboard
+        function bukaTautanAffiliate(url, btnElement = null) {
+            if (btnElement) {
+                btnElement.classList.add('touch-active');
+                setTimeout(() => btnElement.classList.remove('touch-active'), 140);
             }
 
             if (url && url.toLowerCase().startsWith("http")) {
+                tampilkanToast("🔗 Membuka tautan produk...");
                 setTimeout(() => {
                     window.location.href = url;
-                }, 300);
+                }, 120);
+            } else {
+                tampilkanToast("⚠️ Tautan produk tidak valid");
             }
         }
         
@@ -1833,7 +1845,7 @@
                 columnLi.innerHTML = `
                     <div class="column-header">
                         <div class="column-number" title="${group.name}">${group.name}</div>
-                        <button class="btn-open-column" onclick="salinAcakDariGrup(${index})">📋 SALIN ACAK</button>
+                        <button class="btn-open-column" onclick="salinAcakDariGrup(${index})">🔗 BUKA ACAK</button>
                     </div>
                 `;
 
@@ -1884,7 +1896,7 @@
                         }
 
                         let btnClass = isFlagged ? (isOver24h ? "btn-product-link flagged-green" : "btn-product-link flagged") : (isChecked ? "btn-product-link checked-item" : "btn-product-link");
-                        let clickEvent = isFlagged ? "tampilkanToast('❌ Produk ini diblokir/habis!')" : `salinTautanAffiliate('${prod.link}')`;
+                        let clickEvent = isFlagged ? "tampilkanToast('❌ Produk ini diblokir/habis!')" : `bukaTautanAffiliate('${prod.link}', this)`;
                         
                         let flagBtnClass = isFlagged ? "btn-flag active" : (isPendingFlag ? "btn-flag pending" : "btn-flag");
                         let checkBtnClass = isPendingCheck ? "btn-check pending" : (isChecked ? "btn-check active" : "btn-check");
@@ -1895,7 +1907,7 @@
                         let checkIcon = isChecked ? '✔' : (isPendingCheck ? '✔' : '');
 
                         prodDiv.innerHTML = `
-                            <button class="${btnClass}" style="background-color: ${isFlagged ? '' : colorBg};" onclick="${clickEvent}">
+                            <button class="${btnClass}" style="background-color: ${isFlagged ? '' : colorBg};" onclick="${clickEvent}" ontouchstart="this.classList.add('touch-active')" ontouchend="setTimeout(()=>this.classList.remove('touch-active'),140)" ontouchcancel="this.classList.remove('touch-active')">
                                 <span class="product-title">${displayName}</span>
                                 ${displayPrice ? `<div class="product-price">${displayPrice}</div>` : ''}
                                 ${timeHtml}
@@ -1954,7 +1966,7 @@
                 let activeProds = group.products.filter(p => !flaggedMap.has(encodeFirebaseKey(p.link)));
                 if(activeProds.length === 0) return tampilkanToast("Semua produk habis/diblokir!");
                 const randomItem = activeProds[Math.floor(Math.random() * activeProds.length)];
-                salinTautanAffiliate(randomItem.link);
+                bukaTautanAffiliate(randomItem.link);
             }
         };
 
@@ -2020,7 +2032,7 @@
                 if (error) tampilkanToast("❌ Gagal sinkronisasi antar HP");
                 else if (committed) {
                     let data = snapshot.val();
-                    if (data && data._lastPickedLink) salinTautanAffiliate(data._lastPickedLink);
+                    if (data && data._lastPickedLink) bukaTautanAffiliate(data._lastPickedLink);
                 }
             });
         });
