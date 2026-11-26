@@ -4,7 +4,7 @@
 const APP_CONFIG = {
     appKey: "smscode",
     appName: "SMS Code",
-    baseUrl: "https://sms-code-proxy.masreno6pro.workers.dev",
+    baseUrl: "https://sms-code-proxy-2.masreno6pro.workers.dev",
     topupUrl: "https://smscode.gg/dashboard",
     defaultCountryName: "Indonesia",
     defaultCountryEmoji: "🇮🇩",
