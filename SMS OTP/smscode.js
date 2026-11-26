@@ -848,7 +848,10 @@ function getPreferredProductForOperator(opIdStr, opProducts) {
     const scopeKey = getScopeKey();
     const svcOpKey = `${scopeKey}_${opIdStr}`;
 
-    const scopedPriceVal = svcPriceMap[scopeKey] !== undefined ? Number(svcPriceMap[scopeKey]) : lastSelectedPriceVal;
+    const scopedPriceVal = (svcPriceMap[scopeKey] !== undefined && svcPriceMap[scopeKey] !== null)
+        ? Number(svcPriceMap[scopeKey])
+        : lastSelectedPriceVal;
+
     if (scopedPriceVal !== null && !isNaN(scopedPriceVal)) {
         const exactPriceMatch = opProducts.find(p => Number(p.price) === Number(scopedPriceVal));
         if (exactPriceMatch) return exactPriceMatch;
@@ -1606,7 +1609,6 @@ function startPolling() {
 
 // === AKSI ORDER: GANTI, ULANG, BATAL, BATAL SEMUA, SELESAI ===
 window.replaceSpecificOrder = async function(orderId, productId) {
-    // Jika ini adalah kartu Simulasi, ganti nomor simulasi secara instan
     if (String(orderId).startsWith('SIM')) {
         const idx = activeOrders.findIndex(o => String(o.id) === String(orderId));
         if (idx !== -1) {
@@ -1709,7 +1711,6 @@ window.replaceSpecificOrder = async function(orderId, productId) {
 };
 
 window.resendSpecificOrder = async function(id) {
-    // Jika kartu Simulasi, simulasikan minta ulang SMS kedua dalam 1.5 detik
     if (String(id).startsWith('SIM')) {
         let idx = activeOrders.findIndex(o => String(o.id) === String(id));
         if (idx !== -1) {
@@ -1772,7 +1773,6 @@ window.finishSpecificOrder = async function(orderId) {
     if (oIdx === -1) return;
     let orderToSave = activeOrders[oIdx];
 
-    // Jika kartu Simulasi, selesaikan langsung tanpa panggil API
     if (String(orderId).startsWith('SIM')) {
         isSimulatingOtp = false;
         saveToHistory(orderToSave, "SELESAI");
@@ -1819,7 +1819,6 @@ window.finishSpecificOrder = async function(orderId) {
 };
 
 window.cancelSpecificOrder = async function(id, auto = false) {
-    // Jika kartu Simulasi, batalkan langsung tanpa panggil API
     if (String(id).startsWith('SIM')) {
         isSimulatingOtp = false;
         const oldOrder = activeOrders.find(o => String(o.id) === String(id));
