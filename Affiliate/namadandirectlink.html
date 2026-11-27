@@ -1005,7 +1005,6 @@
             if (!teks) return false;
             let berhasil = false;
 
-            // Prioritas execCommand sinkron agar clipboard di mobile langsung terisi teks terbaru
             try {
                 const tempArea = document.createElement("textarea");
                 tempArea.value = teks;
@@ -1243,6 +1242,13 @@
             return allowedList.some(target => normalizeProvinceName(target) === normProv);
         }
 
+        function ekstrakProvinsiDariAlamat(alamatStr) {
+            if (!alamatStr) return "";
+            const parts = String(alamatStr).split(',');
+            const lastPart = parts[parts.length - 1] || "";
+            return normalizeProvinceName(lastPart);
+        }
+
         function updateActiveProvBadge() {
             if (activeProvCountBadge) {
                 activeProvCountBadge.innerText = `${activeProvinces.length} Provinsi`;
@@ -1357,7 +1363,7 @@
             activeProvinces = [...newActive];
             updateActiveProvBadge();
             wilayahConfigVersion++;
-            preparedWilayahQueue = preparedWilayahQueue.filter(item => isProvinceAllowed(item.provRaw, activeProvinces));
+            preparedWilayahQueue = [];
 
             if (lastGeneratedProvince && !isProvinceAllowed(lastGeneratedProvince, activeProvinces)) {
                 resultArea.value = "";
@@ -1517,43 +1523,59 @@
             return `${namaLengkap}, ${namaJalan} No. ${nomorRumah}${namaGang}, ${patokan}, ${wilayah.kecFinal}, ${wilayah.kotaFinal}, ${wilayah.provFinal}`;
         }
 
+        // Metode post-validation: biarkan hasil keluar dulu apa adanya, cek provinsi dari hasil akhir,
+        // dan otomatis generate ulang jika provinsi tidak aktif hingga lolos sebelum menyalin ke clipboard.
         async function generateCompleteData() {
             if (!dbNames || !isProvincesLoadedFromFirebase) {
                 return tampilkanToast("Menunggu sinkronisasi data Firebase...");
             }
 
-            // Selalu ambil data wilayah segar dan pastikan provinsinya aktif pada saat klik
             try {
                 btnGenerate.disabled = true;
                 btnGenerate.innerText = "⏳ Memproses...";
 
-                let wilayah = null;
-                const siap = ambilWilayahSiapPakai();
-                if (siap && isProvinceAllowed(siap.provRaw, activeProvinces)) {
-                    wilayah = siap;
-                }
-
+                let stringFinal = "";
+                let provTerdeteksi = "";
                 let percobaan = 0;
-                while (!wilayah && percobaan < 4) {
+                const maxPercobaan = 15;
+
+                while (percobaan < maxPercobaan) {
                     percobaan++;
-                    const kandidat = await fetchSingleValidWilayah(wilayahConfigVersion);
-                    if (kandidat && isProvinceAllowed(kandidat.provRaw, activeProvinces)) {
-                        wilayah = kandidat;
+                    let wilayah = ambilWilayahSiapPakai();
+                    if (!wilayah) {
+                        wilayah = await fetchSingleValidWilayah(wilayahConfigVersion);
                     }
+                    if (!wilayah) continue;
+
+                    // Tampilkan hasil keluar terlebih dahulu apa adanya
+                    stringFinal = rakitStringAlamat(wilayah);
+                    resultArea.value = stringFinal;
+
+                    // Validasi post-output: periksa provinsi langsung dari teks hasil yang keluar
+                    provTerdeteksi = ekstrakProvinsiDariAlamat(stringFinal);
+
+                    if (provTerdeteksi && isProvinceAllowed(provTerdeteksi, activeProvinces)) {
+                        break; // Lolos validasi provinsi aktif
+                    }
+
+                    // Jika provinsi yang keluar termasuk yang dinonaktifkan, bersihkan antrean usang dan ulangi otomatis
+                    preparedWilayahQueue = [];
+                    btnGenerate.innerText = "🔄 Mencocokkan Provinsi Aktif...";
                 }
 
-                if (!wilayah || !isProvinceAllowed(wilayah.provRaw, activeProvinces)) {
-                    throw new Error("Provinsi tidak valid atau dinonaktifkan");
+                if (!stringFinal || !isProvinceAllowed(provTerdeteksi, activeProvinces)) {
+                    throw new Error("Gagal mendapatkan wilayah yang sesuai filter provinsi aktif.");
                 }
 
-                const stringFinal = rakitStringAlamat(wilayah);
-                lastGeneratedProvince = wilayah.provRaw;
+                lastGeneratedProvince = provTerdeteksi;
                 resultArea.value = stringFinal;
+
+                // Proses salin pada clipboard baru bekerja setelah hasil akhir sesuai provinsi aktif
                 salinTeksAkurat(stringFinal);
-                tampilkanToast(`✅ Disalin (${wilayah.provFinal})!`);
+                tampilkanToast(`✅ Disalin (${toTitleCase(provTerdeteksi)})!`);
                 preloadWilayahQueue();
             } catch (error) {
-                resultArea.value = "Gagal mengambil data wilayah. Pastikan internet Anda aktif.";
+                resultArea.value = "Gagal mengambil data wilayah sesuai filter provinsi aktif. Coba lagi.";
                 lastGeneratedProvince = null;
                 tampilkanToast("❌ Gagal memproses data");
             } finally {
@@ -1565,6 +1587,12 @@
 
         resultArea.addEventListener("click", () => {
             if (resultArea.value && !resultArea.value.startsWith("Gagal mengambil")) {
+                const provSaatIni = ekstrakProvinsiDariAlamat(resultArea.value);
+                if (!isProvinceAllowed(provSaatIni, activeProvinces)) {
+                    tampilkanToast("⚠️ Provinsi pada layar sudah dinonaktifkan, membuat ulang...");
+                    generateCompleteData();
+                    return;
+                }
                 salinTeksAkurat(resultArea.value);
                 tampilkanToast("✅ Alamat di layar disalin ulang!");
             }
