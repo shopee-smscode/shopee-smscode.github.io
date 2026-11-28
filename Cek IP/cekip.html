@@ -762,7 +762,7 @@
     };
 
     const MAX_IP_USAGE = 3;
-    const MIN_SESSION_GAP_MS = 10000; // Cegah sesi ganda dalam 10 detik untuk IP yang sama
+    const MIN_SESSION_GAP_MS = 60000; // Jeda minimal 60 detik sebelum mencatat sesi baru untuk IP yang sama
 
     let useFirebase = false;
     let rtdbRef = null;
@@ -1201,7 +1201,7 @@
       }
       scheduledScanTimer = setTimeout(() => {
         scheduledScanTimer = null;
-        if (!isChecking) {
+        if (!isChecking && (Date.now() - lastCheckFinishedAt > 15000)) {
           periksaDanCatatIP(false);
         }
       }, delayMs);
@@ -1215,7 +1215,7 @@
 
       const nowMs = Date.now();
       if (isChecking) return;
-      if (!isManualClick && (nowMs - lastCheckFinishedAt < 2500)) return;
+      if (!isManualClick && (nowMs - lastCheckFinishedAt < 15000)) return;
 
       isChecking = true;
 
@@ -1266,7 +1266,7 @@
         let usageTimes = normalisasiWaktuSesi(existingRecord && existingRecord.usageTimes);
         let isBlocked = existingRecord ? (existingRecord.isBlocked === true) : false;
 
-        // Cegah penambahan sesi ganda jika IP yang sama baru saja dicatat dalam < 10 detik
+        // Cegah penambahan sesi ganda jika IP yang sama baru saja dicatat dalam < 60 detik
         const lastRecordedTimeStr = usageTimes.length > 0 ? usageTimes[usageTimes.length - 1] : null;
         const lastRecordedMs = lastRecordedTimeStr ? new Date(lastRecordedTimeStr).getTime() : 0;
         const isTooSoonAfterLastSession = lastRecordedMs > 0 && (Date.now() - lastRecordedMs < MIN_SESSION_GAP_MS);
@@ -1303,9 +1303,11 @@
           const sisa = MAX_IP_USAGE - useCount;
           banner.className = 'status-banner fresh';
           titleEl.textContent = `STATUS AMAN: PENGGUNAAN KE-${useCount} DARI MAKSIMAL ${MAX_IP_USAGE}X`;
-          subEl.textContent = sisa > 0
-            ? `IP berhasil divalidasi. Masih bisa digunakan ${sisa}x lagi.`
-            : `Ini adalah penggunaan terakhir (ke-3) yang diizinkan untuk IP ini.`;
+          subEl.textContent = isTooSoonAfterLastSession
+            ? `IP sama terdeteksi (<60 dtk), sesi tidak ditambah ganda. Sisa ${sisa}x.`
+            : (sisa > 0
+                ? `IP berhasil divalidasi. Masih bisa digunakan ${sisa}x lagi.`
+                : `Ini adalah penggunaan terakhir (ke-3) yang diizinkan untuk IP ini.`);
           countEl.textContent = `${useCount} / ${MAX_IP_USAGE} (Aman)`;
           countEl.style.color = 'var(--green)';
           bunyiNotifikasi(true);
@@ -1336,8 +1338,7 @@
     }
 
     window.addEventListener('online', () => {
-      tampilkanToast('Jaringan terhubung kembali, mendeteksi IP baru...');
-      jadwalCekIP(1800);
+      jadwalCekIP(2000);
     });
 
     // =========================================================================
@@ -1578,7 +1579,7 @@
 
     // Jalankan otomatis sekali saat halaman dibuka
     initDatabase();
-    jadwalCekIP(300);
+    periksaDanCatatIP(true);
   </script>
 </body>
 </html>
